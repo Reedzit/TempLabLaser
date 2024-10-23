@@ -11,14 +11,13 @@ import numpy as np
 # window.title("Matlab Analysis")
 
 eng = matlab.engine.start_matlab()
-filepath = "C:/Users/reedg/OneDrive/Desktop/TEMPLab/matlab"
+filepath = "C:/Users/reedg/OneDrive/Desktop/TEMPLab/templablaser/matlab"
 eng.cd(filepath, nargout=0)
 figure1data, figure2data, figure3data = eng.probe_data_python(nargout=3)
 eng.quit()
 figure1data = np.array(figure1data)
 figure2data = np.array(figure2data)
 figure3data = np.array(figure3data)
-print(f"figure1 shape: {figure1data.shape}, figure2 shape: {figure2data.shape}, figure3 shape: {figure3data.shape}")
 
 
 # data prep for surface plot
@@ -31,7 +30,6 @@ x2, y2 = np.meshgrid(x2,y2)
 x3 = np.linspace(0, 1, len(figure3data[0]))
 y3 = np.linspace(0, 1, len(figure3data))
 x3, y3 = np.meshgrid(x3,y3)
-print(f"x shape: {x3.shape}, y shape: {y3.shape}, z shape: {figure3data.shape}")
 
 
 fig1 = plt.figure(figsize=(15, 10))

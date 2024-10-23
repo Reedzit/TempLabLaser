@@ -32,20 +32,23 @@ def runMatlab():
   try: 
     thread.start()
   except subprocess.CalledProcessError as e:
+    textbox.insert(tk.END, f"An error occurred: {e}")
     print(f"An error occurred: {e}")
+  textbox.insert(tk.END, "Matlab Analysis Complete\n")
 
 def initializeInstruments():
   thread = threading.Thread(target=lambda: subprocess.run(['python', 'instrumentInitialize.py'], check=True))
   try: 
     thread.start()
   except subprocess.CalledProcessError as e:
+    textbox.insert(tk.END, f"An error occurred: {e}")
     print(f"An error occurred: {e}")
+  textbox.insert(tk.END, "Instruments Initialized\n")
 
 label = tk.Label(window, text="Laser GUI", font=('Arial', 18))
 label.pack(padx=20, pady=20)
 
-# textbox = tk.Text(window, height=3,  font=('Arial', 16))
-# textbox.pack(padx=10)
+
 
 buttonframe = tk.Frame(window)
 buttonframe.columnconfigure(0, weight=1)
@@ -69,6 +72,7 @@ btn4 = tk.Button(buttonframe, text="Placeholder", font=('Arial', 18))
 btn4.grid(row=1, column=1, sticky=tk.W+tk.E)
 buttonframe.pack(fill='x', padx=20, pady=20)
 
-
+textbox = tk.Text(window, height=8,  font=('Arial', 16))
+textbox.pack(padx=10, pady=10)
 
 window.mainloop()
