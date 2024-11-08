@@ -25,11 +25,12 @@ if sys.platform == "win32":
 else: # linux
     from getch import getch
 
+
 # add path from libHeLIC wrapper
 try:
     if sys.platform == "win32":
         prgPath=os.environ["PROGRAMFILES"]
-        sys.path.insert(0,prgPath+r'\\Heliotis\\heliCam\\Python\\wrapper')
+        sys.path.insert(0,'Heliotis\\heliCam\\Python\\wrapper')
     else: # "linux"
         sys.path.insert(0,r'/usr/share/libhelic/python/wrapper')
 except BaseException  as err:
@@ -37,12 +38,12 @@ except BaseException  as err:
 
 # import libHeLIC wrapper
 try:
-  from wrapper.libHeLIC import *
+  from libHeLIC import *
 except ImportError as exc:
   print ('-'*30)
   print("Error: failed to import libHeLIC module ({})".format(exc))
   print("Pleas check if the path to Python wrapper correct.")
-  print("(libHeLIC_Simple.py Line 27)")
+  print("(libHeLIC_Simple.py Line 41)")
   print ('-'*30)
   print("Press a key to exit...")
   getch()

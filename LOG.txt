@@ -1,0 +1,402 @@
+> c_cmd=C_HOME
+> c_cmd
+0
+
+> c_cmd=C_CONTROLON
+> c_cmd
+0
+
+> c_cmd=C_c
+> c_cmd
+0
+
+> c_ax=2 c_par(0)=-20.0 c_cmd=C_AXIS_JOG
+> c_cmd
+0
+
+> c_ax=2 c_par(0)=80.0 c_cmd=C_AXIS_JOG
+> c_cmd
+0
+
+> c_ax=2 c_par(0)=20.0 c_cmd=C_AXIS_JOG
+> c_cmd
+0
+
+> c_ax=2 c_par(0)=-20.0 c_cmd=C_AXIS_JOG
+> c_cmd
+0
+
+> c_ax=2 c_par(0)=-60.0 c_cmd=C_AXIS_JOG
+> c_cmd
+0
+
+> c_cmd=C_S_ACTION
+> c_cmd
+0
+
+> s_hexa,50,1
+s_hexa=15951
+   1: Error
+   1: System initialized
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Home virtual
+   0: Phase found
+   1: Brake on
+   1: Motion restricted
+   1: Power on encoders
+   1: Power on limit switches
+   1: Power on drives
+s_action=0:Stop
+s_uto_tx=-13.204506786602634
+s_uto_ty=-5.86838116110841401
+s_uto_tz=-4.15283734329721366
+s_uto_rx=4.0080110768986712
+s_uto_ry=2.25253093875253851
+s_uto_rz=-4.46911275454215318
+s_mtp_tx=-13.204506786602634
+s_mtp_ty=-5.86838116110841401
+s_mtp_tz=-4.15283734329721366
+s_mtp_rx=4.0080110768986712
+s_mtp_ry=2.25253093875253851
+s_mtp_rz=-4.46911275454213985
+s_ax_1=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_2=2214
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   1: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_3=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_4=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_5=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_6=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_pos_ax_1=189.565952567149282
+s_pos_ax_2=171.199996336589436
+s_pos_ax_3=189.567022163149801
+s_pos_ax_4=189.567022386420689
+s_pos_ax_5=189.567027821794966
+s_pos_ax_6=189.565952092596376
+s_dio_1=2
+s_dio_2=0
+s_dio_3=0
+s_dio_4=0
+s_dio_5=0
+s_dio_6=0
+s_dio_7=0
+s_dio_8=0
+s_ai_1=0
+s_ai_2=0
+s_ai_3=0
+s_ai_4=0
+s_ai_5=0
+s_ai_6=0
+s_ai_7=0
+s_ai_8=0
+s_cycle=1
+s_index=1
+s_err_nr=1
+s_reserve_01=0
+s_reserve_02=0
+s_reserve_03=0
+s_reserve_04=0
+
+> c_par(0)=0 c_par(1)=0 c_par(2)=0 c_par(3)=-20 c_par(4)=0 c_par(5)=0 c_par(6)=0 c_cmd=C_MOVE_PTP
+> c_cmd
+-44
+
+> c_cmd=C_ERROR
+> c_cmd
+-44
+
+> c_cmd=C_ERR_INFO
+> c_cmd
+-10
+
+> c_cmd=C_ERR_INFO
+> c_cmd
+> c_par(0),8,1
+nan
+nan
+nan
+nan
+nan
+nan
+nan
+nan
+
+> s_hexa,50,1
+s_hexa=15951
+   1: Error
+   1: System initialized
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Home virtual
+   0: Phase found
+   1: Brake on
+   1: Motion restricted
+   1: Power on encoders
+   1: Power on limit switches
+   1: Power on drives
+s_action=0:Stop
+s_uto_tx=-13.2045109433500123
+s_uto_ty=-5.86837549231662159
+s_uto_tz=-4.15283733923736698
+s_uto_rx=4.00800982023123797
+s_uto_ry=2.25252966148217437
+s_uto_rz=-4.46911128275809233
+s_mtp_tx=-13.2045109433500123
+s_mtp_ty=-5.86837549231662159
+s_mtp_tz=-4.15283733923736698
+s_mtp_rx=4.00800982023123797
+s_mtp_ry=2.25252966148217437
+s_mtp_rz=-4.46911128275808078
+s_ax_1=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_2=2214
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   1: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_3=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_4=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_5=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_ax_6=166
+   0: Error
+   1: Control on
+   1: In position
+   0: Motion task running
+   0: Home task running
+   1: Home complete
+   0: Phase found
+   1: Brake on
+   0: Home hardware input
+   0: Negative hardware limit switch
+   0: Positive hardware limit switch
+   0: Software limit reached
+   0: Following error
+   0: Drive fault
+s_pos_ax_1=189.565952567149282
+s_pos_ax_2=171.199999437496643
+s_pos_ax_3=189.56702371360339
+s_pos_ax_4=189.567025487327868
+s_pos_ax_5=189.567023182547075
+s_pos_ax_6=189.565948991689169
+s_dio_1=2
+s_dio_2=0
+s_dio_3=0
+s_dio_4=0
+s_dio_5=0
+s_dio_6=0
+s_dio_7=0
+s_dio_8=0
+s_ai_1=0
+s_ai_2=0
+s_ai_3=0
+s_ai_4=0
+s_ai_5=0
+s_ai_6=0
+s_ai_7=0
+s_ai_8=0
+s_cycle=1
+s_index=1
+s_err_nr=1
+s_reserve_01=0
+s_reserve_02=0
+s_reserve_03=0
+s_reserve_04=0
+
+> c_cmd=C_CLEARERROR
+> c_cmd
+0
+
+> c_par(0)=0 c_par(1)=0 c_par(2)=0 c_par(3)=0 c_par(4)=0 c_par(5)=0 c_par(6)=0 c_cmd=C_MOVE_PTP
+> c_cmd
+-44
+
+> c_cmd=C_CLEARERROR
+> c_cmd
+0
+
+> c_par(0)=0 c_par(1)=0 c_par(2)=0 c_par(3)=0 c_par(4)=0 c_par(5)=0 c_cmd=C_MOVE_PTP
+> c_cmd
+-44
+
+> c_par(0)=0 c_par(1)=0 c_par(2)=0 c_par(3)=0 c_par(4)=0 c_cmd=C_MOVE_PTP
+> c_cmd
+-44
+
+> c_cmd=C_CLEARERROR
+> c_cmd
+0
+
+> c_par(0)=0 c_par(1)=0 c_par(2)=0 c_par(3)=0 c_par(4)=0 c_cmd=C_MOVE_PTP
+> c_cmd
+-44
+
+> c_cmd=C_CLEARERROR
+> c_cmd
+0
+
+> c_par(0)=1 c_par(1)=0 c_par(2)=0 c_par(3)=0 c_par(4)=0 c_par(5)=0 c_par(6)=0 c_cmd=C_MOVE_PTP
+> c_cmd
+-44
+
+> c_cmd=C_CLEARERROR
+> c_cmd
+0
+
+> c_par(0)=3 c_cmd=C_MOVE_SPECIFICPOS
+> c_cmd
+-44
+

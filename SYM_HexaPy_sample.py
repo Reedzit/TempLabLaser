@@ -3,7 +3,8 @@
 
 import SYM_HexaPy
 
-ip = "192.168.56.101"
+# ip = "192.168.56.101"
+ip = "192.168.16.220"
 
 SEQ_file_path = "Gamme_PUNA.txt"
 SEQ_pause_stab = 0.1
@@ -152,6 +153,7 @@ if ssh_API.ssh_obj.connected is True:
             elif commandName == 'REBOOT':
                 answer = ssh_API.SendCommand("system reboot", list(), 0, False)
             else:
+                print("Command not found.")
                 answer = ssh_API.SendCommand(userInput)
 
             # Display answer

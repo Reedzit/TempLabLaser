@@ -23,14 +23,14 @@ if sys.platform == "win32":
 else: # linux
     from getch import getch
 
-try:
-    if sys.platform == "win32":
-        prgPath=os.environ["PROGRAMFILES"]
-        sys.path.insert(0,prgPath+r'\Heliotis\heliCam\Python\wrapper')
-    else: # "linux"
-        sys.path.insert(0,r'/usr/share/libhelic/python/wrapper')
-except BaseException  as err:
-    print('Path Error'+str(err))
+# try:
+#     if sys.platform == "win32":
+#         prgPath=os.environ["PROGRAMFILES"]
+#         sys.path.insert(0,prgPath+r'\Heliotis\heliCam\Python\wrapper')
+#     else: # "linux"
+#         sys.path.insert(0,r'/usr/share/libhelic/python/wrapper')
+# except BaseException  as err:
+#     print('Path Error'+str(err))
 
 try:
     from libHeLIC import *
@@ -82,7 +82,7 @@ def test2():
     ('TrigExtSrcSel',0),
     ('CamMode',4), #simple max
     ('AcqStop',0)
-  );
+  )
 
   for k,v in settings:
     try:
@@ -90,7 +90,7 @@ def test2():
     except RuntimeError:
       error('Could not set map property %s to %s',k,v)
   
-  heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A16Z16'],0,0,0);
+  heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A16Z16'],0,0,0)
 
   def on_idle(event):
     if on_idle.cnt<0:
@@ -122,7 +122,7 @@ def test2():
   def on_close(event):
     on_idle.cnt=-1
 
-  f=plt.figure();
+  f=plt.figure()
   on_idle.f=f
   on_idle.heSys=heSys
   on_idle.cnt=0
@@ -222,7 +222,7 @@ def test4():
     except RuntimeError:
       error('Could not set map property %s to %s',k,v)
 
-  heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A8'],0,0,0);
+  heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A8'],0,0,0)
 
   def on_idle(event):
     if on_idle.cnt<0:
@@ -230,14 +230,14 @@ def test4():
       return False
     res=heSys.Acquire()
     print("Acquire",on_idle.cnt,"returned",res)
-    cd=heSys.ProcessCamData(1,0,0);
+    cd=heSys.ProcessCamData(1,0,0)
     print("ProcessCamData",on_idle.cnt,"returned",cd.contents.data)
     img=heSys.GetCamData(1,0,0)
     data=img.contents.data
     data=LibHeLIC.Ptr2Arr(data,(frames,292,282),ct.c_uint8)
 
     if on_idle.cnt==0:
-      on_idle.f.suptitle('GetCamData');
+      on_idle.f.suptitle('GetCamData')
       plt.subplot(1,2,1)
       on_idle.imHdl1=plt.imshow(data[:,:,141])
       plt.colorbar()
@@ -256,7 +256,7 @@ def test4():
   def on_close(event):
     on_idle.cnt=-1
 
-  f=plt.figure();
+  f=plt.figure()
   on_idle.f=f
   on_idle.cnt=0
 
@@ -280,7 +280,7 @@ def test5():
     ('TrigExtSrcSel',0),
     ('CamMode',0),#raw IQ
     ('AcqStop',0)
-  );
+  )
 
   for k,v in settings:
     try:
@@ -296,7 +296,7 @@ def test5():
       return False
     res=heSys.Acquire()
     print("Acquire",on_idle.cnt,"returned",res)
-    cd=heSys.ProcessCamData(1,0,0);
+    cd=heSys.ProcessCamData(1,0,0)
     print("ProcessCamData",on_idle.cnt,"returned",cd.contents.data)
     meta = heSys.CamDataMeta()
     img=heSys.GetCamData(1,0,ct.byref(meta))

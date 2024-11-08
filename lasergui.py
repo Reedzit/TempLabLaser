@@ -43,7 +43,7 @@ def initializeInstruments():
   except subprocess.CalledProcessError as e:
     textbox.insert(tk.END, f"An error occurred: {e}")
     print(f"An error occurred: {e}")
-  textbox.insert(tk.END, "Instruments Initialized\n")
+  textbox.insert(tk.END, "Instruments Initializing\n")
 
 label = tk.Label(window, text="Laser GUI", font=('Arial', 18))
 label.pack(padx=20, pady=20)
