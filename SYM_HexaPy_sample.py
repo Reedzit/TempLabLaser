@@ -23,6 +23,7 @@ if ssh_API.ssh_obj.connected is True:
     
     loop = True
     
+    
     while loop == True:
         # Please refer to the documation for commands arguments
         # Example:
