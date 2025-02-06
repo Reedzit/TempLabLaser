@@ -2,7 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from instrumentInitialize import InstrumentInitialize
-from hexapodTest import HexapodTest
+from instrument_configurations.fgConfig import fgConfig
+from hexapodControl import HexapodControl
 import json
 import os
 
@@ -12,38 +13,46 @@ instruments = InstrumentInitialize()
 hexapod = None
 
 def load_configs():
+    configurations = {}
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, 'r') as f:
             data = json.load(f)
-            instruments.PSUConfigs = data['PSUConfigs']
-            instruments.FgConfigs = data['FgConfigs']
-            instruments.fgConfigNames = data['fgConfigNames']
-            return data
-    return {}
+            for name, config in data.items():
+                current = fgConfig(name=config['name'], 
+                                                frequency=float(config['frequency']),
+                                                amplitude=float(config['amplitude']),
+                                                offset=float(config['offset']))
+                instruments.FgConfigs[name] = current
+                configurations[name] = current
+                instruments.fgConfigNames.append(name)
+    return configurations
 
-def save_configurations(configurations):
+def save_configurations():
     with open(CONFIG_FILE, 'w') as file:
-        json.dump(configurations, file)
+        json.dump({name: config.to_dict() for name, config in configurations.items()}, file, indent=4)
 
 def update_config():
     configName = configDropdown.get()
     instruments.set_current_fg_config(configName)
+    instrumentsTxtBx.insert(tk.END, "Updated configuration to " + configName + "\n")
+    instrumentsTxtBx.insert(tk.END, f"Frequency: {instruments.current_fg_config.frequency}\nAmplitude: {instruments.current_fg_config.amplitude}\nOffset: {instruments.current_fg_config.offset}\n\n")
 
 def create_config():
     config_name = configNameInput.get()
     freq = freqInput.get()
     amp = ampInput.get()
     offset = offsetInput.get()
-    instruments.create_fg_config(config_name, freq, amp, offset)
-    configurations[config_name] = {'frequency': freq, 'amplitude': amp, 'offset': offset}
-    save_configurations(configurations)
+    current_config = instruments.create_fg_config(config_name, freq, amp, offset)
+    configurations[config_name] = current_config
+    save_configurations()
     configDropdown['values'] = list(configurations.keys())
     configDropdown.set('')  # Clear the current selection
+    instrumentsTxtBx.insert(tk.END, "Created configuration " + config_name + "\n")
 
 def connect_hexapod():
     global hexapod
     try:
-        hexapod = HexapodTest()
+        hexapod = HexapodControl()
     except Exception as e:
         textbox.insert(tk.END, "Unable to connect to hexapod.\n Error: " + str(e) + "\n")
 
@@ -139,6 +148,8 @@ offsetInput.grid(row=5, column=1, padx=10, pady=10)
 createConfigButton = tk.Button(instrumentsTab, text="Create Configuration", command=create_config)
 createConfigButton.grid(row=6, column=0, columnspan=3, padx=10, pady=10)
 
+instrumentsTxtBx = tk.Text(instrumentsTab, height=8,  font=('Arial', 16))
+instrumentsTxtBx.grid(row=8, column=0, columnspan=4, padx=10, pady=10)
 ### Hexapod Tab ###
 connectBtn = tk.Button(hexapodTab, text="Connect to Hexapod", command=connect_hexapod)
 connectBtn.pack(padx=10, pady=10)

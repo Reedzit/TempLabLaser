@@ -46,6 +46,7 @@ class InstrumentInitialize:
     self.current_fg_config = fgConfig(name, frequency, amplitude, offset)
     self.fgConfigNames.append(name)
     self.FgConfigs[name] = self.current_fg_config
+    return self.current_fg_config
   
   def set_current_psu_config(self, name):
     for config in self.PSUConfigs:

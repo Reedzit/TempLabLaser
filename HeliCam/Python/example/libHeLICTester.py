@@ -23,14 +23,14 @@ if sys.platform == "win32":
 else: # linux
     from getch import getch
 
-# try:
-#     if sys.platform == "win32":
-#         prgPath=os.environ["PROGRAMFILES"]
-#         sys.path.insert(0,prgPath+r'\Heliotis\heliCam\Python\wrapper')
-#     else: # "linux"
-#         sys.path.insert(0,r'/usr/share/libhelic/python/wrapper')
-# except BaseException  as err:
-#     print('Path Error'+str(err))
+try:
+    if sys.platform == "win32":
+        prgPath=os.environ["PROGRAMFILES"]
+        sys.path.insert(0,prgPath+r'\Heliotis\heliCam\Python\wrapper')
+    else: # "linux"
+        sys.path.insert(0,r'/usr/share/libhelic/python/wrapper')
+except BaseException  as err:
+    print('Path Error'+str(err))
 
 try:
     from libHeLIC import *
@@ -88,7 +88,7 @@ def test2():
     try:
       setattr(heSys.map,k,v)#heSys.map.k=v
     except RuntimeError:
-      error('Could not set map property %s to %s',k,v)
+      print('Could not set map property %s to %s',k,v)
   
   heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A16Z16'],0,0,0)
 
@@ -147,13 +147,13 @@ def test3():
     ('CamMode',1),#amplitude
     ('Comp11to8',0),
     ('AcqStop',0)
-  );
+  )
 
   for k,v in settings:
     try:
       setattr(heSys.map,k,v)#heSys.map.k=v
     except RuntimeError:
-      error('Could not set map property %s to %s',k,v)
+      print('Could not set map property %s to %s',k,v)
 
   heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A16'],0,0,0);
 
@@ -189,7 +189,7 @@ def test3():
   def on_close(event):
     on_idle.cnt=-1
 
-  f=plt.figure();
+  f=plt.figure()
   on_idle.f=f
   on_idle.cnt=0
 
@@ -214,13 +214,13 @@ def test4():
     ('CamMode',1),#amplitude
     ('Comp11to8',1),
     ('AcqStop',0)
-  );
+  )
 
   for k,v in settings:
     try:
       setattr(heSys.map,k,v)#heSys.map.k=v
     except RuntimeError:
-      error('Could not set map property %s to %s',k,v)
+      print('Could not set map property %s to %s',k,v)
 
   heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A8'],0,0,0)
 
@@ -286,7 +286,7 @@ def test5():
     try:
       setattr(heSys.map,k,v)#heSys.map.k=v
     except RuntimeError:
-      error('Could not set map property %s to %s',k,v)
+      print('Could not set map property %s to %s',k,v)
 
   heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_I16Q16'],0,0,0);
 
@@ -332,7 +332,7 @@ def test5():
   def on_close(event):
     on_idle.cnt=-1
 
-  f=plt.figure();
+  f=plt.figure()
   on_idle.f=f
   on_idle.cnt=0
 
@@ -355,13 +355,13 @@ def test6():
     ('TrigExtSrcSel',0),
     ('CamMode',3),#intensity
     ('AcqStop',0)
-  );
+  )
 
   for k,v in settings:
     try:
       setattr(heSys.map,k,v)#heSys.map.k=v
     except RuntimeError:
-      error('Could not set map property %s to %s',k,v)
+      print('Could not set map property %s to %s',k,v)
 
   heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_I16Q16'],0,0,0);
 
@@ -407,7 +407,7 @@ def test6():
   def on_close(event):
     on_idle.cnt=-1
 
-  f=plt.figure();
+  f=plt.figure()
   on_idle.f=f
   on_idle.cnt=0
 
@@ -431,13 +431,13 @@ def test7():
     ('TrigExtSrcSel',0),
     ('CamMode',4),
     ('AcqStop',0)
-  );
+  )
 
   for k,v in settings:
     try:
       setattr(heSys.map,k,v)#heSys.map.k=v
     except RuntimeError:
-      error('Could not set map property %s to %s',k,v)
+      print('Could not set map property %s to %s',k,v)
 
   heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_A16Z16'],LibHeLIC.CamDataProperty['DP_INTERP_CROSS'],0,0);
 
@@ -475,7 +475,7 @@ def test7():
   def on_close(event):
     on_idle.cnt=-1
 
-  f=plt.figure();
+  f=plt.figure()
   on_idle.f=f
   on_idle.heSys=heSys
   on_idle.cnt=0
@@ -503,15 +503,15 @@ def test8():
     ('ExSimpMaxHwin',hwin),
     ('CamMode',5),
     ('AcqStop',0)
-  );
+  )
 
   for k,v in settings:
     try:
       setattr(heSys.map,k,v)#heSys.map.k=v
     except RuntimeError:
-      error('Could not set map property %s to %s',k,v)
+      print('Could not set map property %s to %s',k,v)
   #heSys.OpenDlgRegDesc(0)
-  heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_Z16A16P16'],0,0,0);
+  heSys.AllocCamData(1,LibHeLIC.CamDataFmt['DF_Z16A16P16'],0,0,0)
 
   def on_idle(event):
     if on_idle.cnt<0:
@@ -574,7 +574,7 @@ def test8():
   def on_close(event):
     on_idle.cnt=-1
 
-  f=plt.figure();
+  f=plt.figure()
   on_idle.f=f
   on_idle.heSys=heSys
   on_idle.cnt=0
