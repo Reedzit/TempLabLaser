@@ -31,8 +31,7 @@ class HexapodControl(LaserGUI):
         self.ssh_API = SYM_HexaPy.API()
         self.ssh_API.connect(ip, verbose, log)
         if self.ssh_API.ssh_obj.connected is True:
-            self.textbox.insert(tk.END, "Connected to Hexapod\n")
-            self.textbox.insert(tk.END, "Please wait for homing sequence to complete then turn on control functionality\n")
+            print("Connected to the Hexapod")
             self.ssh_API.CommandReturns
 
     def home(self):
@@ -40,18 +39,18 @@ class HexapodControl(LaserGUI):
     def controlOn(self):
         self.ssh_API.SendCommand("CONTROLON")
 
-    def moveUp(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    def moveDown(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, -10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    def moveLeft(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0])
-    def moveRight(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, -10.0, 0.0, 0.0, 0.0, 0.0])
-    def moveOut(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
-    def moveIn(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -10.0, 0.0, 0.0, 0.0])
+    def moveUp(self, step):
+        self.ssh_API.SendCommand("MOVE_PTP", [2.0, float(step), 0.0, 0.0, 0.0, 0.0, 0.0])
+    def moveDown(self, step):
+        self.ssh_API.SendCommand("MOVE_PTP", [2.0, -float(step), 0.0, 0.0, 0.0, 0.0, 0.0])
+    def moveLeft(self, step):
+        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, float(step), 0.0, 0.0, 0.0, 0.0])
+    def moveRight(self, step):
+        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, -float(step), 0.0, 0.0, 0.0, 0.0])
+    def moveOut(self, step):
+        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, float(step), 0.0, 0.0, 0.0])
+    def moveIn(self, step):
+        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -float(step), 0.0, 0.0, 0.0])
     def setSpeed(self, speed):
         self.ssh_API.SendCommand("CFG_SPEED", []) #arguments: translationSpeed angularSpeed
     def resetPosition(self):

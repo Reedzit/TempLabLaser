@@ -1,0 +1,8 @@
+{
+    "10khz": {
+        "name": "10khz",
+        "frequency": "10000",
+        "amplitude": "2.5",
+        "offset": "2.65"
+    }
+}
