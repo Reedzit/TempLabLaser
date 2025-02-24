@@ -70,7 +70,7 @@ class LaserGUI:
     try:
         # script_path = os.path.join(os.path.dirname(__file__), 'hexapodControl.py')
         # subprocess.run(['python', script_path], check=True)
-        from templablaser.hexapodControlOLD import HexapodControlWindow
+        from hexapodControlOLD import HexapodControlWindow
         HexapodControlWindow()
         self.textbox.insert(tk.END, "Hexapod Connected\n")
     except Exception as e:

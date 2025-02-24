@@ -1,4 +1,4 @@
-from lasergui import LaserGUI
+from microscopeGUI import MicroscopeGUI
 
 if __name__ == '__main__':
-  LaserGUI()
+  MicroscopeGUI()

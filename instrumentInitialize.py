@@ -31,7 +31,7 @@ class InstrumentInitialize:
     else:
       print("No power supply connected. But this is the current configuration: ", self.current_psu_config)
     if self.fg: 
-      self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,2000,AMP,5,OFST,2.5,DUTY,50")
+      self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
       self.fg.write("C2:OUTP ON")
       self.fg.write(f"C1:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,{self.current_fg_config.amplitude},OFST,{self.current_fg_config.offset}")
       self.fg.write("C1:OUTP ON")

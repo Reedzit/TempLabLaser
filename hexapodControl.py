@@ -52,6 +52,8 @@ class HexapodControl(LaserGUI):
         self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
     def moveIn(self):
         self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -10.0, 0.0, 0.0, 0.0])
+    def setSpeed(self, speed):
+        self.ssh_API.SendCommand("CFG_SPEED", []) #arguments: translationSpeed angularSpeed
     def resetPosition(self):
         self.ssh_API.SendCommand("MOVE_SPECIFICPOS", [3.0])
         
