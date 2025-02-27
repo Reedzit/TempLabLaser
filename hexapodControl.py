@@ -36,26 +36,35 @@ class HexapodControl(LaserGUI):
             self.ssh_API.CommandReturns
 
     def home(self):
-        self.ssh_API.SendCommand("HOME")
+        answer = self.ssh_API.SendCommand("HOME")
+        return answer
     def controlOn(self):
-        self.ssh_API.SendCommand("CONTROLON")
-
+        answer = self.ssh_API.SendCommand("CONTROLON")
+        return answer
     def moveUp(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        return answer
     def moveDown(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, -10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, -10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        return answer
     def moveLeft(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0])
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0])
+        return answer
     def moveRight(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, -10.0, 0.0, 0.0, 0.0, 0.0])
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, -10.0, 0.0, 0.0, 0.0, 0.0])
+        return answer
     def moveOut(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
+        return answer
     def moveIn(self):
-        self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -10.0, 0.0, 0.0, 0.0])
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -10.0, 0.0, 0.0, 0.0])
+        return answer
     def setSpeed(self, speed):
-        self.ssh_API.SendCommand("CFG_SPEED", []) #arguments: translationSpeed angularSpeed
+        answer = self.ssh_API.SendCommand("CFG_SPEED", [0.0, float(speed)]) #arguments: translationSpeed angularSpeed
+        return answer
     def resetPosition(self):
-        self.ssh_API.SendCommand("MOVE_SPECIFICPOS", [3.0])
+        answer = self.ssh_API.SendCommand("MOVE_SPECIFICPOS", [3.0])
+        return answer 
         
 
   
