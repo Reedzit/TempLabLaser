@@ -9,7 +9,7 @@ import os
 
 class MicroscopeGUI():
 
-    CONFIG_FILE = "templablaser\\instrument_configurations\\configs.json"
+    CONFIG_FILE = "instrument_configurations\\configs.json"
     instruments = InstrumentInitialize()
     hexapod = None
 
@@ -29,58 +29,61 @@ class MicroscopeGUI():
         notebook.pack(expand=1, fill='both')
 
         ### Instruments Tab ###
-        configDropdown = ttk.Combobox(instrumentsTab, textvariable="Select a configuration", values=self.instruments.fgConfigNames)
-        configDropdown.grid(row=0, column=1, padx=10, pady=10)
-        updateConfigButton = tk.Button(instrumentsTab, text="Update Configuration", command=self.update_config)
-        updateConfigButton.grid(row=0, column=2, padx=10, pady=10)
+        self.configDropdown = ttk.Combobox(instrumentsTab, textvariable="Select a configuration", values=self.instruments.fgConfigNames)
+        self.configDropdown.grid(row=0, column=1, padx=10, pady=10)
+        self.updateConfigButton = tk.Button(instrumentsTab, text="Update Configuration", command=self.update_config)
+        self.updateConfigButton.grid(row=0, column=2, padx=10, pady=10)
 
-        createConfigLabel = tk.Label(instrumentsTab, text="Create Configuration")
-        createConfigLabel.grid(row=1, column=0, columnspan=3, padx=10, pady=10)
+        self.createConfigLabel = tk.Label(instrumentsTab, text="Create Configuration")
+        self.createConfigLabel.grid(row=1, column=0, columnspan=3, padx=10, pady=10)
 
-        configNameLabel = tk.Label(instrumentsTab, text="Configuration Name")
-        configNameLabel.grid(row=2, column=0, padx=10, pady=10, sticky=tk.E)
-        configNameInput = tk.Entry(instrumentsTab, text="Name")
-        configNameInput.grid(row=2, column=1, padx=10, pady=10)
+        self.configNameLabel = tk.Label(instrumentsTab, text="Configuration Name")
+        self.configNameLabel.grid(row=2, column=0, padx=10, pady=10, sticky=tk.E)
+        self.configNameInput = tk.Entry(instrumentsTab, text="Name")
+        self.configNameInput.grid(row=2, column=1, padx=10, pady=10)
 
-        freqLabel = tk.Label(instrumentsTab, text="Frequency")
-        freqLabel.grid(row=3, column=0, padx=10, pady=10, sticky=tk.E)
-        freqInput = tk.Entry(instrumentsTab, text="Frequency")
-        freqInput.grid(row=3, column=1, padx=10, pady=10)
+        self.freqLabel = tk.Label(instrumentsTab, text="Frequency")
+        self.freqLabel.grid(row=3, column=0, padx=10, pady=10, sticky=tk.E)
+        self.freqInput = tk.Entry(instrumentsTab, text="Frequency")
+        self.freqInput.grid(row=3, column=1, padx=10, pady=10)
 
-        ampLabel = tk.Label(instrumentsTab, text="Amplitude")
-        ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
-        ampInput = tk.Entry(instrumentsTab, text="Amplitude")
-        ampInput.grid(row=4, column=1, padx=10, pady=10)
+        self.ampLabel = tk.Label(instrumentsTab, text="Amplitude")
+        self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
+        self.ampInput = tk.Entry(instrumentsTab, text="Amplitude")
+        self.ampInput.grid(row=4, column=1, padx=10, pady=10)
 
-        offsetLabel = tk.Label(instrumentsTab, text="Offset")
-        offsetLabel.grid(row=5, column=0, padx=10, pady=10, sticky=tk.E)
-        offsetInput = tk.Entry(instrumentsTab, text="Offset")
-        offsetInput.grid(row=5, column=1, padx=10, pady=10)
+        self.offsetLabel = tk.Label(instrumentsTab, text="Offset")
+        self.offsetLabel.grid(row=5, column=0, padx=10, pady=10, sticky=tk.E)
+        self.offsetInput = tk.Entry(instrumentsTab, text="Offset")
+        self.offsetInput.grid(row=5, column=1, padx=10, pady=10)
 
-        createConfigButton = tk.Button(instrumentsTab, text="Create Configuration", command=self.create_config)
-        createConfigButton.grid(row=6, column=0, columnspan=3, padx=10, pady=10)
+        self.createConfigButton = tk.Button(instrumentsTab, text="Create Configuration", command=self.create_config)
+        self.createConfigButton.grid(row=6, column=0, columnspan=3, padx=10, pady=10)
 
-        instrumentsTxtBx = tk.Text(instrumentsTab, height=8,  font=('Arial', 16))
-        instrumentsTxtBx.grid(row=8, column=0, columnspan=4, padx=10, pady=10)
+        self.instrumentsTxtBx = tk.Text(instrumentsTab, height=8,  font=('Arial', 16))
+        self.instrumentsTxtBx.grid(row=8, column=0, columnspan=4, padx=10, pady=10)
         
         ### Lock In Amplifier Tab ###
         
         
         ### Hexapod Tab ###
-        connectBtn = tk.Button(hexapodTab, text="Connect to Hexapod", command=self.connect_hexapod)
-        connectBtn.pack(padx=10, pady=10)
-        homeBtn = tk.Button(hexapodTab, text="Home Hexapod", command=self.home_hexapod)
-        homeBtn.pack(padx=10, pady=10)
-        controlOnBtn = tk.Button(hexapodTab, text="Turn on Control", command=self.control_on_hexapod)
-        controlOnBtn.pack(padx=10, pady=10)
-        stepLabel = tk.Label(hexapodTab, text="Step Size")
-        stepLabel.pack(padx=10, pady=5)
-        stepInput = tk.Entry(hexapodTab, text="Step Size in mm")
-        stepInput.pack(padx=10, pady=10)
-        speedLabel = tk.Label(hexapodTab, text="Speed")
-        speedLabel.pack(padx=10, pady=5)
-        speedInput = tk.Entry(hexapodTab, text="Speed in mm/s")
-        speedInput.pack(padx=10, pady=10)
+        self.connectBtn = tk.Button(hexapodTab, text="Connect to Hexapod", command=self.connect_hexapod)
+        self.connectBtn.pack(padx=10, pady=10)
+        self.homeBtn = tk.Button(hexapodTab, text="Home Hexapod", command=self.home_hexapod)
+        self.homeBtn.pack(padx=10, pady=10)
+        self.controlOnBtn = tk.Button(hexapodTab, text="Turn on Control", command=self.control_on_hexapod)
+        self.controlOnBtn.pack(padx=10, pady=10)
+        self.stepLabel = tk.Label(hexapodTab, text="Step Size")
+        self.stepLabel.pack(padx=10, pady=5)
+        self.stepInput = tk.Entry(hexapodTab, text="Step Size in mm")
+        self.stepInput.pack(padx=10, pady=10)
+        self.speedLabel = tk.Label(hexapodTab, text="Speed")
+        self.speedLabel.pack(padx=10, pady=5)
+        self.speedInput = tk.Entry(hexapodTab, text="Speed in mm/s")
+        self.speedInput.pack(padx=10, pady=10)
+        self.resetBtn = tk.Button(hexapodTab, text="Reset Position", command=self.reset_position)
+        self.resetBtn.pack(padx=10, pady=10)
+    
 
         bfTranslation = tk.Frame(hexapodTab)
         bfTranslation.columnconfigure(0, weight=1)
@@ -110,8 +113,8 @@ class MicroscopeGUI():
 
         bfTranslation.pack(fill='x', padx=20, pady=20)
 
-        textbox = tk.Text(hexapodTab, height=8,  font=('Arial', 16))
-        textbox.pack(padx=10, pady=10, side=tk.BOTTOM, fill=tk.X)
+        self.textbox = tk.Text(hexapodTab, height=8,  font=('Arial', 16))
+        self.textbox.pack(padx=10, pady=10, side=tk.BOTTOM, fill=tk.X)
 
         window.mainloop()
 
@@ -206,6 +209,11 @@ class MicroscopeGUI():
             print("Move Out")
         else:
             hexapod.moveOut(self.stepInput.get())
+    def reset_position(self):
+        if hexapod is None or not hexapod.ssh_API:
+            print("Reset Position")
+        else:
+            hexapod.resetPosition()
 
 
 if __name__ == '__main__':

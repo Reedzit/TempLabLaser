@@ -31,32 +31,33 @@ class HexapodControl(LaserGUI):
         self.ssh_API = SYM_HexaPy.API()
         self.ssh_API.connect(ip, verbose, log)
         if self.ssh_API.ssh_obj.connected is True:
-            print("Connected to the Hexapod")
+            self.textbox.insert(tk.END, "Connected to Hexapod\n")
+            self.textbox.insert(tk.END, "Please wait for homing sequence to complete then turn on control functionality\n")
             self.ssh_API.CommandReturns
 
     def home(self):
         answer = self.ssh_API.SendCommand("HOME")
         return answer
     def controlOn(self):
-        self.ssh_API.SendCommand("CONTROLON")
-
-    def moveUp(self, step):
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, float(step), 0.0, 0.0, 0.0, 0.0, 0.0])
+        answer = self.ssh_API.SendCommand("CONTROLON")
         return answer
-    def moveDown(self, step):
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, -float(step), 0.0, 0.0, 0.0, 0.0, 0.0])
+    def moveUp(self):
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         return answer
-    def moveLeft(self, step):
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, float(step), 0.0, 0.0, 0.0, 0.0])
+    def moveDown(self):
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, -10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         return answer
-    def moveRight(self, step):
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, -float(step), 0.0, 0.0, 0.0, 0.0])
-        return answer 
-    def moveOut(self, step):
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, float(step), 0.0, 0.0, 0.0])
+    def moveLeft(self):
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0])
         return answer
-    def moveIn(self, step):
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -float(step), 0.0, 0.0, 0.0])
+    def moveRight(self):
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, -10.0, 0.0, 0.0, 0.0, 0.0])
+        return answer
+    def moveOut(self):
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0])
+        return answer
+    def moveIn(self):
+        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -10.0, 0.0, 0.0, 0.0])
         return answer
     def setSpeed(self, speed):
         answer = self.ssh_API.SendCommand("CFG_SPEED", [0.0, float(speed)]) #arguments: translationSpeed angularSpeed
