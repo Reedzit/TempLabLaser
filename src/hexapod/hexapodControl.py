@@ -31,41 +31,86 @@ class HexapodControl():
         self.ssh_API.connect(ip, verbose, log)
         if self.ssh_API.ssh_obj.connected is True:
             print("Connected to the Hexapod")
-            self.ssh_API.CommandReturns
+        
 
     def home(self):
-        answer = int(self.ssh_API.SendCommand("HOME"))
-        if answer > 0: 
-            print(f"This is the code for the home command: {self.ssh_API.CommandReturns[answer]}")
-        #TODO: verify command errors and executions
-        print(self.ssh_API.waitCommandExecuted())
+        answer = int(self.ssh_API.SendCommand("HOME").strip())
+        print(f"This is the code for the home command: {self.ssh_API.CommandReturns[answer]}")
         return answer
+    
     def controlOn(self):
-        self.ssh_API.SendCommand("CONTROLON")
+        answer = self.ssh_API.SendCommand("CONTROLON")
+        answer = int(answer.strip())
+        print(f"This is the code for the control on command: {self.ssh_API.CommandReturns[answer]}")
+        if self.ssh_API.CommandReturns[answer]:
+            answer = self.ssh_API.CommandReturns[answer]
+        elif self.ssh_API.ErrorCodes[answer]:
+            answer = self.ssh_API.ErrorCodes[answer]
+        return answer
 
     def moveUp(self, step):
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, float(step), 0.0, 0.0, 0.0, 0.0, 0.0])
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer
     def moveDown(self, step):
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, -float(step), 0.0, 0.0, 0.0, 0.0, 0.0])
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer
     def moveLeft(self, step):
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, float(step), 0.0, 0.0, 0.0, 0.0])
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer
     def moveRight(self, step):
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, -float(step), 0.0, 0.0, 0.0, 0.0])
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer 
     def moveOut(self, step):
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, float(step), 0.0, 0.0, 0.0])
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer
     def moveIn(self, step):
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, -float(step), 0.0, 0.0, 0.0])
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer
     def setSpeed(self, speed):
         answer = self.ssh_API.SendCommand("CFG_SPEED", [0.0, float(speed)]) #arguments: translationSpeed angularSpeed
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer
     def resetPosition(self):
         answer = self.ssh_API.SendCommand("MOVE_SPECIFICPOS", [3.0])
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
         return answer 
         
 

@@ -1,24 +1,8 @@
-> c_par(0)=2.0 c_par(1)=10.0 c_par(2)=0.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
+> c_cmd=C_CONTROLON
 > c_cmd
-> c_par(0)=2.0 c_par(1)=-10.0 c_par(2)=0.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
+> c_par(0)=2.0 c_par(1)=2.0 c_par(2)=0.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
 > c_cmd
-> c_par(0)=2.0 c_par(1)=0.0 c_par(2)=10.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
+> c_par(0)=2.0 c_par(1)=-2.0 c_par(2)=0.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
 > c_cmd
-> c_par(0)=2.0 c_par(1)=0.0 c_par(2)=-10.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
-> c_cmd
-> c_par(0)=2.0 c_par(1)=0.0 c_par(2)=-10.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
-> c_cmd
-> c_par(0)=3.0 c_cmd=C_MOVE_SPECIFICPOS
-> c_cmd
-> c_par(0)=3.0 c_cmd=C_MOVE_SPECIFICPOS
-> c_cmd
-> c_par(0)=2.0 c_par(1)=0.0 c_par(2)=0.0 c_par(3)=10.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
-> c_cmd
-> c_par(0)=2.0 c_par(1)=0.0 c_par(2)=0.0 c_par(3)=10.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
-> c_cmd
-> c_par(0)=2.0 c_par(1)=0.0 c_par(2)=0.0 c_par(3)=10.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
-> c_cmd
-> c_par(0)=3.0 c_cmd=C_MOVE_SPECIFICPOS
-> c_cmd
-> c_par(0)=3.0 c_cmd=C_MOVE_SPECIFICPOS
+> c_par(0)=2.0 c_par(1)=-2.0 c_par(2)=0.0 c_par(3)=0.0 c_par(4)=0.0 c_par(5)=0.0 c_par(6)=0.0 c_cmd=C_MOVE_PTP
 > c_cmd

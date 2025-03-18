@@ -77,11 +77,6 @@ class MicroscopeGUI():
         self.stepLabel.pack(padx=10, pady=5)
         self.stepInput = tk.Entry(hexapodTab, text="Step Size")
         self.stepInput.pack(padx=10, pady=10)
-        #TODO: add speed feature
-        # self.speedLabel = tk.Label(hexapodTab, text="Speed")
-        # self.speedLabel.pack(padx=10, pady=5)
-        # self.speedInput = tk.Entry(hexapodTab, text="Speed in mm/s")
-        # self.speedInput.pack(padx=10, pady=10)
         self.resetBtn = tk.Button(hexapodTab, text="Reset Position", command=self.reset_position)
         self.resetBtn.pack(padx=10, pady=10)
     
@@ -174,56 +169,66 @@ class MicroscopeGUI():
 
     def home_hexapod(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Home")
+            print("Not connected to hexapod")
         else:
-            self.hexapod.home()
+            response = self.hexapod.home()
+            self.hexapodTextbox.insert(tk.END, f"Home: {response}\n")
 
     def control_on_hexapod(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Control On")
+            print("Not connected to hexapod")
         else:
-            self.hexapod.controlOn()
+            response = self.hexapod.controlOn()
+            self.hexapodTextbox.insert(tk.END, f"Control on: {response}\n")
 
     def move_up(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Move Up")
+            print("Not connected to hexapod")
         else:
-            self.hexapod.moveUp(self.stepInput.get())
+            response = self.hexapod.moveUp(self.stepInput.get())
+            self.hexapodTextbox.insert(tk.END, f"Move up: {response}\n")
 
     def move_down(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Down")
         else:
-            self.hexapod.moveDown(self.stepInput.get())
+            response = self.hexapod.moveDown(self.stepInput.get())
+            self.hexapodTextbox.insert(tk.END, f"Move down: {response}\n")
 
     def move_left(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Left")
         else:
-            self.hexapod.moveLeft(self.stepInput.get())
+            response = self.hexapod.moveLeft(self.stepInput.get())
+            self.hexapodTextbox.insert(tk.END, f"Move left: {response}\n")
 
     def move_right(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Right")
         else:
-            self.hexapod.moveRight(self.stepInput.get())
+            response = self.hexapod.moveRight(self.stepInput.get())
+            self.hexapodTextbox.insert(tk.END, f"Move right: {response}\n")
 
     def move_in(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move In")
         else:
-            self.hexapod.moveIn(self.stepInput.get())
+            response = self.hexapod.moveIn(self.stepInput.get())
+            self.hexapodTextbox.insert(tk.END, f"Move in: {response}\n")
 
     def move_out(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Out")
         else:
-            self.hexapod.moveOut(self.stepInput.get())
+            response = self.hexapod.moveOut(self.stepInput.get())
+            self.hexapodTextbox.insert(tk.END, f"Move out: {response}\n")
+
     def reset_position(self):
         if self.hexapod is None or not self.hexapod.ssh_API:
             print("Reset Position")
         else:
-            self.hexapod.resetPosition()
+            response = self.hexapod.resetPosition()
+            self.hexapodTextbox.insert(tk.END, f"Reset Position: {response}\n")
 
 
 if __name__ == '__main__':
