@@ -6,6 +6,7 @@ from instrument_configurations.fgConfig import fgConfig
 from hexapodControl import HexapodControl
 import json
 import os
+import pymeasure.instruments.srs.sr830 as lia
 
 class MicroscopeGUI():
 
@@ -76,11 +77,12 @@ class MicroscopeGUI():
         self.stepLabel = tk.Label(hexapodTab, text="Step Size")
         self.stepLabel.pack(padx=10, pady=5)
         self.stepInput = tk.Entry(hexapodTab, text="Step Size in mm")
-        self.stepInput.pack(padx=10, pady=10)
-        self.speedLabel = tk.Label(hexapodTab, text="Speed")
-        self.speedLabel.pack(padx=10, pady=5)
-        self.speedInput = tk.Entry(hexapodTab, text="Speed in mm/s")
-        self.speedInput.pack(padx=10, pady=10)
+        #TODO: add speed feature
+        # self.stepInput.pack(padx=10, pady=10)
+        # self.speedLabel = tk.Label(hexapodTab, text="Speed")
+        # self.speedLabel.pack(padx=10, pady=5)
+        # self.speedInput = tk.Entry(hexapodTab, text="Speed in mm/s")
+        # self.speedInput.pack(padx=10, pady=10)
         self.resetBtn = tk.Button(hexapodTab, text="Reset Position", command=self.reset_position)
         self.resetBtn.pack(padx=10, pady=10)
     

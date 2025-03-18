@@ -35,7 +35,11 @@ class HexapodControl(LaserGUI):
             self.ssh_API.CommandReturns
 
     def home(self):
-        answer = self.ssh_API.SendCommand("HOME")
+        answer = int(self.ssh_API.SendCommand("HOME"))
+        if answer > 0: 
+            print(f"This is the code for the home command: {self.ssh_API.CommandReturns[answer]}")
+        #TODO: verify command errors and executions
+        print(self.ssh_API.waitCommandExecuted())
         return answer
     def controlOn(self):
         self.ssh_API.SendCommand("CONTROLON")
