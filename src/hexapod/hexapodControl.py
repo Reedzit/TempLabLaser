@@ -1,12 +1,11 @@
-import SYM_HexaPy
+import hexapod.SYM_HexaPy as SYM_HexaPy
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
-from lasergui import LaserGUI
 
 
-class HexapodControl(LaserGUI):
+class HexapodControl():
     ssh_API = None
 
     def __init__(self):

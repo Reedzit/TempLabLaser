@@ -3,7 +3,7 @@ from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from instrumentInitialize import InstrumentInitialize
 from instrument_configurations.fgConfig import fgConfig
-from hexapodControl import HexapodControl
+from hexapod.hexapodControl import HexapodControl
 import json
 import os
 import pymeasure.instruments.srs.sr830 as lia
@@ -64,7 +64,6 @@ class MicroscopeGUI():
         self.instrumentsTxtBx = tk.Text(instrumentsTab, height=8,  font=('Arial', 16))
         self.instrumentsTxtBx.grid(row=8, column=0, columnspan=4, padx=10, pady=10)
         
-        ### Lock In Amplifier Tab ###
         
         
         ### Hexapod Tab ###
@@ -74,11 +73,11 @@ class MicroscopeGUI():
         self.homeBtn.pack(padx=10, pady=10)
         self.controlOnBtn = tk.Button(hexapodTab, text="Turn on Control", command=self.control_on_hexapod)
         self.controlOnBtn.pack(padx=10, pady=10)
-        self.stepLabel = tk.Label(hexapodTab, text="Step Size")
+        self.stepLabel = tk.Label(hexapodTab, text="Step Size (mm)")
         self.stepLabel.pack(padx=10, pady=5)
-        self.stepInput = tk.Entry(hexapodTab, text="Step Size in mm")
+        self.stepInput = tk.Entry(hexapodTab, text="Step Size")
+        self.stepInput.pack(padx=10, pady=10)
         #TODO: add speed feature
-        # self.stepInput.pack(padx=10, pady=10)
         # self.speedLabel = tk.Label(hexapodTab, text="Speed")
         # self.speedLabel.pack(padx=10, pady=5)
         # self.speedInput = tk.Entry(hexapodTab, text="Speed in mm/s")
@@ -115,8 +114,14 @@ class MicroscopeGUI():
 
         bfTranslation.pack(fill='x', padx=20, pady=20)
 
-        self.textbox = tk.Text(hexapodTab, height=8,  font=('Arial', 16))
-        self.textbox.pack(padx=10, pady=10, side=tk.BOTTOM, fill=tk.X)
+        self.hexapodTextbox = tk.Text(hexapodTab, height=8,  font=('Arial', 16))
+        self.hexapodTextbox.pack(padx=10, pady=10, side=tk.BOTTOM, fill=tk.X)
+
+        ### Lock In Amplifier Tab ###
+        self.measureBtn = tk.Button(lockInTab, text="Measure", command=self.measure)
+        self.measureBtn.pack(padx=10, pady=10)
+        self.lockInTxtBx = tk.Text(lockInTab, height=8,  font=('Arial', 16))
+        self.lockInTxtBx.pack(padx=10, pady=10)
 
         window.mainloop()
 
@@ -162,7 +167,7 @@ class MicroscopeGUI():
         try:
             hexapod = HexapodControl()
         except Exception as e:
-            self.textbox.insert(tk.END, "Unable to connect to hexapod.\n Error: " + str(e) + "\n")
+            self.hexapodTextbox.insert(tk.END, "Unable to connect to hexapod.\n Error: " + str(e) + "\n")
 
     def home_hexapod(self):
         if hexapod is None or not hexapod.ssh_API:

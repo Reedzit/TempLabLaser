@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # API version 5.0.220222
 
-import SYM_HexaPy
+import hexapod.SYM_HexaPy as SYM_HexaPy
 
 # ip = "192.168.56.101"
 ip = "192.168.16.220"
