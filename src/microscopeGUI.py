@@ -125,6 +125,10 @@ class MicroscopeGUI():
 
         window.mainloop()
 
+    def measure(self):
+        self.lockInTxtBx.insert(tk.END, "Measuring...\n")
+        
+
     def load_configs(self):
         configurations = {}
         if os.path.exists(self.CONFIG_FILE):
