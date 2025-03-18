@@ -1,8 +1,14 @@
 {
     "10khz": {
         "name": "10khz",
-        "frequency": "10000",
-        "amplitude": "2.5",
-        "offset": "2.65"
+        "frequency": 10000.0,
+        "amplitude": 2.5,
+        "offset": 2.65
+    },
+    "30khz": {
+        "name": "30khz",
+        "frequency": "30000",
+        "amplitude": "2.2",
+        "offset": "1"
     }
 }

@@ -2,7 +2,7 @@ import pyvisa
 from instrument_configurations.fgConfig import fgConfig
 
 class InstrumentInitialize:
-  FgConfigs = {}
+  FgConfigs: dict[str , fgConfig] = {}
   fgConfigNames = []
   current_fg_config: fgConfig = None
 
@@ -26,6 +26,7 @@ class InstrumentInitialize:
 
   def update_configuration(self):
     if self.fg: 
+      print(f"Setting fg channel 2 to be frequency {self.current_fg_config.frequency}")
       self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
       self.fg.write("C2:OUTP ON")
       self.fg.write(f"C1:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,{self.current_fg_config.amplitude},OFST,{self.current_fg_config.offset}")

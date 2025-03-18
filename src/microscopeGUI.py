@@ -6,16 +6,16 @@ from instrument_configurations.fgConfig import fgConfig
 from hexapod.hexapodControl import HexapodControl
 import json
 import os
-import pymeasure.instruments.srs.sr830 as lia
+# import pymeasure.instruments.srs.sr830 as lia
 
 class MicroscopeGUI():
 
-    CONFIG_FILE = "instrument_configurations\\configs.json"
+    CONFIG_FILE = "src\\instrument_configurations\\configs.json"
     instruments = InstrumentInitialize()
     hexapod = None
 
     def __init__(self):
-        self.configurations = self.load_configs()
+        self.load_configs()
 
         window = tk.Tk()
         window.geometry("800x800")
@@ -146,11 +146,12 @@ class MicroscopeGUI():
 
     def save_configurations(self):
         with open(self.CONFIG_FILE, 'w') as file:
-            json.dump({name: config.to_dict() for name, config in self.configurations.items()}, file, indent=4)
+            json.dump({name: config.to_dict() for name, config in self.instruments.FgConfigs.items()}, file, indent=4)
 
     def update_config(self):
         configName = self.configDropdown.get()
         self.instruments.set_current_fg_config(configName)
+        self.instruments.update_configuration()
         self.instrumentsTxtBx.insert(tk.END, "Updated configuration to " + configName + "\n")
         self.instrumentsTxtBx.insert(tk.END, f"Frequency: {self.instruments.current_fg_config.frequency}\nAmplitude: {self.instruments.current_fg_config.amplitude}\nOffset: {self.instruments.current_fg_config.offset}\n\n")
 
@@ -159,72 +160,70 @@ class MicroscopeGUI():
         freq = self.freqInput.get()
         amp = self.ampInput.get()
         offset = self.offsetInput.get()
-        current_config = self.instruments.create_fg_config(config_name, freq, amp, offset)
-        self.configurations[config_name] = current_config
+        self.instruments.create_fg_config(config_name, freq, amp, offset)
         self.save_configurations()
-        self.configDropdown['values'] = list(self.configurations.keys())
+        self.configDropdown['values'] = list(self.instruments.FgConfigs.keys())
         self.configDropdown.set('')  # Clear the current selection
         self.instrumentsTxtBx.insert(tk.END, "Created configuration " + config_name + "\n")
 
     def connect_hexapod(self):
-        global hexapod
         try:
-            hexapod = HexapodControl()
+            self.hexapod = HexapodControl()
         except Exception as e:
             self.hexapodTextbox.insert(tk.END, "Unable to connect to hexapod.\n Error: " + str(e) + "\n")
 
     def home_hexapod(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Home")
         else:
-            hexapod.home()
+            self.hexapod.home()
 
     def control_on_hexapod(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Control On")
         else:
-            hexapod.controlOn()
+            self.hexapod.controlOn()
 
     def move_up(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Up")
         else:
-            hexapod.moveUp(self.stepInput.get())
+            self.hexapod.moveUp(self.stepInput.get())
 
     def move_down(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Down")
         else:
-            hexapod.moveDown(self.stepInput.get())
+            self.hexapod.moveDown(self.stepInput.get())
 
     def move_left(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Left")
         else:
-            hexapod.moveLeft(self.stepInput.get())
+            self.hexapod.moveLeft(self.stepInput.get())
 
     def move_right(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Right")
         else:
-            hexapod.moveRight(self.stepInput.get())
+            self.hexapod.moveRight(self.stepInput.get())
 
     def move_in(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move In")
         else:
-            hexapod.moveIn(self.stepInput.get())
+            self.hexapod.moveIn(self.stepInput.get())
 
     def move_out(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Move Out")
         else:
-            hexapod.moveOut(self.stepInput.get())
+            self.hexapod.moveOut(self.stepInput.get())
     def reset_position(self):
-        if hexapod is None or not hexapod.ssh_API:
+        if self.hexapod is None or not self.hexapod.ssh_API:
             print("Reset Position")
         else:
-            hexapod.resetPosition()
+            self.hexapod.resetPosition()
 
 
 if __name__ == '__main__':
