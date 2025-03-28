@@ -19,10 +19,32 @@ class InstrumentInitialize:
       # connect to lock in amplifier
       self.lia = self.rm.open_resource('GPIB0::8::INSTR')   # opens connection on channel 8
       self.lia.encoding = 'latin-1'
+      # set sampling rate
+      self.lia.write("SRAT 0") # TODO: check if this is the correct sampling rate
       self.lia.write(f"OUTX 1")
     except Exception as e: 
       print("An error occurred connecting to the lock in amplifier: ", e)
       self.lia = None
+
+  def start_measurement(self):
+    if self.lia: 
+      # self.lia.write("STRT")
+      self.lia.write("FAST2;STRD")
+    else: 
+      print("No lock in amplifier connected")
+
+  def stop_measurement(self):
+    if self.lia: 
+      self.lia.write("PAUS")
+      # TODO: output data to file
+    else: 
+      print("No lock in amplifier connected")
+
+  def perform_measurement(self):
+    if self.lia: 
+      # take data for 10 seconds then stop 
+      self.start_measurement()
+      
 
   def update_configuration(self):
     if self.fg: 
@@ -60,7 +82,7 @@ class InstrumentInitialize:
 # # print("Function generator identification: ", fg.query("*idn?"))
 # # print("This is the test value: ",fg.query("*tst?")) # if output is 0 test is successful
 
-# ##########This is for 1kHz wave##########
+# ##########This is for function generator 1kHz wave##########
 # fg.write("C1:BSWV WVTP,SINE,FRQ,1000,AMP,2.480,OFST,2.519")
 # fg.write("C2:BSWV WVTP,SQUARE,FRQ,2000,AMP,5,OFST,2.5,DUTY,50")
 # fg.write("C1:OUTP ON")
