@@ -5,28 +5,57 @@ class InstrumentInitialize:
   FgConfigs: dict[str , fgConfig] = {}
   fgConfigNames = []
   current_fg_config: fgConfig = None
-  time_constants: dict[str, int] = {
-    "10us": 0,
-    "30us": 1,
-    "100us": 2,
-    "300us": 3,
-    "1ms": 4,
-    "3ms": 5,
-    "10ms": 6,
-    "30ms": 7,
-    "100ms": 8,
-    "300ms": 9,
-    "1s": 10,
-    "3s": 11,
-    "10s": 12,
-    "30s": 13,
-    "100s": 14,
-    "300s": 15,
-    "1ks": 16,
-    "3ks": 17,
-    "10ks": 18,
-    "30ks": 19,
-  }
+  time_constants: list = [
+    "10us",
+    "30us",
+    "100us",
+    "300us",
+    "1ms",
+    "3ms",
+    "10ms",
+    "30ms",
+    "100ms",
+    "300ms",
+    "1s",
+    "3s",
+    "10s",
+    "30s",
+    "100s",
+    "300s",
+    "1ks",
+    "3ks",
+    "10ks",
+    "30ks",
+  ]
+  sensitivities: list = [
+    "2nV/fA",
+    "5nV/fA",
+    "10nV/fA",
+    "20nV/fA",
+    "50nV/fA",
+    "100nV/fA",
+    "200nV/fA",
+    "500nV/fA",
+    "1uV/fA",
+    "2uV/fA",
+    "5uV/fA",
+    "10uV/fA",
+    "20uV/fA",
+    "50uV/fA",
+    "100uV/fA",
+    "200uV/fA",
+    "500uV/fA",
+    "1mV/fA",
+    "2mV/fA",
+    "5mV/fA",
+    "10mV/fA",
+    "20mV/fA",
+    "50mV/fA",
+    "100mV/fA",
+    "200mV/fA",
+    "500mV/fA",
+    "1V/fA"
+  ]
 
   def __init__(self):
     self.rm = pyvisa.ResourceManager()
@@ -72,10 +101,26 @@ class InstrumentInitialize:
       return "No lock in amplifier connected"
     
   def set_time_constant(self, time_constant):
-    index_val = self.time_constants.get(time_constant)
+    index_val = self.time_constants.index(time_constant)
     if index_val: 
       if self.lia: 
         self.lia.write(f'OFLT {index_val}')
+        current = int(self.lia.query("OFLT?"))
+        current = self.time_constants[current]
+        return current
+      else: 
+        print("No lock in amplifier connected")
+  
+  def set_gain(self, gain):
+    index_val = self.sensitivities.index(gain)
+    if index_val: 
+      if self.lia: 
+        self.lia.write(f'SENS {index_val}')
+        current = int(self.lia.query("SENS?"))
+        current = self.sensitivities[current]
+        return current
+      else: 
+        print("No lock in amplifier connected")
 
   def perform_measurement(self):
     if self.lia: 

@@ -117,6 +117,18 @@ class MicroscopeGUI():
         self.measureBtn.pack(padx=10, pady=10)
         self.autoGainBtn = tk.Button(lockInTab, text="Auto Gain", command=self.auto_gain)
         self.autoGainBtn.pack(padx=10, pady=10)
+        self.timeConstantLabel = tk.Label(lockInTab, text="Time Constant")
+        self.timeConstantLabel.pack(padx=10, pady=5)
+        self.timeConstantDropDown = ttk.Combobox(lockInTab, textvariable="Select a time constant", values=self.instruments.time_constants)
+        self.timeConstantDropDown.pack(padx=10, pady=10)
+        self.updateTimeConstantBtn = tk.Button(lockInTab, text="Update Time Constant", command=self.update_time_constant)
+        self.updateTimeConstantBtn.pack(padx=10, pady=10)
+        self.gainLabel = tk.Label(lockInTab, text="Gain")
+        self.gainLabel.pack(padx=10, pady=5)
+        self.gainDropDown = ttk.Combobox(lockInTab, textvariable="Select a gain Value", values=self.instruments.sensitivities)
+        self.gainDropDown.pack(padx=10, pady=10)
+        self.updateGainBtn = tk.Button(lockInTab, text="Update Gain", command=self.update_gain)
+        self.updateGainBtn.pack(padx=10, pady=10)
         self.lockInTxtBx = tk.Text(lockInTab, height=8,  font=('Arial', 16))
         self.lockInTxtBx.pack(padx=10, pady=10)
 
@@ -124,11 +136,23 @@ class MicroscopeGUI():
 
     def measure(self):
         amplitude, phase = self.instruments.take_measurement()
-        self.lockInTxtBx.insert(tk.END, f"Amplitude: {amplitude} Phase: {phase}\n")
+        import datetime
+        
+        self.lockInTxtBx.insert('1.0', f"Time: {datetime.datetime.now().time()} Amplitude: {amplitude} Phase: {phase}\n")
     
     def auto_gain(self):
         answer = self.instruments.auto_gain()
-        self.lockInTxtBx.insert(tk.END, f"{answer}\n")
+        self.lockInTxtBx.insert('1.0', f"{answer}\n")
+    
+    def update_time_constant(self):
+        time_constant = self.timeConstantDropDown.get()
+        current = self.instruments.set_time_constant(time_constant)
+        self.lockInTxtBx.insert('1.0', f"Time Constant set to: {current}\n")
+
+    def update_gain(self):
+        gain = self.gainDropDown.get()
+        current = self.instruments.set_gain(gain)
+        self.lockInTxtBx.insert('1.0', f"Gain set to: {current}\n")
 
     def load_configs(self):
         configurations = {}
