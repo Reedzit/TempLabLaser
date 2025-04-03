@@ -5,6 +5,28 @@ class InstrumentInitialize:
   FgConfigs: dict[str , fgConfig] = {}
   fgConfigNames = []
   current_fg_config: fgConfig = None
+  time_constants: dict[str, int] = {
+    "10us": 0,
+    "30us": 1,
+    "100us": 2,
+    "300us": 3,
+    "1ms": 4,
+    "3ms": 5,
+    "10ms": 6,
+    "30ms": 7,
+    "100ms": 8,
+    "300ms": 9,
+    "1s": 10,
+    "3s": 11,
+    "10s": 12,
+    "30s": 13,
+    "100s": 14,
+    "300s": 15,
+    "1ks": 16,
+    "3ks": 17,
+    "10ks": 18,
+    "30ks": 19,
+  }
 
   def __init__(self):
     self.rm = pyvisa.ResourceManager()
@@ -26,10 +48,11 @@ class InstrumentInitialize:
       print("An error occurred connecting to the lock in amplifier: ", e)
       self.lia = None
 
-  def start_measurement(self):
+  def take_measurement(self):
     if self.lia: 
-      # self.lia.write("STRT")
-      self.lia.write("FAST2;STRD")
+      amplitude = self.lia.query("OUTP? 3")
+      phase = self.lia.query("OUTP? 4")
+      return amplitude, phase
     else: 
       print("No lock in amplifier connected")
 
@@ -39,6 +62,20 @@ class InstrumentInitialize:
       # TODO: output data to file
     else: 
       print("No lock in amplifier connected")
+
+  def auto_gain(self):
+    if self.lia: 
+      answer = self.lia.write("AGAN")
+      if answer > 0:
+        return "Auto gain successful"
+    else: 
+      return "No lock in amplifier connected"
+    
+  def set_time_constant(self, time_constant):
+    index_val = self.time_constants.get(time_constant)
+    if index_val: 
+      if self.lia: 
+        self.lia.write(f'OFLT {index_val}')
 
   def perform_measurement(self):
     if self.lia: 

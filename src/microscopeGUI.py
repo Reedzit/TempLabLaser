@@ -115,14 +115,20 @@ class MicroscopeGUI():
         ### Lock In Amplifier Tab ###
         self.measureBtn = tk.Button(lockInTab, text="Measure", command=self.measure)
         self.measureBtn.pack(padx=10, pady=10)
+        self.autoGainBtn = tk.Button(lockInTab, text="Auto Gain", command=self.auto_gain)
+        self.autoGainBtn.pack(padx=10, pady=10)
         self.lockInTxtBx = tk.Text(lockInTab, height=8,  font=('Arial', 16))
         self.lockInTxtBx.pack(padx=10, pady=10)
 
         window.mainloop()
 
     def measure(self):
-        self.lockInTxtBx.insert(tk.END, "Measuring...\n")
-        
+        amplitude, phase = self.instruments.take_measurement()
+        self.lockInTxtBx.insert(tk.END, f"Amplitude: {amplitude} Phase: {phase}\n")
+    
+    def auto_gain(self):
+        answer = self.instruments.auto_gain()
+        self.lockInTxtBx.insert(tk.END, f"{answer}\n")
 
     def load_configs(self):
         configurations = {}
