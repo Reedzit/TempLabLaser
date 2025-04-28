@@ -187,6 +187,15 @@ class InstrumentInitialize:
     else: 
       print("No Function Generator configuration with that name found")
 
+  def set_phase(self, phase):
+    if self.fg:
+      # self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50,PHSE,{phase}")
+      self.fg.write(f"C2:BSWV PHSE,{phase}")
+      self.fg.write("C1:OUTP ON")
+      self.fg.write("C2:OUTP ON")
+      return phase
+    else: 
+      print("No function generator connected")
 
 ##################### DEBUG #####################
 # channel2 for fg will always be twice the frequency of channel1
@@ -202,9 +211,12 @@ class InstrumentInitialize:
 
 # ##########This is for function generator 1kHz wave##########
 # fg.write("C1:BSWV WVTP,SINE,FRQ,1000,AMP,2.480,OFST,2.519")
-# fg.write("C2:BSWV WVTP,SQUARE,FRQ,2000,AMP,5,OFST,2.5,DUTY,50")
+# fg.write("C2:BSWV WVTP,SQUARE,FRQ,2000,AMP,5,OFST,2.5,DUTY,50,PHSE,90")
 # fg.write("C1:OUTP ON")
 # fg.write("C2:OUTP ON")
+# fg.write("C2:BSWV PHSE,45")
+# print(fg.query("C2:BSWV?"))
+# print(fg.query("C2:BSWV PHSE?"))
 # print("Execution Finished")
 
 ########### test for lock in amplifier ###########

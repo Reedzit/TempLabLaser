@@ -61,6 +61,13 @@ class MicroscopeGUI():
         self.createConfigButton = tk.Button(instrumentsTab, text="Create Configuration", command=self.create_config)
         self.createConfigButton.grid(row=6, column=0, columnspan=3, padx=10, pady=10)
 
+        self.phaseLabel = tk.Label(instrumentsTab, text="Adjust Channel 2 Phase (degrees)")
+        self.phaseLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
+        self.phaseInput = tk.Entry(instrumentsTab, text="Phase")
+        self.phaseInput.grid(row=7, column=1, padx=10, pady=10)
+        self.setPhaseBtn = tk.Button(instrumentsTab, text="Set Phase", command=self.set_phase)
+        self.setPhaseBtn.grid(row=7, column=2, padx=10, pady=10)
+
         self.instrumentsTxtBx = tk.Text(instrumentsTab, height=8,  font=('Arial', 16))
         self.instrumentsTxtBx.grid(row=8, column=0, columnspan=4, padx=10, pady=10)
         
@@ -228,6 +235,11 @@ class MicroscopeGUI():
         self.configDropdown['values'] = list(self.instruments.FgConfigs.keys())
         self.configDropdown.set('')  # Clear the current selection
         self.instrumentsTxtBx.insert(tk.END, "Created configuration " + config_name + "\n")
+
+    def set_phase(self):
+        phase = self.phaseInput.get()
+        value = self.instruments.set_phase(phase)
+        self.instrumentsTxtBx.insert(tk.END, "Channel 2 phase set to " + str(value) + "\n")
 
     def connect_hexapod(self):
         try:
