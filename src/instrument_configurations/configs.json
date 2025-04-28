@@ -7,8 +7,62 @@
     },
     "30khz": {
         "name": "30khz",
-        "frequency": "30000",
-        "amplitude": "2.2",
-        "offset": "1"
+        "frequency": 30000.0,
+        "amplitude": 2.2,
+        "offset": 1.0
+    },
+    "Test": {
+        "name": "Test",
+        "frequency": 1000.0,
+        "amplitude": 4.8,
+        "offset": 2.5
+    },
+    "1kHz": {
+        "name": "1kHz",
+        "frequency": 1000.0,
+        "amplitude": 4.8,
+        "offset": 2.45
+    },
+    "300Hz": {
+        "name": "300Hz",
+        "frequency": "300",
+        "amplitude": "4.8",
+        "offset": "2.45"
+    },
+    "400Hz": {
+        "name": "400Hz",
+        "frequency": "400",
+        "amplitude": "4.8",
+        "offset": "2.45"
+    },
+    "500Hz": {
+        "name": "500Hz",
+        "frequency": "500",
+        "amplitude": "4.8",
+        "offset": "2.45"
+    },
+    "600Hz": {
+        "name": "600Hz",
+        "frequency": "600",
+        "amplitude": "4.8",
+        "offset": "2.45"
+    },
+    "700Hz": {
+        "name": "700Hz",
+        "frequency": "700",
+        "amplitude": "4.8",
+        "offset": "2.45"
+    },
+    "800Hz": {
+        "name": "800Hz",
+        "frequency": "800",
+        "amplitude": "4.8",
+        "offset": "2.45"
+    },
+    "900Hz": {
+        "name": "900Hz",
+        "frequency": "900",
+        "amplitude": "4.8",
+        "offset": "2.45"
     }
 }

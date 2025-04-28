@@ -110,6 +110,24 @@ class InstrumentInitialize:
         return current
       else: 
         print("No lock in amplifier connected")
+
+  def increase_time_constant(self):
+    if self.lia:
+      current = int(self.lia.query("OFLT?"))
+      current += 1 #increase the time constant by 1 step up
+      value = self.time_constants[current]
+      return value
+    else:
+      print("No lock in amplifier connected")
+  
+  def decrease_time_constant(self):
+    if self.lia:
+      current = int(self.lia.query("OFLT?"))
+      current -= 1
+      value = self.time_constants[current]
+      return value
+    else:
+      print("No lock in amplifier connected")
   
   def set_gain(self, gain):
     index_val = self.sensitivities.index(gain)
@@ -121,6 +139,24 @@ class InstrumentInitialize:
         return current
       else: 
         print("No lock in amplifier connected")
+  
+  def increase_gain(self):
+    if self.lia:
+      current = int(self.lia.query("SENS?"))
+      current += 1
+      value = self.sensitivities[current]
+      return value
+    else:
+      print("No lock in amplifier connected")
+  
+  def decrease_gain(self):
+    if self.lia:
+      current = int(self.lia.query("SENS?"))
+      current -= 1
+      value = self.sensitivities[current]
+      return value
+    else:
+      print("No lock in amplifier connected")
 
   def perform_measurement(self):
     if self.lia: 
