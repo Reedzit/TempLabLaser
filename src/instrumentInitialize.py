@@ -174,6 +174,14 @@ class InstrumentInitialize:
     else: 
       print("No function generator connected. But this is the current configuration: ", self.current_fg_config)
 
+  def delete_fg_config(self, name):
+    if self.FgConfigs[name]:
+      del self.FgConfigs[name]
+      self.fgConfigNames.remove(name)
+      print(f"Function generator configuration {name} deleted")
+    else: 
+      print("No Function Generator configuration with that name found")
+
   def create_fg_config(self, name, frequency, amplitude, offset):
     self.current_fg_config = fgConfig(name, frequency, amplitude, offset)
     self.fgConfigNames.append(name)

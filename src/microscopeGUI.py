@@ -18,7 +18,7 @@ class MicroscopeGUI():
         self.load_configs()
 
         window = tk.Tk()
-        window.geometry("800x800")
+        window.geometry("1000x1000")
         window.title("Microscope GUI")
         notebook = ttk.Notebook(window)
         instrumentsTab = tk.Frame(notebook)
@@ -34,6 +34,9 @@ class MicroscopeGUI():
         self.configDropdown.grid(row=0, column=1, padx=10, pady=10)
         self.updateConfigButton = tk.Button(instrumentsTab, text="Update Configuration", command=self.update_config)
         self.updateConfigButton.grid(row=0, column=2, padx=10, pady=10)
+
+        self.deleteConfigBtn = tk.Button(instrumentsTab, text="Delete Configuration", command=self.delete_config)
+        self.deleteConfigBtn.grid(row=0, column=3, padx=10, pady=10)
 
         self.createConfigLabel = tk.Label(instrumentsTab, text="Create Configuration")
         self.createConfigLabel.grid(row=1, column=0, columnspan=3, padx=10, pady=10)
@@ -235,6 +238,13 @@ class MicroscopeGUI():
         self.configDropdown['values'] = list(self.instruments.FgConfigs.keys())
         self.configDropdown.set('')  # Clear the current selection
         self.instrumentsTxtBx.insert(tk.END, "Created configuration " + config_name + "\n")
+
+    def delete_config(self):
+        configName = self.configDropdown.get()
+        self.instruments.delete_fg_config(configName)
+        self.save_configurations()
+        self.instrumentsTxtBx.insert(tk.END, "Deleted configuration " + configName + "\n")
+        self.configDropdown['values'] = list(self.instruments.FgConfigs.keys())
 
     def set_phase(self):
         phase = self.phaseInput.get()
