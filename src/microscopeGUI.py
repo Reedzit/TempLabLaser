@@ -8,9 +8,20 @@ from hexapod.hexapodControl import HexapodControl
 import json
 import os
 import datetime
+import sys
 
 
 # import pymeasure.instruments.srs.sr830 as lia
+
+def automation_popup():
+    popup = tk.Toplevel()
+    popup.title("Pop-up Window")
+    image_path = os.path.join(sys.path[0],"res/HeMan.gif")
+    img = tk.PhotoImage(file=image_path)
+    popup.image = img
+    label = tk.Label(popup, image=img)
+    label.pack()
+    print()
 
 class MicroscopeGUI():
     CONFIG_FILE = "src\\instrument_configurations\\configs.json"
@@ -37,7 +48,7 @@ class MicroscopeGUI():
         notebook.pack(expand=1, fill='both')
 
         ### Instruments Tab ###
-        self.configDropdown = ttk.Combobox(instrumentsTab, textvariable="Select a configuration",
+        self.configDropdown = ttk.Combobox(instrumentsTab,
                                            values=self.instruments.fgConfigNames)
         self.configDropdown.grid(row=0, column=1, padx=10, pady=10)
         self.updateConfigButton = tk.Button(instrumentsTab, text="Update Configuration", command=self.update_config)
@@ -51,22 +62,22 @@ class MicroscopeGUI():
 
         self.configNameLabel = tk.Label(instrumentsTab, text="Configuration Name")
         self.configNameLabel.grid(row=2, column=0, padx=10, pady=10, sticky=tk.E)
-        self.configNameInput = tk.Entry(instrumentsTab, text="Name")
+        self.configNameInput = tk.Entry(instrumentsTab)
         self.configNameInput.grid(row=2, column=1, padx=10, pady=10)
 
         self.freqLabel = tk.Label(instrumentsTab, text="Frequency (Hz)")
         self.freqLabel.grid(row=3, column=0, padx=10, pady=10, sticky=tk.E)
-        self.freqInput = tk.Entry(instrumentsTab, text="Frequency")
+        self.freqInput = tk.Entry(instrumentsTab)
         self.freqInput.grid(row=3, column=1, padx=10, pady=10)
 
         self.ampLabel = tk.Label(instrumentsTab, text="Amplitude (V)")
         self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
-        self.ampInput = tk.Entry(instrumentsTab, text="Amplitude")
+        self.ampInput = tk.Entry(instrumentsTab)
         self.ampInput.grid(row=4, column=1, padx=10, pady=10)
 
         self.offsetLabel = tk.Label(instrumentsTab, text="Offset (V)")
         self.offsetLabel.grid(row=5, column=0, padx=10, pady=10, sticky=tk.E)
-        self.offsetInput = tk.Entry(instrumentsTab, text="Offset")
+        self.offsetInput = tk.Entry(instrumentsTab)
         self.offsetInput.grid(row=5, column=1, padx=10, pady=10)
 
         self.createConfigButton = tk.Button(instrumentsTab, text="Create Configuration", command=self.create_config)
@@ -74,7 +85,7 @@ class MicroscopeGUI():
 
         self.phaseLabel = tk.Label(instrumentsTab, text="Adjust Channel 2 Phase (degrees)")
         self.phaseLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
-        self.phaseInput = tk.Entry(instrumentsTab, text="Phase")
+        self.phaseInput = tk.Entry(instrumentsTab)
         self.phaseInput.grid(row=7, column=1, padx=10, pady=10)
         self.setPhaseBtn = tk.Button(instrumentsTab, text="Set Phase", command=self.set_phase)
         self.setPhaseBtn.grid(row=7, column=2, padx=10, pady=10)
@@ -92,7 +103,7 @@ class MicroscopeGUI():
         self.controlOnBtn.pack(padx=10, pady=10)
         self.stepLabel = tk.Label(hexapodTab, text="Step Size (mm)")
         self.stepLabel.pack(padx=10, pady=5)
-        self.stepInput = tk.Entry(hexapodTab, text="Step Size")
+        self.stepInput = tk.Entry(hexapodTab)
         self.stepInput.pack(padx=10, pady=10)
         self.resetBtn = tk.Button(hexapodTab, text="Reset Position", command=self.reset_position)
         self.resetBtn.pack(padx=10, pady=10)
@@ -135,7 +146,7 @@ class MicroscopeGUI():
         self.autoGainBtn.pack(padx=10, pady=10)
         self.timeConstantLabel = tk.Label(lockInTab, text="Time Constant")
         self.timeConstantLabel.pack(padx=10, pady=5)
-        self.timeConstantDropDown = ttk.Combobox(lockInTab, textvariable="Select a time constant",
+        self.timeConstantDropDown = ttk.Combobox(lockInTab,
                                                  values=self.instruments.time_constants)
         self.timeConstantDropDown.pack(padx=10, pady=10)
         self.updateTimeConstantBtn = tk.Button(lockInTab, text="Update Time Constant",
@@ -149,7 +160,7 @@ class MicroscopeGUI():
         self.decreaseTimeConstantBtn.pack(padx=10, pady=10)
         self.gainLabel = tk.Label(lockInTab, text="Gain")
         self.gainLabel.pack(padx=10, pady=5)
-        self.gainDropDown = ttk.Combobox(lockInTab, textvariable="Select a gain Value",
+        self.gainDropDown = ttk.Combobox(lockInTab,
                                          values=self.instruments.sensitivities)
         self.gainDropDown.pack(padx=10, pady=10)
         self.updateGainBtn = tk.Button(lockInTab, text="Update Gain", command=self.update_gain)
@@ -206,6 +217,18 @@ class MicroscopeGUI():
         self.automationTxtBx = tk.Text(automateTab, height=8, font=('Arial', 16))
         self.automationTxtBx.grid(row=9, column=0, columnspan=4, padx=10, pady=10)
 
+        self.stepCountLabel = tk.Label(automateTab, text="Step Count:")
+        self.stepCount = tk.IntVar(automateTab, 1)
+        self.stepCountInput = tk.Entry(automateTab, textvariable=self.stepCount)
+        self.stepCountInput.grid(row=11, column=1, padx=10, pady=10)
+        self.stepCountLabel.grid(row=11, column=0, padx=10, pady=10)
+        self.timePerStep = tk.IntVar(automateTab, 1)
+        self.timePerStepLabel = tk.Label(automateTab, text="Time Per Step (s):")
+        self.timePerStepInput = tk.Entry(automateTab,textvariable= self.timePerStep, state='disabled')
+        self.timePerStepInput.grid(row=11, column=1, padx=10, pady=10)
+        self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
+
+
         self.fileStorageLocation = tk.StringVar(automateTab, "No Location Given")
         self.fileStorageLabel = tk.Label(automateTab, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(automateTab, text="Choose File Location", command=self.select_file_location)
@@ -227,6 +250,7 @@ class MicroscopeGUI():
 
     def begin_automation(self):
         print("Beginning Automation...")
+        automation_popup()
         # TODO: Add functionality
 
     def end_automation(self):
