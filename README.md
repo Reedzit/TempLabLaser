@@ -5,7 +5,7 @@ This is a GUI that integrates function generators, a hexapod and in the future a
 1. Download the required modules using pip or conda. Run the following commands in your terminal
 ~~~
 # for pip
-pip install pyvisa matplotlib numpy tk subprocess
+pip install pyvisa matplotlib numpy tk subprocess paramiko
 ~~~
 2.  To install Matlab Engine API you need to have Matlab installed on your machine. If it is installed on your machine run the following commands in your terminal:
 ~~~
