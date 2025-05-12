@@ -166,8 +166,17 @@ class InstrumentInitialize:
             # take data for 10 seconds then stop
             self.start_measurement()
 
-    def update_configuration(self):
-        if self.fg:
+    def update_configuration(self, freq = None, amp = None, offset = None):
+        if self.fg and freq:
+            print("Using dynamic values")
+            self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{freq},AMP,5,OFST,2.5,DUTY,50")
+            self.fg.write("C2:OUTP ON")
+            if amp and offset:
+                self.fg.write(
+                    f"C1:BSWV WVTP,SINE,FRQ,{freq},AMP,{amp},OFST,{offset}")
+                self.fg.write("C1:OUTP ON")
+        elif self.fg:
+            print("Using static values from config file")
             print(f"Setting fg channel 2 to be frequency {self.current_fg_config.frequency}")
             self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
             self.fg.write("C2:OUTP ON")
