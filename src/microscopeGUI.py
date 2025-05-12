@@ -1,4 +1,5 @@
 import tkinter as tk
+import tkinter.filedialog
 from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from instrumentInitialize import InstrumentInitialize
@@ -6,10 +7,12 @@ from instrument_configurations.fgConfig import fgConfig
 from hexapod.hexapodControl import HexapodControl
 import json
 import os
+import datetime
+
+
 # import pymeasure.instruments.srs.sr830 as lia
 
 class MicroscopeGUI():
-
     CONFIG_FILE = "src\\instrument_configurations\\configs.json"
     instruments = InstrumentInitialize()
     hexapod = None
@@ -21,16 +24,21 @@ class MicroscopeGUI():
         window.geometry("1000x1000")
         window.title("Microscope GUI")
         notebook = ttk.Notebook(window)
+
         instrumentsTab = tk.Frame(notebook)
         hexapodTab = tk.Frame(notebook)
         lockInTab = tk.Frame(notebook)
+        automateTab = tk.Frame(notebook)
+
         notebook.add(instrumentsTab, text='Instruments')
         notebook.add(hexapodTab, text='Hexapod')
         notebook.add(lockInTab, text='Lock In Amplifier')
+        notebook.add(automateTab, text='🤖Automation🤖')
         notebook.pack(expand=1, fill='both')
 
         ### Instruments Tab ###
-        self.configDropdown = ttk.Combobox(instrumentsTab, textvariable="Select a configuration", values=self.instruments.fgConfigNames)
+        self.configDropdown = ttk.Combobox(instrumentsTab, textvariable="Select a configuration",
+                                           values=self.instruments.fgConfigNames)
         self.configDropdown.grid(row=0, column=1, padx=10, pady=10)
         self.updateConfigButton = tk.Button(instrumentsTab, text="Update Configuration", command=self.update_config)
         self.updateConfigButton.grid(row=0, column=2, padx=10, pady=10)
@@ -71,17 +79,16 @@ class MicroscopeGUI():
         self.setPhaseBtn = tk.Button(instrumentsTab, text="Set Phase", command=self.set_phase)
         self.setPhaseBtn.grid(row=7, column=2, padx=10, pady=10)
 
-        self.instrumentsTxtBx = tk.Text(instrumentsTab, height=8,  font=('Arial', 16))
+        self.instrumentsTxtBx = tk.Text(instrumentsTab, height=8, font=('Arial', 16))
         self.instrumentsTxtBx.grid(row=8, column=0, columnspan=4, padx=10, pady=10)
-        
-        
-        
+
         ### Hexapod Tab ###
         self.connectBtn = tk.Button(hexapodTab, text="Connect to Hexapod", command=self.connect_hexapod)
         self.connectBtn.pack(padx=10, pady=10)
         self.homeBtn = tk.Button(hexapodTab, text="Home Hexapod", command=self.home_hexapod)
         self.homeBtn.pack(padx=10, pady=10)
-        self.controlOnBtn = tk.Button(hexapodTab, text="Turn on Control (Press this after homing)", command=self.control_on_hexapod)
+        self.controlOnBtn = tk.Button(hexapodTab, text="Turn on Control (Press this after homing)",
+                                      command=self.control_on_hexapod)
         self.controlOnBtn.pack(padx=10, pady=10)
         self.stepLabel = tk.Label(hexapodTab, text="Step Size (mm)")
         self.stepLabel.pack(padx=10, pady=5)
@@ -89,7 +96,6 @@ class MicroscopeGUI():
         self.stepInput.pack(padx=10, pady=10)
         self.resetBtn = tk.Button(hexapodTab, text="Reset Position", command=self.reset_position)
         self.resetBtn.pack(padx=10, pady=10)
-    
 
         bfTranslation = tk.Frame(hexapodTab)
         bfTranslation.columnconfigure(0, weight=1)
@@ -100,26 +106,26 @@ class MicroscopeGUI():
         bfTranslation.rowconfigure(2, weight=1)
 
         btn_up = tk.Button(bfTranslation, text="Up", command=self.move_up, font=('Arial', 18))
-        btn_up.grid(row=0, column=1, sticky=tk.W+tk.E)
+        btn_up.grid(row=0, column=1, sticky=tk.W + tk.E)
 
         btn_left = tk.Button(bfTranslation, text="Left", command=self.move_left, font=('Arial', 18))
-        btn_left.grid(row=1, column=0, sticky=tk.W+tk.E)
+        btn_left.grid(row=1, column=0, sticky=tk.W + tk.E)
 
         btn_down = tk.Button(bfTranslation, text="Down", command=self.move_down, font=('Arial', 18))
-        btn_down.grid(row=1, column=1, sticky=tk.W+tk.E)
+        btn_down.grid(row=1, column=1, sticky=tk.W + tk.E)
 
         btn_right = tk.Button(bfTranslation, text="Right", command=self.move_right, font=('Arial', 18))
-        btn_right.grid(row=1, column=2, sticky=tk.W+tk.E)
+        btn_right.grid(row=1, column=2, sticky=tk.W + tk.E)
 
         btn_in = tk.Button(bfTranslation, text="In", command=self.move_in, font=('Arial', 18))
-        btn_in.grid(row=2, column=1, sticky=tk.W+tk.E)
+        btn_in.grid(row=2, column=1, sticky=tk.W + tk.E)
 
         btn_out = tk.Button(bfTranslation, text="Out", command=self.move_out, font=('Arial', 18))
-        btn_out.grid(row=3, column=1, sticky=tk.W+tk.E)
+        btn_out.grid(row=3, column=1, sticky=tk.W + tk.E)
 
         bfTranslation.pack(fill='x', padx=20, pady=20)
 
-        self.hexapodTextbox = tk.Text(hexapodTab, height=8,  font=('Arial', 16))
+        self.hexapodTextbox = tk.Text(hexapodTab, height=8, font=('Arial', 16))
         self.hexapodTextbox.pack(padx=10, pady=10, side=tk.BOTTOM, fill=tk.X)
 
         ### Lock In Amplifier Tab ###
@@ -129,17 +135,22 @@ class MicroscopeGUI():
         self.autoGainBtn.pack(padx=10, pady=10)
         self.timeConstantLabel = tk.Label(lockInTab, text="Time Constant")
         self.timeConstantLabel.pack(padx=10, pady=5)
-        self.timeConstantDropDown = ttk.Combobox(lockInTab, textvariable="Select a time constant", values=self.instruments.time_constants)
+        self.timeConstantDropDown = ttk.Combobox(lockInTab, textvariable="Select a time constant",
+                                                 values=self.instruments.time_constants)
         self.timeConstantDropDown.pack(padx=10, pady=10)
-        self.updateTimeConstantBtn = tk.Button(lockInTab, text="Update Time Constant", command=self.update_time_constant)
+        self.updateTimeConstantBtn = tk.Button(lockInTab, text="Update Time Constant",
+                                               command=self.update_time_constant)
         self.updateTimeConstantBtn.pack(padx=10, pady=10)
-        self.increaseTimeConstantBtn = tk.Button(lockInTab, text="Increase Time Constant", command=self.increase_time_constant)
+        self.increaseTimeConstantBtn = tk.Button(lockInTab, text="Increase Time Constant",
+                                                 command=self.increase_time_constant)
         self.increaseTimeConstantBtn.pack(padx=10, pady=10)
-        self.decreaseTimeConstantBtn = tk.Button(lockInTab, text="Decrease Time Constant", command=self.decrease_time_constant)
+        self.decreaseTimeConstantBtn = tk.Button(lockInTab, text="Decrease Time Constant",
+                                                 command=self.decrease_time_constant)
         self.decreaseTimeConstantBtn.pack(padx=10, pady=10)
         self.gainLabel = tk.Label(lockInTab, text="Gain")
         self.gainLabel.pack(padx=10, pady=5)
-        self.gainDropDown = ttk.Combobox(lockInTab, textvariable="Select a gain Value", values=self.instruments.sensitivities)
+        self.gainDropDown = ttk.Combobox(lockInTab, textvariable="Select a gain Value",
+                                         values=self.instruments.sensitivities)
         self.gainDropDown.pack(padx=10, pady=10)
         self.updateGainBtn = tk.Button(lockInTab, text="Update Gain", command=self.update_gain)
         self.updateGainBtn.pack(padx=10, pady=10)
@@ -147,8 +158,59 @@ class MicroscopeGUI():
         self.increaseGainBtn.pack(padx=10, pady=10)
         self.decreaseGainBtn = tk.Button(lockInTab, text="Decrease Gain", command=self.decrease_gain)
         self.decreaseGainBtn.pack(padx=10, pady=10)
-        self.lockInTxtBx = tk.Text(lockInTab, height=8,  font=('Arial', 16))
+        self.lockInTxtBx = tk.Text(lockInTab, height=8, font=('Arial', 16))
         self.lockInTxtBx.pack(padx=10, pady=10)
+
+        ### Automation Tab ###
+
+        self.startLabel = tk.Label(automateTab, text="INITIAL VALUE")
+        self.startLabel.grid(row=2, column=1, padx=10, pady=0)
+        self.endLabel = tk.Label(automateTab, text="FINAL VALUE")
+        self.endLabel.grid(row=2, column=2, padx=10, pady=0)
+
+        self.freqLabelAuto = tk.Label(automateTab, text="Frequency (Hz)")
+        self.freqLabelAuto.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
+        self.freqInitialInput = tk.Entry(automateTab)
+        self.freqInitialInput.grid(row=3, column=1, padx=10, pady=5)
+        self.freqFinalInput = tk.Entry(automateTab)
+        self.freqFinalInput.grid(row=3, column=2, padx=10, pady=5)
+
+        self.ampLabel = tk.Label(automateTab, text="Amplitude (V)")
+        self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
+        self.ampInitialInput = tk.Entry(automateTab)
+        self.ampInitialInput.grid(row=4, column=1, padx=10, pady=5)
+        self.ampFinalInput = tk.Entry(automateTab)
+        self.ampFinalInput.grid(row=4, column=2, padx=10, pady=5)
+
+        self.offsetLabelAuto = tk.Label(automateTab, text="Offset (V)")
+        self.offsetLabelAuto.grid(row=5, column=0, padx=10, pady=5, sticky=tk.E)
+        self.offsetInitialInput = tk.Entry(automateTab)
+        self.offsetInitialInput.grid(row=5, column=1, padx=10, pady=5)
+        self.offsetFinalInput = tk.Entry(automateTab)
+        self.offsetFinalInput.grid(row=5, column=2, padx=10, pady=5)
+
+        self.startMeasurements = tk.Button(automateTab, text="Start Measurements", command=self.begin_automation)
+        self.startMeasurements.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
+        self.endMeasurements = tk.Button(automateTab, text="End Measurements", command=self.end_automation)
+        self.endMeasurements.grid(row=6, column=2, columnspan=2, padx=10, pady=10)
+
+        self.phaseLabel = tk.Label(automateTab, text="Adjust Channel 2 Phase (degrees)")
+        self.phaseLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
+        self.phaseInput = tk.Entry(automateTab)
+        self.phaseInput.grid(row=7, column=1, padx=10, pady=10)
+        self.setPhaseBtn = tk.Button(automateTab, text="Set Phase", command=self.set_phase)
+        self.setPhaseBtn.grid(row=7, column=2, padx=10, pady=10)
+
+        self.OutputLabel = tk.Label(automateTab, text="Status:")
+        self.OutputLabel.grid(row=8, column=0)
+        self.automationTxtBx = tk.Text(automateTab, height=8, font=('Arial', 16))
+        self.automationTxtBx.grid(row=9, column=0, columnspan=4, padx=10, pady=10)
+
+        fileStorageLocation = tk.StringVar(automateTab, "No Location Given")
+        self.fileStorageLabel = tk.Label(automateTab, textvariable=fileStorageLocation)
+        self.fileStorageButton = tk.Button(automateTab, text="Choose File Location", command=self.select_file_location)
+        self.fileStorageLabel.grid(row=10, column=2, columnspan=2, padx=10, pady=10)
+        self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
         # initialize
         self.timeConstantDropDown.set(self.instruments.time_constants[5])
@@ -160,14 +222,28 @@ class MicroscopeGUI():
 
     def measure(self):
         amplitude, phase = self.instruments.take_measurement()
-        import datetime
-        
-        self.lockInTxtBx.insert('1.0', f"Time: {datetime.datetime.now().time()} Amplitude: {amplitude} Phase: {phase}\n")
-    
+        self.lockInTxtBx.insert('1.0',
+                                f"Time: {datetime.datetime.now().time()} Amplitude: {amplitude} Phase: {phase}\n")
+
+    def begin_automation(self):
+        print("Beginning Automation...")
+        # TODO: Add functionality
+
+    def end_automation(self):
+        print("Ending Automation...")
+        # TODO: Add Functionality
+
+    def select_file_location(self):
+        # TODO: Add Functionality
+        fileStorageLocation = tk.filedialog.askdirectory()
+        print(fileStorageLocation)
+        self.fileStorageLabel["text"] = fileStorageLocation
+        pass
+
     def auto_gain(self):
         answer = self.instruments.auto_gain()
         self.lockInTxtBx.insert('1.0', f"{answer}\n")
-    
+
     def update_time_constant(self):
         time_constant = self.timeConstantDropDown.get()
         current = self.instruments.set_time_constant(time_constant)
@@ -178,7 +254,7 @@ class MicroscopeGUI():
         self.timeConstantDropDown.set(current)
         self.update_time_constant()
         # self.lockInTxtBx.insert('1.0', f"Time Constant increased to: {current}\n")
-    
+
     def decrease_time_constant(self):
         current = self.instruments.decrease_time_constant()
         self.timeConstantDropDown.set(current)
@@ -189,14 +265,14 @@ class MicroscopeGUI():
         gain = self.gainDropDown.get()
         current = self.instruments.set_gain(gain)
         self.lockInTxtBx.insert('1.0', f"Gain set to: {current}\n")
-    
+
     def increase_gain(self):
         current = self.instruments.increase_gain()
         self.gainDropDown.set(current)
         self.update_gain()
         # self.lockInTxtBx.insert('1.0', f"Gain increased to: {current}\n")
-    
-    def decrease_gain(self):   
+
+    def decrease_gain(self):
         current = self.instruments.decrease_gain()
         self.gainDropDown.set(current)
         self.update_gain()
@@ -208,10 +284,10 @@ class MicroscopeGUI():
             with open(self.CONFIG_FILE, 'r') as f:
                 data = json.load(f)
                 for name, config in data.items():
-                    current = fgConfig(name=config['name'], 
-                                                    frequency=float(config['frequency']),
-                                                    amplitude=float(config['amplitude']),
-                                                    offset=float(config['offset']))
+                    current = fgConfig(name=config['name'],
+                                       frequency=float(config['frequency']),
+                                       amplitude=float(config['amplitude']),
+                                       offset=float(config['offset']))
                     self.instruments.FgConfigs[name] = current
                     configurations[name] = current
                     self.instruments.fgConfigNames.append(name)
@@ -226,7 +302,8 @@ class MicroscopeGUI():
         self.instruments.set_current_fg_config(configName)
         self.instruments.update_configuration()
         self.instrumentsTxtBx.insert(tk.END, "Updated configuration to " + configName + "\n")
-        self.instrumentsTxtBx.insert(tk.END, f"Frequency: {self.instruments.current_fg_config.frequency}\nAmplitude: {self.instruments.current_fg_config.amplitude}\nOffset: {self.instruments.current_fg_config.offset}\n\n")
+        self.instrumentsTxtBx.insert(tk.END,
+                                     f"Frequency: {self.instruments.current_fg_config.frequency}\nAmplitude: {self.instruments.current_fg_config.amplitude}\nOffset: {self.instruments.current_fg_config.offset}\n\n")
 
     def create_config(self):
         config_name = self.configNameInput.get()
