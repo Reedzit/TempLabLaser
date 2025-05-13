@@ -1,6 +1,7 @@
 import datetime
 import pyvisa
 from instrument_configurations.fgConfig import fgConfig
+import numpy as np
 import pandas as pd
 
 
@@ -91,7 +92,7 @@ class InstrumentInitialize:
             return amplitude, phase
         else:
             print("No lock in amplifier connected")
-            return None
+            return "None", "None"
 
     def auto_gain(self):
         if self.lia:
@@ -169,14 +170,17 @@ class InstrumentInitialize:
             return None
 
     def update_configuration(self, freq = None, amp = None, offset = None):
-        if self.fg and freq:
+        if freq:
             print("Using dynamic values")
-            self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{freq},AMP,5,OFST,2.5,DUTY,50")
-            self.fg.write("C2:OUTP ON")
-            if amp and offset:
-                self.fg.write(
-                    f"C1:BSWV WVTP,SINE,FRQ,{freq},AMP,{amp},OFST,{offset}")
-                self.fg.write("C1:OUTP ON")
+            if self.fg:
+                self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{freq},AMP,5,OFST,2.5,DUTY,50")
+                self.fg.write("C2:OUTP ON")
+                if amp and offset:
+                    self.fg.write(
+                        f"C1:BSWV WVTP,SINE,FRQ,{freq},AMP,{amp},OFST,{offset}")
+                    self.fg.write("C1:OUTP ON")
+            else:
+                print("No function generator connected!\nYou were using Dynamic Values, so there is no configuration to show")
         elif self.fg:
             print("Using static values from config file")
             print(f"Setting fg channel 2 to be frequency {self.current_fg_config.frequency}")
@@ -221,51 +225,65 @@ class InstrumentInitialize:
             print("No function generator connected")
 
     def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath):
+        print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
+        measurements_per_config = 3
 
-        # First we need to create the dataframe so there's something to add to
+        # Initialize DataFrame
         data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])
 
-        # Automation logic
         try:
             initial_freq, final_freq = freq
             initial_amp, final_amp = amp
             initial_offset, final_offset = offset
 
-            freqRange = list(range(initial_freq, final_freq, step_count))
-            ampRange = list(range(initial_amp, final_amp, step_count))
-            offsetRange = list(range(initial_offset, final_offset, step_count))
+            freqRange = np.linspace(initial_freq, final_freq, step_count).tolist()
+            ampRange = np.linspace(initial_amp, final_amp, step_count).tolist()
+            offsetRange = np.linspace(initial_offset, final_offset, step_count).tolist()
 
-            time_at_last_measurement = datetime.time
-            delta = datetime.time - time_at_last_measurement
+            time_at_last_measurement = datetime.datetime.now()
+            row_idx = 0  # Initialize row index counter
 
-            # The following loop will hold up the thread. It can be shut down by changing automation status
-            while self.automation_status:
-                self.update_configuration(freq=freqRange.pop(0), amp=ampRange.pop(0), offset=offsetRange.pop(0))
-                # We need to check if enough time has passed since the last measurement
+            while self.automation_running and freqRange and ampRange and offsetRange:
+                current_time = datetime.datetime.now()
+                delta = current_time - time_at_last_measurement
+                amplitude, phase = self.take_measurement()
+                # Using loc to add new row
+                data.loc[row_idx] = [
+                    current_time,
+                    freqRange[0],
+                    ampRange[0],
+                    offsetRange[0],
+                    amplitude,
+                    phase]
+                row_idx += 1  # Increment row index
+
                 if delta.total_seconds() >= time_step:
-                    amplitude, phase = self.take_measurement()
+                    print("Updating configuration")
+                    self.update_configuration(
+                        freq=freqRange.pop(0),
+                        amp=ampRange.pop(0),
+                        offset=offsetRange.pop(0)
+                    )
+                    time_at_last_measurement = current_time
 
-                    # Now that we have all the information for the observation, we store it.
-                    data.loc[len(data)] = [
-                        datetime.datetime.now(),
-                        freqRange[0],
-                        ampRange[0],
-                        offsetRange[0],
-                        amplitude,
-                        phase
-                    ]
         except Exception as e:
             self.automation_status = f"error: {str(e)}"
+            print(f"Error during automation: {str(e)}")
         finally:
+            print("Automation Ended!")
             self.automation_running = False
             self.automation_status = "completed"
-            if not data.empty:
-                saved_filepath = filepath
-                name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")+".csv"
-                data.to_csv(saved_filepath + name, index=False, header=True)
-                print(f"Data saved to {filepath} as {name}")
+        
+        if not data.empty:
+            name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")+".csv"
+            full_path = os.path.join(filepath, name)
+            data.to_csv(full_path, index=False)
+            print(f"Data saved to {full_path}")
+            print(f"DataFrame contains {len(data)} rows")
+        else:
+            print("No data collected during automation")
 
 ##################### DEBUG #####################
 # channel2 for fg will always be twice the frequency of channel1
@@ -301,3 +319,4 @@ class InstrumentInitialize:
 # print(lia.read("OUTX?"))
 # lia.write("OUTX 1")
 # print(lia.read("OUTX?"))
+import os
