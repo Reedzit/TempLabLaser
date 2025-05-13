@@ -9,7 +9,8 @@ import json
 import os
 import datetime
 import sys
-
+import threading
+import queue
 
 # import pymeasure.instruments.srs.sr830 as lia
 
@@ -29,6 +30,7 @@ class MicroscopeGUI():
     hexapod = None
 
     def __init__(self):
+        self.AutomationThread = None # Thread for automation, If not in use, should be None
         self.load_configs()
 
         window = tk.Tk()
@@ -220,8 +222,8 @@ class MicroscopeGUI():
         self.stepCountLabel = tk.Label(automateTab, text="Step Count:")
         self.stepCount = tk.IntVar(automateTab, 1)
         self.stepCountInput = tk.Entry(automateTab, textvariable=self.stepCount)
-        self.stepCountInput.grid(row=11, column=1, padx=10, pady=10)
-        self.stepCountLabel.grid(row=11, column=0, padx=10, pady=10)
+        self.stepCountInput.grid(row=12, column=1, padx=10, pady=10)
+        self.stepCountLabel.grid(row=12, column=0, padx=10, pady=10)
         self.timePerStep = tk.IntVar(automateTab, 1)
         self.timePerStepLabel = tk.Label(automateTab, text="Time Per Step (s):")
         self.timePerStepInput = tk.Entry(automateTab,textvariable= self.timePerStep, state='disabled')
@@ -248,18 +250,30 @@ class MicroscopeGUI():
                                 f"Time: {datetime.datetime.now().time()} Amplitude: {amplitude} Phase: {phase}\n")
 
     def begin_automation(self):
-        # print("Beginning Automation...")
-        # initial_freq = self.freqInitialInput.get()
-        # final_freq = self.freqFinalInput.get()
-        # freq = (,)
-        # amp = (,)
-        # offset = (,)
-        # self.instruments.automatic_measuring(,
-        pass
+        print("Beginning Automation...")
+        initial_freq = int(self.freqInitialInput.get())
+        final_freq = int(self.freqFinalInput.get())
+        initial_amp = int(self.ampInitialInput.get())
+        final_amp = int(self.ampFinalInput.get())
+        initial_offset = int(self.offsetInitialInput.get())
+        final_offset = int(self.offsetFinalInput.get())
+
+        # These one are single values
+        timeStep =int(self.timePerStep.get())
+        stepCount = int(self.stepCount.get())
+        filepath = self.fileStorageLocation.get()
+
+        # Construct tuples out of the inputs
+        freq = (initial_freq, final_freq)
+        amp = (initial_amp, final_amp)
+        offset = (initial_offset, final_offset)
+
+        self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring, args=(freq, amp, offset, timeStep, stepCount, filepath))
+        self.AutomationThread.start()
 
     def end_automation(self):
         print("Ending Automation...")
-        # TODO: Add Functionality
+        self.instruments.q.put("stop")
 
     def select_file_location(self):
         filePath = tk.filedialog.askdirectory()

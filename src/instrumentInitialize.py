@@ -3,6 +3,8 @@ import pyvisa
 from instrument_configurations.fgConfig import fgConfig
 import numpy as np
 import pandas as pd
+import threading
+import queue
 
 
 class InstrumentInitialize:
@@ -62,8 +64,11 @@ class InstrumentInitialize:
     ]
 
     def __init__(self):
+        # First we need to initialize the queue for the automation thread. As well as status and running variables.
+        self.q = queue.Queue()
         self.automation_status = None
         self.automation_running = None
+
         self.rm = pyvisa.ResourceManager()
         print(f"Available resources: {self.rm.list_resources()}")
         try:
@@ -246,6 +251,13 @@ class InstrumentInitialize:
             row_idx = 0  # Initialize row index counter
 
             while self.automation_running and freqRange and ampRange and offsetRange:
+                # First, we need to see if the queue has anything for the thread.
+                if not self.q.empty():
+                    thing = self.q.get()
+                    if thing == "stop":
+                        break
+
+                # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
                 delta = current_time - time_at_last_measurement
                 amplitude, phase = self.take_measurement()
