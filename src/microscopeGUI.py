@@ -200,7 +200,7 @@ class MicroscopeGUI():
         self.offsetFinalInput = tk.Entry(automateTab)
         self.offsetFinalInput.grid(row=5, column=2, padx=10, pady=5)
 
-        self.startMeasurements = tk.Button(automateTab, text="Start Measurements", command=self.begin_automation)
+        self.startMeasurements = tk.Button(automateTab, text="Start Measurements",state = "disabled" ,command=self.begin_automation)
         self.startMeasurements.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
         self.endMeasurements = tk.Button(automateTab, text="End Measurements", command=self.end_automation)
         self.endMeasurements.grid(row=6, column=2, columnspan=2, padx=10, pady=10)
@@ -228,7 +228,6 @@ class MicroscopeGUI():
         self.timePerStepInput.grid(row=11, column=1, padx=10, pady=10)
         self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
 
-
         self.fileStorageLocation = tk.StringVar(automateTab, "No Location Given")
         self.fileStorageLabel = tk.Label(automateTab, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(automateTab, text="Choose File Location", command=self.select_file_location)
@@ -249,18 +248,28 @@ class MicroscopeGUI():
                                 f"Time: {datetime.datetime.now().time()} Amplitude: {amplitude} Phase: {phase}\n")
 
     def begin_automation(self):
-        print("Beginning Automation...")
-        automation_popup()
-        # TODO: Add functionality
+        # print("Beginning Automation...")
+        # initial_freq = self.freqInitialInput.get()
+        # final_freq = self.freqFinalInput.get()
+        # freq = (,)
+        # amp = (,)
+        # offset = (,)
+        # self.instruments.automatic_measuring(,
+        pass
 
     def end_automation(self):
         print("Ending Automation...")
         # TODO: Add Functionality
 
     def select_file_location(self):
-        # TODO: Add Functionality
-        self.fileStorageLocation.set(tk.filedialog.askdirectory())
-        print(self.fileStorageLocation)
+        filePath = tk.filedialog.askdirectory()
+        if filePath == "":
+            self.startMeasurements["state"] = "disabled"
+            return
+        else:
+            self.fileStorageLocation.set(filePath)
+            print(self.fileStorageLocation)
+            self.startMeasurements["state"] = "normal"
 
     def auto_gain(self):
         answer = self.instruments.auto_gain()
