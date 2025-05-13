@@ -91,13 +91,7 @@ class InstrumentInitialize:
             return amplitude, phase
         else:
             print("No lock in amplifier connected")
-
-    # Legacy Code, never implemented.
-    # def stop_measurement(self):
-    #     if self.lia:
-    #         self.lia.write("PAUS")
-    #     else:
-    #         print("No lock in amplifier connected")
+            return None
 
     def auto_gain(self):
         if self.lia:
@@ -173,11 +167,6 @@ class InstrumentInitialize:
         else:
             print("No lock in amplifier connected")
             return None
-    # Legacy Code, never implemented.
-    # def perform_measurement(self):
-    #     if self.lia:
-    #         # take data for 10 seconds then stop
-    #         self.start_measurement()
 
     def update_configuration(self, freq = None, amp = None, offset = None):
         if self.fg and freq:
