@@ -137,7 +137,7 @@ class MicroscopeGUI():
         bfTranslation.pack(fill='x', padx=20, pady=20)
 
         self.hexapodTextbox = tk.Text(hexapodTab, height=8, font=('Arial', 16))
-        self.hexapodTextbox.pack(padx=10, pady=10, side=tk.BOTTOM, fill=tk.X)
+        self.hexapodTextbox.pack(padx=10, pady=10)
 
         ### Lock In Amplifier Tab ###
         self.measureBtn = tk.Button(lockInTab, text="Measure", command=self.measure)
