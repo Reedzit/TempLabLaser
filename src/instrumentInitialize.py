@@ -1,5 +1,7 @@
+import datetime
 import pyvisa
 from instrument_configurations.fgConfig import fgConfig
+import pandas as pd
 
 
 class InstrumentInitialize:
@@ -59,6 +61,8 @@ class InstrumentInitialize:
     ]
 
     def __init__(self):
+        self.automation_status = None
+        self.automation_running = None
         self.rm = pyvisa.ResourceManager()
         print(f"Available resources: {self.rm.list_resources()}")
         try:
@@ -88,18 +92,19 @@ class InstrumentInitialize:
         else:
             print("No lock in amplifier connected")
 
-    def stop_measurement(self):
-        if self.lia:
-            self.lia.write("PAUS")
-            # TODO: output data to file
-        else:
-            print("No lock in amplifier connected")
+    # Legacy Code, never implemented.
+    # def stop_measurement(self):
+    #     if self.lia:
+    #         self.lia.write("PAUS")
+    #     else:
+    #         print("No lock in amplifier connected")
 
     def auto_gain(self):
         if self.lia:
             answer = self.lia.write("AGAN")
             if answer > 0:
                 return "Auto gain successful"
+            return None
         else:
             return "No lock in amplifier connected"
 
@@ -113,6 +118,8 @@ class InstrumentInitialize:
                 return current
             else:
                 print("No lock in amplifier connected")
+                return None
+        return None
 
     def increase_time_constant(self):
         if self.lia:
@@ -122,6 +129,7 @@ class InstrumentInitialize:
             return value
         else:
             print("No lock in amplifier connected")
+            return None
 
     def decrease_time_constant(self):
         if self.lia:
@@ -131,6 +139,7 @@ class InstrumentInitialize:
             return value
         else:
             print("No lock in amplifier connected")
+            return None
 
     def set_gain(self, gain):
         index_val = self.sensitivities.index(gain)
@@ -142,6 +151,8 @@ class InstrumentInitialize:
                 return current
             else:
                 print("No lock in amplifier connected")
+                return None
+        return None
 
     def increase_gain(self):
         if self.lia:
@@ -151,6 +162,7 @@ class InstrumentInitialize:
             return value
         else:
             print("No lock in amplifier connected")
+            return None
 
     def decrease_gain(self):
         if self.lia:
@@ -160,11 +172,12 @@ class InstrumentInitialize:
             return value
         else:
             print("No lock in amplifier connected")
-
-    def perform_measurement(self):
-        if self.lia:
-            # take data for 10 seconds then stop
-            self.start_measurement()
+            return None
+    # Legacy Code, never implemented.
+    # def perform_measurement(self):
+    #     if self.lia:
+    #         # take data for 10 seconds then stop
+    #         self.start_measurement()
 
     def update_configuration(self, freq = None, amp = None, offset = None):
         if self.fg and freq:
@@ -217,6 +230,53 @@ class InstrumentInitialize:
             return phase
         else:
             print("No function generator connected")
+
+    def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath):
+        self.automation_running = True
+        self.automation_status = "running"
+
+        # First we need to create the dataframe so there's something to add to
+        data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])
+
+        # Automation logic
+        try:
+            initial_freq, final_freq = freq
+            initial_amp, final_amp = amp
+            initial_offset, final_offset = offset
+
+            freqRange = list(range(initial_freq, final_freq, step_count))
+            ampRange = list(range(initial_amp, final_amp, step_count))
+            offsetRange = list(range(initial_offset, final_offset, step_count))
+
+            time_at_last_measurement = datetime.time
+            delta = datetime.time - time_at_last_measurement
+
+            # The following loop will hold up the thread. It can be shut down by changing automation status
+            while self.automation_status:
+                self.update_configuration(freq=freqRange.pop(0), amp=ampRange.pop(0), offset=offsetRange.pop(0))
+                # We need to check if enough time has passed since the last measurement
+                if delta.total_seconds() >= time_step:
+                    amplitude, phase = self.take_measurement()
+
+                    # Now that we have all the information for the observation, we store it.
+                    data.loc[len(data)] = [
+                        datetime.datetime.now(),
+                        freqRange[0],
+                        ampRange[0],
+                        offsetRange[0],
+                        amplitude,
+                        phase
+                    ]
+        except Exception as e:
+            self.automation_status = f"error: {str(e)}"
+        finally:
+            self.automation_running = False
+            self.automation_status = "completed"
+            if not data.empty:
+                saved_filepath = filepath
+                name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")+".csv"
+                data.to_csv(saved_filepath + name, index=False, header=True)
+                print(f"Data saved to {filepath} as {name}")
 
 ##################### DEBUG #####################
 # channel2 for fg will always be twice the frequency of channel1
