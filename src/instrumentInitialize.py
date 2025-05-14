@@ -1,201 +1,317 @@
+import datetime
 import pyvisa
+from fontTools.merge.util import current_time
+
 from instrument_configurations.fgConfig import fgConfig
+import numpy as np
+import pandas as pd
+import threading
+import queue
+import sys
+import io
+import random
+
 
 class InstrumentInitialize:
-  FgConfigs: dict[str , fgConfig] = {}
-  fgConfigNames = []
-  current_fg_config: fgConfig = None
-  time_constants: list = [
-    "10us",
-    "30us",
-    "100us",
-    "300us",
-    "1ms",
-    "3ms",
-    "10ms",
-    "30ms",
-    "100ms",
-    "300ms",
-    "1s",
-    "3s",
-    "10s",
-    "30s",
-    "100s",
-    "300s",
-    "1ks",
-    "3ks",
-    "10ks",
-    "30ks",
-  ]
-  sensitivities: list = [
-    "2nV/fA",
-    "5nV/fA",
-    "10nV/fA",
-    "20nV/fA",
-    "50nV/fA",
-    "100nV/fA",
-    "200nV/fA",
-    "500nV/fA",
-    "1uV/fA",
-    "2uV/fA",
-    "5uV/fA",
-    "10uV/fA",
-    "20uV/fA",
-    "50uV/fA",
-    "100uV/fA",
-    "200uV/fA",
-    "500uV/fA",
-    "1mV/fA",
-    "2mV/fA",
-    "5mV/fA",
-    "10mV/fA",
-    "20mV/fA",
-    "50mV/fA",
-    "100mV/fA",
-    "200mV/fA",
-    "500mV/fA",
-    "1V/fA"
-  ]
+    FgConfigs: dict[str, fgConfig] = {}
+    fgConfigNames = []
+    current_fg_config: fgConfig = None
+    time_constants: list = [
+        "10us",
+        "30us",
+        "100us",
+        "300us",
+        "1ms",
+        "3ms",
+        "10ms",
+        "30ms",
+        "100ms",
+        "300ms",
+        "1s",
+        "3s",
+        "10s",
+        "30s",
+        "100s",
+        "300s",
+        "1ks",
+        "3ks",
+        "10ks",
+        "30ks",
+    ]
+    sensitivities: list = [
+        "2nV/fA",
+        "5nV/fA",
+        "10nV/fA",
+        "20nV/fA",
+        "50nV/fA",
+        "100nV/fA",
+        "200nV/fA",
+        "500nV/fA",
+        "1uV/fA",
+        "2uV/fA",
+        "5uV/fA",
+        "10uV/fA",
+        "20uV/fA",
+        "50uV/fA",
+        "100uV/fA",
+        "200uV/fA",
+        "500uV/fA",
+        "1mV/fA",
+        "2mV/fA",
+        "5mV/fA",
+        "10mV/fA",
+        "20mV/fA",
+        "50mV/fA",
+        "100mV/fA",
+        "200mV/fA",
+        "500mV/fA",
+        "1V/fA"
+    ]
 
-  def __init__(self):
-    self.rm = pyvisa.ResourceManager()
-    try:
-      # connect to function generator
-      self.fg=self.rm.open_resource("TCPIP0::192.168.16.2::inst0::INSTR") #opens connection to function generator
-      self.fg.encoding = 'latin-1'
-    except Exception as e:
-      print("An error occurred connecting to the function generator: ",e)
-      self.fg = None
-    try: 
-      # connect to lock in amplifier
-      self.lia = self.rm.open_resource('GPIB0::8::INSTR')   # opens connection on channel 8
-      self.lia.encoding = 'latin-1'
-      # set sampling rate
-      self.lia.write("SRAT 0") # TODO: check if this is the correct sampling rate
-      self.lia.write(f"OUTX 1")
-    except Exception as e: 
-      print("An error occurred connecting to the lock in amplifier: ", e)
-      self.lia = None
+    def __init__(self):
+        # First we need to initialize the queue for checking if we need to stop automation as well as one to update the GUI
+        self.q = queue.Queue()
+        # This one is LIFO because we want the GUI to only have up to date information about the most recent measurement
+        self.automationQueue = queue.LifoQueue()
+        self.automation_status = None
+        self.automation_running = None
 
-  def take_measurement(self):
-    if self.lia: 
-      amplitude = self.lia.query("OUTP? 3")
-      phase = self.lia.query("OUTP? 4")
-      return amplitude, phase
-    else: 
-      print("No lock in amplifier connected")
+        self.rm = pyvisa.ResourceManager()
+        print(f"Available resources: {self.rm.list_resources()}")
+        try:
+            # connect to function generator
+            self.fg = self.rm.open_resource(
+                "TCPIP0::192.168.16.2::inst0::INSTR")  # opens connection to function generator
+            self.fg.encoding = 'latin-1'
+        except Exception as e:
+            print("An error occurred connecting to the function generator: ", e)
+            self.fg = None
+        try:
+            # connect to lock in amplifier
+            self.lia = self.rm.open_resource('GPIB0::8::INSTR')  # opens connection on channel 8
+            self.lia.encoding = 'latin-1'
+            # set sampling rate
+            self.lia.write("SRAT 0")  # TODO: check if this is the correct sampling rate
+            self.lia.write(f"OUTX 1")
+        except Exception as e:
+            print("An error occurred connecting to the lock in amplifier: ", e)
+            self.lia = None
 
-  def stop_measurement(self):
-    if self.lia: 
-      self.lia.write("PAUS")
-      # TODO: output data to file
-    else: 
-      print("No lock in amplifier connected")
+    def take_measurement(self):
+        if self.lia:
+            amplitude = self.lia.query("OUTP? 3")
+            phase = self.lia.query("OUTP? 4")
+            return amplitude, phase
+        else:
+            print("No lock in amplifier connected")
+            # return random.randint(0, 100), random.randint(0, 360) # For debugging
+            return None, None
 
-  def auto_gain(self):
-    if self.lia: 
-      answer = self.lia.write("AGAN")
-      if answer > 0:
-        return "Auto gain successful"
-    else: 
-      return "No lock in amplifier connected"
-    
-  def set_time_constant(self, time_constant):
-    index_val = self.time_constants.index(time_constant)
-    if index_val: 
-      if self.lia: 
-        self.lia.write(f'OFLT {index_val}')
-        current = int(self.lia.query("OFLT?"))
-        current = self.time_constants[current]
-        return current
-      else: 
-        print("No lock in amplifier connected")
+    def auto_gain(self):
+        if self.lia:
+            answer = self.lia.write("AGAN")
+            if answer > 0:
+                return "Auto gain successful"
+            return None
+        else:
+            return "No lock in amplifier connected"
 
-  def increase_time_constant(self):
-    if self.lia:
-      current = int(self.lia.query("OFLT?"))
-      current += 1 #increase the time constant by 1 step up
-      value = self.time_constants[current]
-      return value
-    else:
-      print("No lock in amplifier connected")
-  
-  def decrease_time_constant(self):
-    if self.lia:
-      current = int(self.lia.query("OFLT?"))
-      current -= 1
-      value = self.time_constants[current]
-      return value
-    else:
-      print("No lock in amplifier connected")
-  
-  def set_gain(self, gain):
-    index_val = self.sensitivities.index(gain)
-    if index_val: 
-      if self.lia: 
-        self.lia.write(f'SENS {index_val}')
-        current = int(self.lia.query("SENS?"))
-        current = self.sensitivities[current]
-        return current
-      else: 
-        print("No lock in amplifier connected")
-  
-  def increase_gain(self):
-    if self.lia:
-      current = int(self.lia.query("SENS?"))
-      current += 1
-      value = self.sensitivities[current]
-      return value
-    else:
-      print("No lock in amplifier connected")
-  
-  def decrease_gain(self):
-    if self.lia:
-      current = int(self.lia.query("SENS?"))
-      current -= 1
-      value = self.sensitivities[current]
-      return value
-    else:
-      print("No lock in amplifier connected")
+    def set_time_constant(self, time_constant):
+        index_val = self.time_constants.index(time_constant)
+        if index_val:
+            if self.lia:
+                self.lia.write(f'OFLT {index_val}')
+                current = int(self.lia.query("OFLT?"))
+                current = self.time_constants[current]
+                return current
+            else:
+                print("No lock in amplifier connected")
+                return None
+        return None
 
-  def perform_measurement(self):
-    if self.lia: 
-      # take data for 10 seconds then stop 
-      self.start_measurement()
-      
+    def increase_time_constant(self):
+        if self.lia:
+            current = int(self.lia.query("OFLT?"))
+            current += 1  # increase the time constant by 1 step up
+            value = self.time_constants[current]
+            return value
+        else:
+            print("No lock in amplifier connected")
+            return None
 
-  def update_configuration(self):
-    if self.fg: 
-      print(f"Setting fg channel 2 to be frequency {self.current_fg_config.frequency}")
-      self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
-      self.fg.write("C2:OUTP ON")
-      self.fg.write(f"C1:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,{self.current_fg_config.amplitude},OFST,{self.current_fg_config.offset}")
-      self.fg.write("C1:OUTP ON")
-    else: 
-      print("No function generator connected. But this is the current configuration: ", self.current_fg_config)
+    def decrease_time_constant(self):
+        if self.lia:
+            current = int(self.lia.query("OFLT?"))
+            current -= 1
+            value = self.time_constants[current]
+            return value
+        else:
+            print("No lock in amplifier connected")
+            return None
 
-  def create_fg_config(self, name, frequency, amplitude, offset):
-    self.current_fg_config = fgConfig(name, frequency, amplitude, offset)
-    self.fgConfigNames.append(name)
-    self.FgConfigs[name] = self.current_fg_config
-    return self.current_fg_config
-  
-  def set_current_fg_config(self, name):
-    if self.FgConfigs[name]:
-      self.current_fg_config = self.FgConfigs[name]
-      print(f"Current FG config set to: Amplitude-{self.current_fg_config.amplitude}, Frequency-{self.current_fg_config.frequency}, Offset-{self.current_fg_config.offset}")
-    else: 
-      print("No Function Generator configuration with that name found")
+    def set_gain(self, gain):
+        index_val = self.sensitivities.index(gain)
+        if index_val:
+            if self.lia:
+                self.lia.write(f'SENS {index_val}')
+                current = int(self.lia.query("SENS?"))
+                current = self.sensitivities[current]
+                return current
+            else:
+                print("No lock in amplifier connected")
+                return None
+        return None
 
-  def set_phase(self, phase):
-    if self.fg:
-      # self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50,PHSE,{phase}")
-      self.fg.write(f"C2:BSWV PHSE,{phase}")
-      self.fg.write("C1:OUTP ON")
-      self.fg.write("C2:OUTP ON")
-      return phase
-    else: 
-      print("No function generator connected")
+    def increase_gain(self):
+        if self.lia:
+            current = int(self.lia.query("SENS?"))
+            current += 1
+            value = self.sensitivities[current]
+            return value
+        else:
+            print("No lock in amplifier connected")
+            return None
+
+    def decrease_gain(self):
+        if self.lia:
+            current = int(self.lia.query("SENS?"))
+            current -= 1
+            value = self.sensitivities[current]
+            return value
+        else:
+            print("No lock in amplifier connected")
+            return None
+
+    def update_configuration(self, freq = None, amp = None, offset = None):
+        if freq:
+            print("Using dynamic values")
+            if self.fg:
+                self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{freq},AMP,5,OFST,2.5,DUTY,50")
+                self.fg.write("C2:OUTP ON")
+                if amp and offset:
+                    self.fg.write(
+                        f"C1:BSWV WVTP,SINE,FRQ,{freq},AMP,{amp},OFST,{offset}")
+                    self.fg.write("C1:OUTP ON")
+            else:
+                print("No function generator connected!\nYou were using Dynamic Values, so there is no configuration to show")
+        elif self.fg:
+            print("Using static values from config file")
+            print(f"Setting fg channel 2 to be frequency {self.current_fg_config.frequency}")
+            self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
+            self.fg.write("C2:OUTP ON")
+            self.fg.write(
+                f"C1:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,{self.current_fg_config.amplitude},OFST,{self.current_fg_config.offset}")
+            self.fg.write("C1:OUTP ON")
+        else:
+            print("No function generator connected. But this is the current configuration: ", self.current_fg_config)
+
+    def delete_fg_config(self, name):
+        if self.FgConfigs[name]:
+            del self.FgConfigs[name]
+            self.fgConfigNames.remove(name)
+            print(f"Function generator configuration {name} deleted")
+        else:
+            print("No Function Generator configuration with that name found")
+
+    def create_fg_config(self, name, frequency, amplitude, offset):
+        self.current_fg_config = fgConfig(name, frequency, amplitude, offset)
+        self.fgConfigNames.append(name)
+        self.FgConfigs[name] = self.current_fg_config
+        return self.current_fg_config
+
+    def set_current_fg_config(self, name):
+        if self.FgConfigs[name]:
+            self.current_fg_config = self.FgConfigs[name]
+            print(
+                f"Current FG config set to: Amplitude-{self.current_fg_config.amplitude}, Frequency-{self.current_fg_config.frequency}, Offset-{self.current_fg_config.offset}")
+        else:
+            print("No Function Generator configuration with that name found")
+
+    def set_phase(self, phase):
+        if self.fg:
+            # self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50,PHSE,{phase}")
+            self.fg.write(f"C2:BSWV PHSE,{phase}")
+            self.fg.write("C1:OUTP ON")
+            self.fg.write("C2:OUTP ON")
+            return phase
+        else:
+            print("No function generator connected")
+
+    def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath):
+        print("Automation Beginning!")
+        self.automation_running = True
+        self.automation_status = "running"
+        measurements_per_config = 3
+
+        # Initialize DataFrame
+        data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])
+
+        current_Step = 1
+        try:
+            initial_freq, final_freq = freq
+            initial_amp, final_amp = amp
+            initial_offset, final_offset = offset
+
+            freqRange = np.linspace(initial_freq, final_freq, step_count).tolist()
+            ampRange = np.linspace(initial_amp, final_amp, step_count).tolist()
+            offsetRange = np.linspace(initial_offset, final_offset, step_count).tolist()
+
+            time_at_last_measurement = datetime.datetime.now()
+            row_idx = 0  # Initialize row index counter
+
+            while self.automation_running and freqRange and ampRange and offsetRange:
+                # First, we need to see if the queue has anything for the thread.
+                if not self.q.empty():
+                    break
+                # If there's been no command to stop, we can continue with the loop as usual
+                current_time = datetime.datetime.now()
+                delta = current_time - time_at_last_measurement
+                amplitude, phase = self.take_measurement()
+                # Using loc to add new row to the dataframe
+                data.loc[row_idx] = [
+                    current_time,
+                    freqRange[0],
+                    ampRange[0],
+                    offsetRange[0],
+                    amplitude,
+                    phase]
+                row_idx += 1  # Increment row index
+
+                if delta.total_seconds() >= time_step:
+                    current_Step += 1
+                    # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
+                    # that the GUI can check periodically.
+                    try:
+                        # pack the values into a tuple to keep the data together in the queue
+                        values = (current_time, current_Step, freqRange[0], ampRange[0], offsetRange[0], amplitude, phase)
+                        self.automationQueue.put_nowait(values)
+                    except queue.Full:
+                        print("Automation Queue is full, skipping measurement")
+                        pass
+                    print("Updating configuration")
+                    self.update_configuration(
+                        freq=freqRange.pop(0),
+                        amp=ampRange.pop(0),
+                        offset=offsetRange.pop(0)
+                    )
+                    time_at_last_measurement = current_time
+
+        except Exception as e:
+            self.automation_status = f"error: {str(e)}"
+            print(f"Error during automation: {str(e)}")
+        finally:
+            print("Automation Ended!")
+            self.automation_running = False
+            self.automation_status = "completed"
+        
+        if not data.empty:
+            name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")+".csv"
+            full_path = os.path.join(filepath, name)
+            data.to_csv(full_path, index=False)
+            print(f"Data saved to {full_path}")
+            print(f"DataFrame contains {len(data)} rows")
+        else:
+            print("No data collected during automation")
 
 ##################### DEBUG #####################
 # channel2 for fg will always be twice the frequency of channel1
@@ -231,4 +347,4 @@ class InstrumentInitialize:
 # print(lia.read("OUTX?"))
 # lia.write("OUTX 1")
 # print(lia.read("OUTX?"))
-
+import os
