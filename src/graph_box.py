@@ -6,6 +6,20 @@ import queue
 import sys
 import os
 
+# TODO: Change the graph to plot:
+# Phase of LIA (1) vs Frequency of the laser(2) vs Diffusivity(4)
+# Equation thing should output: derivative of: (-(distance between of lasers(user inputed)) * sqrt(pi*freq_laser/diffusivity(what we care about)) = Delta_phase (green vs red))
+# X axis: spot distance*sqrt(pi*freq_laser)
+# Y axis: Phase of LIA (Lock in amplifier)
+# Find the slope of that graph
+# 1/slope^2 = Diffusivity (what we care about)
+
+# TODO: add signal verication to automation. It should be able to tell if the amplitude is high enough. It should read about 200 mV
+
+# TODO: Eventually we will need to add a way to correct the phase from the LIA (This is adjusting for how the red laser is sensed when there is no green laser)
+
+# ISSUE: The phase adjustment is not working properly. But we don't need it.
+
 
 class GraphBox:
     def __init__(self, x, y, z, width, height):

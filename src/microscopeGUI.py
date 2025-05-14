@@ -259,12 +259,12 @@ class MicroscopeGUI():
 
     def begin_automation(self):
         print("Beginning Automation...")
-        initial_freq = int(self.freqInitialInput.get())
-        final_freq = int(self.freqFinalInput.get())
-        initial_amp = int(self.ampInitialInput.get())
-        final_amp = int(self.ampFinalInput.get())
-        initial_offset = int(self.offsetInitialInput.get())
-        final_offset = int(self.offsetFinalInput.get())
+        initial_freq = float(self.freqInitialInput.get())
+        final_freq = float(self.freqFinalInput.get())
+        initial_amp = float(self.ampInitialInput.get())
+        final_amp = float(self.ampFinalInput.get())
+        initial_offset = float(self.offsetInitialInput.get())
+        final_offset = float(self.offsetFinalInput.get())
 
         # These one are single values
         timeStep =int(self.timePerStep.get())

@@ -183,10 +183,11 @@ class InstrumentInitialize:
             return None
 
     def update_configuration(self, freq = None, amp = None, offset = None):
+        # TODO: Update channel 2 to have a sine wave.
         if freq:
             print("Using dynamic values")
             if self.fg:
-                self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{freq},AMP,5,OFST,2.5,DUTY,50")
+                self.fg.write(f"C2:BSWV WVTP,SINE,FRQ,{freq},AMP,5,OFST,2.5,DUTY,50")
                 self.fg.write("C2:OUTP ON")
                 if amp and offset:
                     self.fg.write(
@@ -197,7 +198,7 @@ class InstrumentInitialize:
         elif self.fg:
             print("Using static values from config file")
             print(f"Setting fg channel 2 to be frequency {self.current_fg_config.frequency}")
-            self.fg.write(f"C2:BSWV WVTP,SQUARE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
+            self.fg.write(f"C2:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
             self.fg.write("C2:OUTP ON")
             self.fg.write(
                 f"C1:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,{self.current_fg_config.amplitude},OFST,{self.current_fg_config.offset}")
