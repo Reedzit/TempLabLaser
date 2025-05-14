@@ -104,8 +104,8 @@ class InstrumentInitialize:
             return amplitude, phase
         else:
             print("No lock in amplifier connected")
-            return random.randint(0, 100), random.randint(0, 360) # For debugging
-            # return None, None
+            # return random.randint(0, 100), random.randint(0, 360) # For debugging
+            return None, None
 
     def auto_gain(self):
         if self.lia:
