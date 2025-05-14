@@ -101,7 +101,7 @@ class InstrumentInitialize:
             return amplitude, phase
         else:
             print("No lock in amplifier connected")
-            return "None", "None"
+            return None
 
     def auto_gain(self):
         if self.lia:
