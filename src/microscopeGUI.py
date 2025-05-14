@@ -1,6 +1,7 @@
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import ttk
+from PIL import Image, ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from instrumentInitialize import InstrumentInitialize
 from instrument_configurations.fgConfig import fgConfig
@@ -11,7 +12,7 @@ import datetime
 import sys
 import threading
 import queue
-
+from graph_box import GraphBox
 # import pymeasure.instruments.srs.sr830 as lia
 
 def automation_popup():
@@ -31,6 +32,7 @@ class MicroscopeGUI():
 
     def __init__(self):
         self.AutomationThread = None # Thread for automation, If not in use, should be None
+        self.GraphingThread = None # Thread for updating the graph
         self.load_configs()
 
         window = tk.Tk()
@@ -202,9 +204,9 @@ class MicroscopeGUI():
         self.offsetFinalInput = tk.Entry(automateTab)
         self.offsetFinalInput.grid(row=5, column=2, padx=10, pady=5)
 
-        self.startMeasurements = tk.Button(automateTab, text="Start Measurements",state = "disabled" ,command=self.begin_automation)
+        self.startMeasurements = tk.Button(automateTab, text="Start Measurements", state = "disabled" ,command=self.begin_automation)
         self.startMeasurements.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
-        self.endMeasurements = tk.Button(automateTab, text="End Measurements", command=self.end_automation)
+        self.endMeasurements = tk.Button(automateTab, text="End Measurements", state = "disabled", command=self.end_automation)
         self.endMeasurements.grid(row=6, column=2, columnspan=2, padx=10, pady=10)
 
         self.phaseLabel = tk.Label(automateTab, text="Adjust Channel 2 Phase (degrees)")
@@ -236,13 +238,15 @@ class MicroscopeGUI():
         self.fileStorageLabel.grid(row=10, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
+        self.graph = GraphBox(0, 0, 0, 800, 400)
+        self.automationGraph = tk.Label(automateTab)
+        self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
+
         # initialize
         self.timeConstantDropDown.set(self.instruments.time_constants[5])
         self.update_time_constant()
         self.gainDropDown.set(self.instruments.sensitivities[5])
         self.update_gain()
-
-        self.update_automation_textbox()
 
         window.after(100, self.schedule_automation_update)
         window.mainloop()
@@ -455,19 +459,63 @@ class MicroscopeGUI():
             response = self.hexapod.resetPosition()
             self.hexapodTextbox.insert(tk.END, f"Reset Position: {response}\n")
 
-    def update_automation_textbox(self):
-        if not self.instruments.automationQueue.empty():
-            try:
-                self.automationTxtBx.delete(1.0, tk.END)
-                self.automationTxtBx.insert(tk.END, self.instruments.automationQueue.get_nowait())
-            except queue.Empty:
-                pass
+    def update_automation_graph(self):
+        image_path = os.path.join(sys.path[0], "temp.png")
+        image = Image.open(image_path)
+        photo = ImageTk.PhotoImage(image)
+        self.automationGraph.configure(image=photo)
+        self.automationGraph.image = photo  # Keep a reference!
+
+    def update_automation_textbox(self, values):
+            self.automationTxtBx.delete(1.0, tk.END)
+            current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase = values
+            self.automationTxtBx.insert(tk.END, f"""
+            @{current_time} ({current_Step} step(s)/{self.stepCount} step(s)):
+            Input:
+            Frequency: {freqIn} Hz | Amplitude: {ampIn} V | Offset: {offsetIn} V
+            Output:
+            Amplitude: {amplitude} V | Phase: {phase} degrees
+""")
 
     def schedule_automation_update(self):
-        self.update_automation_textbox()
+        if not self.instruments.automationQueue.empty():
+            try:
+                values = self.instruments.automationQueue.get()
+                current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase = values
+                self.update_automation_textbox(values)
+
+                # Update graph data
+                print("Updating graph with new values...")
+                self.graph.update_graph(amplitude, phase, current_Step)
+
+                # Update the image display
+                try:
+                    plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plots')
+                    image_path = os.path.join(plots_dir, "temp.png")
+                    print(f"Looking for graph image at: {image_path}")
+
+                    if os.path.exists(image_path):
+                        print("Found graph image, updating display...")
+                        image = Image.open(image_path)
+                        # Resize image to fit the label
+                        image = image.resize((800, 400), Image.Resampling.LANCZOS)
+                        photo = ImageTk.PhotoImage(image)
+                        self.automationGraph.configure(image=photo)
+                        self.automationGraph.image = photo  # Keep a reference
+                        print("Graph display updated")
+                    else:
+                        print(f"Graph image not found at {image_path}")
+
+                except Exception as e:
+                    print(f"Error updating graph display: {e}")
+
+            except queue.Empty:
+                pass
+            except Exception as e:
+                print(f"Error in automation update: {e}")
+
         # Schedule the next update
         self.automationTxtBx.after(100, self.schedule_automation_update)
-
 
 
 if __name__ == '__main__':

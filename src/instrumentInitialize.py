@@ -1,5 +1,7 @@
 import datetime
 import pyvisa
+from fontTools.merge.util import current_time
+
 from instrument_configurations.fgConfig import fgConfig
 import numpy as np
 import pandas as pd
@@ -7,6 +9,7 @@ import threading
 import queue
 import sys
 import io
+import random
 
 
 class InstrumentInitialize:
@@ -101,7 +104,8 @@ class InstrumentInitialize:
             return amplitude, phase
         else:
             print("No lock in amplifier connected")
-            return None
+            return random.randint(0, 100), random.randint(0, 360) # For debugging
+            # return None, None
 
     def auto_gain(self):
         if self.lia:
@@ -242,6 +246,7 @@ class InstrumentInitialize:
         # Initialize DataFrame
         data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])
 
+        current_Step = 1
         try:
             initial_freq, final_freq = freq
             initial_amp, final_amp = amp
@@ -273,16 +278,13 @@ class InstrumentInitialize:
                 row_idx += 1  # Increment row index
 
                 if delta.total_seconds() >= time_step:
+                    current_Step += 1
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
                     try:
-                        self.automationQueue.put_nowait(f"""
-Configuration:
-Frequency:{freqRange[0]} Amplitude: {ampRange[0]} Offset: {offsetRange[0]}
-
-Results:
-Amplitude: {amplitude} Phase: {phase}
-                                            """)
+                        # pack the values into a tuple to keep the data together in the queue
+                        values = (current_time, current_Step, freqRange[0], ampRange[0], offsetRange[0], amplitude, phase)
+                        self.automationQueue.put_nowait(values)
                     except queue.Full:
                         print("Automation Queue is full, skipping measurement")
                         pass
