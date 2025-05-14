@@ -61,7 +61,8 @@ class MicroscopeGUI():
         self.createConfigButton = tk.Button(instrumentsTab, text="Create Configuration", command=self.create_config)
         self.createConfigButton.grid(row=6, column=0, columnspan=3, padx=10, pady=10)
 
-        self.phaseLabel = tk.Label(instrumentsTab, text="Adjust Channel 2 Phase (degrees)")
+        self.phaseLabel = tk.Label(instrumentsTab, text="Adjust Channel 2" \
+        " Phase (degrees)")
         self.phaseLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
         self.phaseInput = tk.Entry(instrumentsTab, text="Phase")
         self.phaseInput.grid(row=7, column=1, padx=10, pady=10)
