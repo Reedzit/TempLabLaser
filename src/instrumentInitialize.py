@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import threading
 import queue
+import sys
+import io
 
 
 class InstrumentInitialize:
@@ -64,8 +66,10 @@ class InstrumentInitialize:
     ]
 
     def __init__(self):
-        # First we need to initialize the queue for the automation thread. As well as status and running variables.
+        # First we need to initialize the queue for checking if we need to stop automation as well as one to update the GUI
         self.q = queue.Queue()
+        # This one is LIFO because we want the GUI to only have up to date information about the most recent measurement
+        self.automationQueue = queue.LifoQueue()
         self.automation_status = None
         self.automation_running = None
 
@@ -253,15 +257,12 @@ class InstrumentInitialize:
             while self.automation_running and freqRange and ampRange and offsetRange:
                 # First, we need to see if the queue has anything for the thread.
                 if not self.q.empty():
-                    thing = self.q.get()
-                    if thing == "stop":
-                        break
-
+                    break
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
                 delta = current_time - time_at_last_measurement
                 amplitude, phase = self.take_measurement()
-                # Using loc to add new row
+                # Using loc to add new row to the dataframe
                 data.loc[row_idx] = [
                     current_time,
                     freqRange[0],
@@ -272,6 +273,19 @@ class InstrumentInitialize:
                 row_idx += 1  # Increment row index
 
                 if delta.total_seconds() >= time_step:
+                    # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
+                    # that the GUI can check periodically.
+                    try:
+                        self.automationQueue.put_nowait(f"""
+Configuration:
+Frequency:{freqRange[0]} Amplitude: {ampRange[0]} Offset: {offsetRange[0]}
+
+Results:
+Amplitude: {amplitude} Phase: {phase}
+                                            """)
+                    except queue.Full:
+                        print("Automation Queue is full, skipping measurement")
+                        pass
                     print("Updating configuration")
                     self.update_configuration(
                         freq=freqRange.pop(0),

@@ -242,6 +242,9 @@ class MicroscopeGUI():
         self.gainDropDown.set(self.instruments.sensitivities[5])
         self.update_gain()
 
+        self.update_automation_textbox()
+
+        window.after(100, self.schedule_automation_update)
         window.mainloop()
 
     def measure(self):
@@ -270,10 +273,20 @@ class MicroscopeGUI():
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring, args=(freq, amp, offset, timeStep, stepCount, filepath))
         self.AutomationThread.start()
+        self.startMeasurements["state"] = "disabled"
+        self.endMeasurements["state"] = "normal"
+        self.stepCountInput["state"] = "normal"
+        self.fileStorageButton["state"] = "disabled"
+        self.fileStorageLabel["state"] = "disabled"
+        self.automationTxtBx.insert('1.0', f"Starting Automation...\n")
+        self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
+        self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
 
     def end_automation(self):
         print("Ending Automation...")
         self.instruments.q.put("stop")
+        self.endMeasurements["state"] = "disabled"
+        self.startMeasurements["state"] = "normal"
 
     def select_file_location(self):
         filePath = tk.filedialog.askdirectory()
@@ -441,6 +454,20 @@ class MicroscopeGUI():
         else:
             response = self.hexapod.resetPosition()
             self.hexapodTextbox.insert(tk.END, f"Reset Position: {response}\n")
+
+    def update_automation_textbox(self):
+        if not self.instruments.automationQueue.empty():
+            try:
+                self.automationTxtBx.delete(1.0, tk.END)
+                self.automationTxtBx.insert(tk.END, self.instruments.automationQueue.get_nowait())
+            except queue.Empty:
+                pass
+
+    def schedule_automation_update(self):
+        self.update_automation_textbox()
+        # Schedule the next update
+        self.automationTxtBx.after(100, self.schedule_automation_update)
+
 
 
 if __name__ == '__main__':
