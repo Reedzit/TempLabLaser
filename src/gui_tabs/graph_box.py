@@ -16,8 +16,6 @@ import os
 
 # TODO: add signal verication to automation. It should be able to tell if the amplitude is high enough. It should read about 200 mV
 
-# TODO: Eventually we will need to add a way to correct the phase from the LIA (This is adjusting for how the red laser is sensed when there is no green laser)
-
 # ISSUE: The phase adjustment is not working properly. But we don't need it.
 
 
