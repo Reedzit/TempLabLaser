@@ -8,7 +8,7 @@ import queue
 from graph_box import GraphBox
 
 
-class AutomationTab():
+class AutomationTab:
     def __init__(self, parent, instruments):
         self.parent = parent
         self.instruments = instruments
