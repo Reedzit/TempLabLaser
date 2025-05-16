@@ -197,3 +197,8 @@ class AutomationTab():
 
         # Schedule the next update
         self.automationTxtBx.after(100, self.schedule_automation_update)
+
+    def set_phase(self):
+        phase = self.phaseInput.get()
+        value = self.instruments.set_phase(phase)
+        self.automationTxtBx.insert(tk.END, "Channel 2 phase set to " + str(value) + "\n")

@@ -169,7 +169,7 @@ class MicroscopeGUI():
         self.lockInTxtBx.pack(padx=10, pady=10)
 
         ### Automation Tab ###
-        self.automationTab = automationTab.AutomationTab
+        self.automationTab = automationTab.AutomationTab(automateTab, self.instruments)
 
         # initialize
         self.timeConstantDropDown.set(self.instruments.time_constants[5])
