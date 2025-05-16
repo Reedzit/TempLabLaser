@@ -5,7 +5,17 @@ import os
 import sys
 import threading
 import queue
-from graph_box import GraphBox
+from src.gui_tabs.graph_box import GraphBox
+
+
+def automation_popup():
+    popup = tk.Toplevel()
+    popup.title("Pop-up Window")
+    image_path = os.path.join(sys.path[0], "../res/HeMan.gif")
+    img = tk.PhotoImage(file=image_path)
+    popup.image = img
+    label = tk.Label(popup, image=img)
+    label.pack()
 
 
 class AutomationTab:
@@ -82,15 +92,6 @@ class AutomationTab:
         self.automationGraph = tk.Label(automateTab)
         self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
-    def automation_popup(self):
-        popup = tk.Toplevel()
-        popup.title("Pop-up Window")
-        image_path = os.path.join(sys.path[0], "res/HeMan.gif")
-        img = tk.PhotoImage(file=image_path)
-        popup.image = img
-        label = tk.Label(popup, image=img)
-        label.pack()
-
     def begin_automation(self):
         print("Beginning Automation...")
         initial_freq = float(self.freqInitialInput.get())
@@ -122,7 +123,7 @@ class AutomationTab:
         self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
         self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
 
-        self.automation_popup()
+        automation_popup()
 
     def end_automation(self):
         print("Ending Automation...")

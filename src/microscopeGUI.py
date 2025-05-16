@@ -1,22 +1,9 @@
 import tkinter as tk
-import tkinter.filedialog
 from tkinter import ttk
-from PIL import Image, ImageTk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from instrumentInitialize import InstrumentInitialize
-from instrument_configurations.fgConfig import fgConfig
-from hexapod.hexapodControl import HexapodControl
-import json
-import os
-import datetime
-import sys
-import threading
-import queue
-import automationTab
-import instrumentsTab
-import hexapodTab
-import amplifierTab
-from graph_box import GraphBox
+from src.gui_tabs import amplifierTab, hexapodTab, automationTab, instrumentsTab
+
+
 # import pymeasure.instruments.srs.sr830 as lia
 
 class MicroscopeGUI():
@@ -37,6 +24,7 @@ class MicroscopeGUI():
         amplifierFrame  = tk.Frame(notebook)
         automationFrame = tk.Frame(notebook)
 
+        # The notebook contains the rest of the frames and put them in an easy to shuffle spot.
         notebook.add(instrumentsFrame, text='Instruments')
         notebook.add(hexapodFrame, text='Hexapod')
         notebook.add(amplifierFrame, text='Lock In Amplifier')
@@ -53,6 +41,8 @@ class MicroscopeGUI():
         self.automationTabObject = automationTab.AutomationTab(automationFrame, self.instruments)
 
         # initialize
+
+        # This needs access to the main thread and that's why we call it here.
         window.after(100, self.automationTabObject.schedule_automation_update)
         window.mainloop()
 

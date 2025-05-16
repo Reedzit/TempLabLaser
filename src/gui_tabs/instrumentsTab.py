@@ -7,7 +7,7 @@ from src.instrument_configurations.fgConfig import fgConfig
 
 
 class InstrumentsTab:
-    CONFIG_FILE = "src\\instrument_configurations\\configs.json"
+    CONFIG_FILE = "../src/instrument_configurations/configs.json"
 
     def __init__(self, parent, instruments):
         self.parent = parent
