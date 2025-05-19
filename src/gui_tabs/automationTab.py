@@ -11,7 +11,8 @@ from src.gui_tabs.graph_box import GraphBox
 def automation_popup():
     popup = tk.Toplevel()
     popup.title("Pop-up Window")
-    image_path = os.path.join(sys.path[0], "../res/HeMan.gif")
+    image_path = os.path.join(sys.path[0], "res\\HeMan.png")
+    print(image_path)
     img = tk.PhotoImage(file=image_path)
     popup.image = img
     label = tk.Label(popup, image=img)
@@ -25,71 +26,71 @@ class AutomationTab:
         self.setup_ui()
 
     def setup_ui(self):
-        automateTab = self.parent
-        self.startLabel = tk.Label(automateTab, text="INITIAL VALUE")
-        self.startLabel.grid(row=2, column=1, padx=10, pady=0)
-        self.endLabel = tk.Label(automateTab, text="FINAL VALUE")
-        self.endLabel.grid(row=2, column=2, padx=10, pady=0)
+        automate_tab = self.parent
+        self.start_label = tk.Label(automate_tab, text="INITIAL VALUE")
+        self.start_label.grid(row=2, column=1, padx=10, pady=0)
+        self.end_label = tk.Label(automate_tab, text="FINAL VALUE")
+        self.end_label.grid(row=2, column=2, padx=10, pady=0)
 
-        self.freqLabelAuto = tk.Label(automateTab, text="Frequency (Hz)")
-        self.freqLabelAuto.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
-        self.freqInitialInput = tk.Entry(automateTab)
+        self.freq_label_auto = tk.Label(automate_tab, text="Frequency (Hz)")
+        self.freq_label_auto.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
+        self.freqInitialInput = tk.Entry(automate_tab)
         self.freqInitialInput.grid(row=3, column=1, padx=10, pady=5)
-        self.freqFinalInput = tk.Entry(automateTab)
+        self.freqFinalInput = tk.Entry(automate_tab)
         self.freqFinalInput.grid(row=3, column=2, padx=10, pady=5)
 
-        self.ampLabel = tk.Label(automateTab, text="Amplitude (V)")
+        self.ampLabel = tk.Label(automate_tab, text="Amplitude (V)")
         self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
-        self.ampInitialInput = tk.Entry(automateTab)
+        self.ampInitialInput = tk.Entry(automate_tab)
         self.ampInitialInput.grid(row=4, column=1, padx=10, pady=5)
-        self.ampFinalInput = tk.Entry(automateTab)
+        self.ampFinalInput = tk.Entry(automate_tab)
         self.ampFinalInput.grid(row=4, column=2, padx=10, pady=5)
 
-        self.offsetLabelAuto = tk.Label(automateTab, text="Offset (V)")
+        self.offsetLabelAuto = tk.Label(automate_tab, text="Offset (V)")
         self.offsetLabelAuto.grid(row=5, column=0, padx=10, pady=5, sticky=tk.E)
-        self.offsetInitialInput = tk.Entry(automateTab)
+        self.offsetInitialInput = tk.Entry(automate_tab)
         self.offsetInitialInput.grid(row=5, column=1, padx=10, pady=5)
-        self.offsetFinalInput = tk.Entry(automateTab)
+        self.offsetFinalInput = tk.Entry(automate_tab)
         self.offsetFinalInput.grid(row=5, column=2, padx=10, pady=5)
 
-        self.startMeasurements = tk.Button(automateTab, text="Start Measurements", state="disabled",
+        self.startMeasurements = tk.Button(automate_tab, text="Start Measurements", state="disabled",
                                            command=self.begin_automation)
         self.startMeasurements.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
-        self.endMeasurements = tk.Button(automateTab, text="End Measurements", state="disabled",
+        self.endMeasurements = tk.Button(automate_tab, text="End Measurements", state="disabled",
                                          command=self.end_automation)
         self.endMeasurements.grid(row=6, column=2, columnspan=2, padx=10, pady=10)
 
-        self.phaseLabel = tk.Label(automateTab, text="Adjust Channel 2 Phase (degrees)")
+        self.phaseLabel = tk.Label(automate_tab, text="Adjust Channel 2 Phase (degrees)")
         self.phaseLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
-        self.phaseInput = tk.Entry(automateTab)
+        self.phaseInput = tk.Entry(automate_tab)
         self.phaseInput.grid(row=7, column=1, padx=10, pady=10)
-        self.setPhaseBtn = tk.Button(automateTab, text="Set Phase", command=self.set_phase)
+        self.setPhaseBtn = tk.Button(automate_tab, text="Set Phase", command=self.set_phase)
         self.setPhaseBtn.grid(row=7, column=2, padx=10, pady=10)
 
-        self.OutputLabel = tk.Label(automateTab, text="Status:")
+        self.OutputLabel = tk.Label(automate_tab, text="Status:")
         self.OutputLabel.grid(row=8, column=0)
-        self.automationTxtBx = tk.Text(automateTab, height=8, font=('Arial', 16))
+        self.automationTxtBx = tk.Text(automate_tab, height=8, font=('Arial', 16))
         self.automationTxtBx.grid(row=9, column=0, columnspan=4, padx=10, pady=10)
 
-        self.stepCountLabel = tk.Label(automateTab, text="Step Count:")
-        self.stepCount = tk.IntVar(automateTab, 1)
-        self.stepCountInput = tk.Entry(automateTab, textvariable=self.stepCount)
+        self.stepCountLabel = tk.Label(automate_tab, text="Step Count:")
+        self.stepCount = tk.IntVar(automate_tab, 1)
+        self.stepCountInput = tk.Entry(automate_tab, textvariable=self.stepCount, state='disabled')
         self.stepCountInput.grid(row=12, column=1, padx=10, pady=10)
         self.stepCountLabel.grid(row=12, column=0, padx=10, pady=10)
-        self.timePerStep = tk.IntVar(automateTab, 1)
-        self.timePerStepLabel = tk.Label(automateTab, text="Time Per Step (s):")
-        self.timePerStepInput = tk.Entry(automateTab, textvariable=self.timePerStep, state='disabled')
+        self.timePerStep = tk.IntVar(automate_tab, 1)
+        self.timePerStepLabel = tk.Label(automate_tab, text="Time Per Step (s):")
+        self.timePerStepInput = tk.Entry(automate_tab, textvariable=self.timePerStep, state='disabled')
         self.timePerStepInput.grid(row=11, column=1, padx=10, pady=10)
         self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
 
-        self.fileStorageLocation = tk.StringVar(automateTab, "No Location Given")
-        self.fileStorageLabel = tk.Label(automateTab, textvariable=self.fileStorageLocation)
-        self.fileStorageButton = tk.Button(automateTab, text="Choose File Location", command=self.select_file_location)
+        self.fileStorageLocation = tk.StringVar(automate_tab, "No Location Given")
+        self.fileStorageLabel = tk.Label(automate_tab, textvariable=self.fileStorageLocation)
+        self.fileStorageButton = tk.Button(automate_tab, text="Choose File Location", command=self.select_file_location)
         self.fileStorageLabel.grid(row=10, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
         self.graph = GraphBox(0, 0, 0, 800, 400)
-        self.automationGraph = tk.Label(automateTab)
+        self.automationGraph = tk.Label(automate_tab)
         self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
     def begin_automation(self):
@@ -139,6 +140,8 @@ class AutomationTab:
         else:
             self.fileStorageLocation.set(filePath)
             print(self.fileStorageLocation)
+            self.timePerStepInput["state"] = "normal"
+            self.stepCountInput["state"] = "normal"
             self.startMeasurements["state"] = "normal"
 
     def update_automation_graph(self):
@@ -152,7 +155,7 @@ class AutomationTab:
         self.automationTxtBx.delete(1.0, tk.END)
         current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase = values
         self.automationTxtBx.insert(tk.END, f"""
-            @{current_time} ({current_Step} step(s)/{self.stepCount} step(s)):
+            @{current_time} ({current_Step} step(s)/{self.stepCount.get()} step(s)):
             Input:
             Frequency: {freqIn} Hz | Amplitude: {ampIn} V | Offset: {offsetIn} V
             Output:
