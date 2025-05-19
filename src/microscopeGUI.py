@@ -24,7 +24,7 @@ class MicroscopeGUI():
         amplifierFrame  = tk.Frame(notebook)
         automationFrame = tk.Frame(notebook)
 
-        # The notebook contains the rest of the frames and put them in an easy to shuffle spot.
+        # The notebook contains the rest of the frames and puts them in an easy to shuffle spot.
         notebook.add(instrumentsFrame, text='Instruments')
         notebook.add(hexapodFrame, text='Hexapod')
         notebook.add(amplifierFrame, text='Lock In Amplifier')
@@ -39,8 +39,6 @@ class MicroscopeGUI():
         self.amplifierTabObject = amplifierTab.AmplifierTab(amplifierFrame, self.instruments)
         ### Automation Tab ###
         self.automationTabObject = automationTab.AutomationTab(automationFrame, self.instruments)
-
-        # initialize
 
         # This needs access to the main thread and that's why we call it here.
         window.after(100, self.automationTabObject.schedule_automation_update)
