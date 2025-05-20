@@ -20,6 +20,11 @@ import os
 
 # ISSUE: The phase adjustment is not working properly. But we don't need it.
 
+# TODO: Adjust distance between the lasers.
+
+# TODO: Make frequencies step function options
+
+# TODO: Begin recording phase measurements as soon as there is a convergence in the measurements (Stats stuff) (LP)
 
 class GraphBox:
     def __init__(self, x, y, z, width, height):
