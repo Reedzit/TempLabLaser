@@ -183,7 +183,6 @@ class InstrumentInitialize:
             return None
 
     def update_configuration(self, freq = None, amp = None, offset = None):
-        # TODO: Update channel 2 to have a sine wave.
         if freq:
             print("Using dynamic values")
             if self.fg:

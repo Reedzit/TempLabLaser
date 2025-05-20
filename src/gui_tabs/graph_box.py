@@ -32,18 +32,19 @@ class GraphBox:
             plt.clf()  # Clear the current figure
             fig = plt.figure(figsize=(8, 8))
 
-            # Create scatter plot with color representing step number
-            scatter = plt.scatter(self.phase_data,  # x-axis: phase
-                                  self.amplitude_data,  # y-axis: amplitude
+            # Create a scatter plot with color representing step number
+            plt.scatter(self.frequency_data,  # x-axis: phase
+                                  self.phase_data,  # y-axis: amplitude
                                   c=self.step_data,  # color based on step number
                                   cmap='viridis',  # color map
                                   marker='o',  # marker style
                                   s=100)  # marker size
             frequency_delta = self.frequency_data[-1] - self.frequency_data[-2]
-            barplot = plt.bar()
+            plt.bar(self.frequency_data[1:], self.diffusivity_estimates,
+                              width=frequency_delta, color='blue', alpha = 1)
 
             # Add colorbar
-            colorbar = plt.colorbar(scatter)
+            colorbar = plt.colorbar()
             colorbar.set_label('Step Number')
 
             # Set labels and title
@@ -69,12 +70,19 @@ class GraphBox:
 
     def instantaneous_diffusivity(self):
         # I'm not totally sure where all of these variables are going to come from, but we'll need all of them.
-        delta_phase = self.phase_data[-1] - self.phase_data[-2]
-        delta_x = self.laser_distance * np.sqrt(np.pi * delta_phase)
-        delta_y = self.frequency_data[-1] - self.frequency_data[-2]  # This is the same as the change in frequency
+        try:
+            delta_phase = abs(self.phase_data[-1] - self.phase_data[-2])
+        except IndexError:
+            delta_phase = 0
+        delta_x = self.laser_distance * float(np.sqrt(np.pi * delta_phase))
+        try:
+            delta_y = self.frequency_data[-1] - self.frequency_data[-2]  # This is the same as the change in frequency
+        except IndexError:
+            delta_y = 0
         slope = delta_y / delta_x
-        return 1 / slope ** 2  # In theory this should be a good instantaneous estimate
-
+        print(1/slope**2)
+        return (1 / slope ** 2) *1000000
+        # In theory this should be a good instantaneous estimate
     def update_graph(self, amplitude, phase, step, frequency):
         try:
             # Convert string values to float

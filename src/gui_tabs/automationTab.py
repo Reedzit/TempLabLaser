@@ -87,7 +87,8 @@ class AutomationTab:
         self.fileStorageLabel.grid(row=10, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
-        self.graph = GraphBox(self.distanceInput.get())
+        print(self.distanceInput.get())
+        self.graph = GraphBox(1)
         self.automationGraph = tk.Label(automate_tab)
         self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
