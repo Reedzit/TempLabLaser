@@ -103,9 +103,9 @@ class InstrumentInitialize:
             phase = self.lia.query("OUTP? 4")
             return amplitude, phase
         else:
-            print("No lock in amplifier connected")
-            # return random.randint(0, 100), random.randint(0, 360) # For debugging
-            return None, None
+            # print("No lock in amplifier connected")
+            return random.randint(0, 100), random.randint(0, 360) # For debugging
+            # return None, None
 
     def auto_gain(self):
         if self.lia:
@@ -183,7 +183,6 @@ class InstrumentInitialize:
             return None
 
     def update_configuration(self, freq = None, amp = None, offset = None):
-        # TODO: Update channel 2 to have a sine wave.
         if freq:
             print("Using dynamic values")
             if self.fg:
