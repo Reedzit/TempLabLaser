@@ -60,12 +60,10 @@ class AutomationTab:
                                          command=self.end_automation)
         self.endMeasurements.grid(row=6, column=2, columnspan=2, padx=10, pady=10)
 
-        self.phaseLabel = tk.Label(automate_tab, text="Adjust Channel 2 Phase (degrees)")
-        self.phaseLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
-        self.phaseInput = tk.Entry(automate_tab)
-        self.phaseInput.grid(row=7, column=1, padx=10, pady=10)
-        self.setPhaseBtn = tk.Button(automate_tab, text="Set Phase", command=self.set_phase)
-        self.setPhaseBtn.grid(row=7, column=2, padx=10, pady=10)
+        self.laserDistanceLabel = tk.Label(automate_tab, text="Distance between lasers (mm)")
+        self.laserDistanceLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
+        self.distanceInput = tk.Entry(automate_tab)
+        self.distanceInput.grid(row=7, column=1, padx=10, pady=10)
 
         self.OutputLabel = tk.Label(automate_tab, text="Status:")
         self.OutputLabel.grid(row=8, column=0)
@@ -89,7 +87,8 @@ class AutomationTab:
         self.fileStorageLabel.grid(row=10, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
-        self.graph = GraphBox(0, 0, 0, 800, 400)
+        print(self.distanceInput.get())
+        self.graph = GraphBox(1)
         self.automationGraph = tk.Label(automate_tab)
         self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
@@ -171,7 +170,7 @@ class AutomationTab:
 
                 # Update graph data
                 print("Updating graph with new values...")
-                self.graph.update_graph(amplitude, phase, current_Step)
+                self.graph.update_graph(amplitude, phase, current_Step, freqIn)
 
                 # Update the image display
                 try:
@@ -202,7 +201,3 @@ class AutomationTab:
         # Schedule the next update
         self.automationTxtBx.after(100, self.schedule_automation_update)
 
-    def set_phase(self):
-        phase = self.phaseInput.get()
-        value = self.instruments.set_phase(phase)
-        self.automationTxtBx.insert(tk.END, "Channel 2 phase set to " + str(value) + "\n")
