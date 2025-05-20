@@ -186,7 +186,7 @@ class InstrumentInitialize:
         if freq:
             print("Using dynamic values")
             if self.fg:
-                self.fg.write(f"C2:BSWV WVTP,SINE,FRQ,{freq},AMP,5,OFST,2.5,DUTY,50")
+                self.fg.write(f"C2:BSWV WVTP,SINE,FRQ,{freq},AMP,4,OFST,0,DUTY,50")
                 self.fg.write("C2:OUTP ON")
                 if amp and offset:
                     self.fg.write(
@@ -197,7 +197,7 @@ class InstrumentInitialize:
         elif self.fg:
             print("Using static values from config file")
             print(f"Setting fg channel 2 to be frequency {self.current_fg_config.frequency}")
-            self.fg.write(f"C2:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,5,OFST,2.5,DUTY,50")
+            self.fg.write(f"C2:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,4,OFST,0,DUTY,50")
             self.fg.write("C2:OUTP ON")
             self.fg.write(
                 f"C1:BSWV WVTP,SINE,FRQ,{self.current_fg_config.frequency},AMP,{self.current_fg_config.amplitude},OFST,{self.current_fg_config.offset}")
@@ -245,7 +245,7 @@ class InstrumentInitialize:
 
         # Initialize DataFrame
         data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])
-
+        
         current_Step = 1
         try:
             initial_freq, final_freq = freq
@@ -256,8 +256,16 @@ class InstrumentInitialize:
             ampRange = np.linspace(initial_amp, final_amp, step_count).tolist()
             offsetRange = np.linspace(initial_offset, final_offset, step_count).tolist()
 
+            # Set the initial configuration
+            self.update_configuration(
+                        freq=freqRange[0],
+                        amp=ampRange[0],
+                        offset=offsetRange[0]
+                    )
+
             time_at_last_measurement = datetime.datetime.now()
             row_idx = 0  # Initialize row index counter
+            idx = 0
 
             while self.automation_running and freqRange and ampRange and offsetRange:
                 # First, we need to see if the queue has anything for the thread.
@@ -266,33 +274,34 @@ class InstrumentInitialize:
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
                 delta = current_time - time_at_last_measurement
-                amplitude, phase = self.take_measurement()
-                # Using loc to add new row to the dataframe
-                data.loc[row_idx] = [
-                    current_time,
-                    freqRange[0],
-                    ampRange[0],
-                    offsetRange[0],
-                    amplitude,
-                    phase]
-                row_idx += 1  # Increment row index
-
                 if delta.total_seconds() >= time_step:
-                    current_Step += 1
+                    amplitude, phase = self.take_measurement()
+                    # Using loc to add new row to the dataframe
+                    data.loc[row_idx] = [
+                        current_time,
+                        freqRange[idx],
+                        ampRange[idx],
+                        offsetRange[idx],
+                        amplitude,
+                        phase]
+                    
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
                     try:
                         # pack the values into a tuple to keep the data together in the queue
-                        values = (current_time, current_Step, freqRange[0], ampRange[0], offsetRange[0], amplitude, phase)
+                        values = (current_time, current_Step, freqRange[idx], ampRange[idx], offsetRange[idx], amplitude, phase)
                         self.automationQueue.put_nowait(values)
                     except queue.Full:
                         print("Automation Queue is full, skipping measurement")
                         pass
+                    row_idx += 1  # Increment row index
+                    current_Step += 1
+                    idx += 1 # Increment the index for the next configuration
                     print("Updating configuration")
                     self.update_configuration(
-                        freq=freqRange.pop(0),
-                        amp=ampRange.pop(0),
-                        offset=offsetRange.pop(0)
+                        freq=freqRange[idx],
+                        amp=ampRange[idx],
+                        offset=offsetRange[idx]
                     )
                     time_at_last_measurement = current_time
 

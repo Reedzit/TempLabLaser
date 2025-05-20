@@ -42,15 +42,19 @@ class AutomationTab:
         self.ampLabel = tk.Label(automate_tab, text="Amplitude (V)")
         self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
         self.ampInitialInput = tk.Entry(automate_tab)
+        self.ampInitialInput.insert(-1, "4.8")
         self.ampInitialInput.grid(row=4, column=1, padx=10, pady=5)
         self.ampFinalInput = tk.Entry(automate_tab)
+        self.ampFinalInput.insert(-1, "4.8")
         self.ampFinalInput.grid(row=4, column=2, padx=10, pady=5)
 
         self.offsetLabelAuto = tk.Label(automate_tab, text="Offset (V)")
         self.offsetLabelAuto.grid(row=5, column=0, padx=10, pady=5, sticky=tk.E)
         self.offsetInitialInput = tk.Entry(automate_tab)
+        self.offsetInitialInput.insert(-1, "2.5")
         self.offsetInitialInput.grid(row=5, column=1, padx=10, pady=5)
         self.offsetFinalInput = tk.Entry(automate_tab)
+        self.offsetFinalInput.insert(-1, "2.5")
         self.offsetFinalInput.grid(row=5, column=2, padx=10, pady=5)
 
         self.startMeasurements = tk.Button(automate_tab, text="Start Measurements", state="disabled",

@@ -2,12 +2,17 @@ import json
 import os
 from tkinter import ttk
 import tkinter as tk
+import sys
+
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src.instrument_configurations.fgConfig import fgConfig
 
 
 class InstrumentsTab:
-    CONFIG_FILE = "../src/instrument_configurations/configs.json"
+    CONFIG_FILE = os.path.join(os.path.dirname(__file__), "src\instrument_configurations\configs.json")
+    
 
     def __init__(self, parent, instruments):
         self.parent = parent

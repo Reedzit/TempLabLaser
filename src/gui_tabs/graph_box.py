@@ -6,7 +6,7 @@ import queue
 import sys
 import os
 
-# TODO: Change the graph to plot:
+# TODO (Done): Change the graph to plot:
 # Phase of LIA (1) vs Frequency of the laser(2) vs Diffusivity(4)
 # Equation thing should output: derivative of: (-(distance between of lasers(user inputed)) * sqrt(pi*freq_laser/diffusivity(what we care about)) = Delta_phase (green vs red))
 # X axis: spot distance*sqrt(pi*freq_laser) Spot distance doesn't really change, so this really just a linear product of frequency
@@ -14,7 +14,24 @@ import os
 # Find the slope of that graph (Probably the best move here is to estimate it.)
 # 1/slope^2 = Diffusivity (what we care about)
 
-# TODO: add signal verification to automation. It should be able to tell if the amplitude is high enough. It should read about 200 mV
+# TODO: Priority: 1 add signal verification to automation. It should be able to tell if the amplitude is high enough. It should read about 200 mV
+
+# TODO: Priority: 2 Allow for sensitivity (Gain) changes. Default is 2mV, you will not go over 50mV. The sensitivity should automatically adjust if the amplitude is maxing out.
+# The options for this are: 1 2 5 10 20 50 100 200 500 (nV through V for all of those values)
+
+# TODO: HIGHEST PRIORITY: Wait for convergence before taking a measurement.
+
+# TODO: Priority: Implement the laser seperation calculation. The software is called Daheng Galaxy Viewer.
+# Information can be found here: https://va-imaging.com/blogs/machine-vision-knowledge-center/daheng-galaxy-viewer-to-program-our-industrial-cameras
+
+# TODO: Priority: 3 Get the CONFIG File to load for the instruments tab.
+
+# TODO: Priority: Find a way to address whether the (green) laser is on or off.
+
+# TODO: Priority: interface the the hexapod into the automation tab. This will be used to move the laser spot around.
+
+# TODO: add uncertainty measurements to the phase and amplitude measurements. Add candlesticks to the graph. 
+# This will be done by taking 10 measurements after stabilization and then taking the standard deviation of those measurements.
 
 # ISSUE: The phase adjustment is not working properly. But we don't need it.
 class GraphBox:
@@ -40,8 +57,8 @@ class GraphBox:
                                   marker='o',  # marker style
                                   s=100)  # marker size
             frequency_delta = self.frequency_data[-1] - self.frequency_data[-2]
-            plt.bar(self.frequency_data[1:], self.diffusivity_estimates,
-                              width=frequency_delta, color='blue', alpha = 1)
+            # plt.bar(self.frequency_data[1:], self.diffusivity_estimates,
+            #                   width=frequency_delta, color='blue', alpha = 1)
 
             # Add colorbar
             colorbar = plt.colorbar()
@@ -71,14 +88,14 @@ class GraphBox:
     def instantaneous_diffusivity(self):
         # I'm not totally sure where all of these variables are going to come from, but we'll need all of them.
         try:
-            delta_phase = abs(self.phase_data[-1] - self.phase_data[-2])
+            delta_frequency = abs(self.frequency_data[-1] - self.frequency_data[-2])
         except IndexError:
-            delta_phase = 0
-        delta_x = self.laser_distance * float(np.sqrt(np.pi * delta_phase))
+            delta_frequency = 1
+        delta_x = self.laser_distance * float(np.sqrt(np.pi * delta_frequency))
         try:
-            delta_y = self.frequency_data[-1] - self.frequency_data[-2]  # This is the same as the change in frequency
+            delta_y = self.phase_data[-1] - self.phase_data[-2]  # This is the same as the change in frequency
         except IndexError:
-            delta_y = 0
+            delta_y = 1
         slope = delta_y / delta_x
         print(1/slope**2)
         return (1 / slope ** 2) *1000000
