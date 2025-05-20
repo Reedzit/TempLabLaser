@@ -6,7 +6,7 @@ import queue
 import sys
 import os
 
-# TODO: Change the graph to plot:
+# Plot graphs:
 # Phase of LIA (1) vs Frequency of the laser(2) vs Diffusivity(4)
 # Equation thing should output: derivative of: (-(distance between of lasers(user inputed)) * sqrt(pi*freq_laser/diffusivity(what we care about)) = Delta_phase (green vs red))
 # X axis: spot distance*sqrt(pi*freq_laser)
