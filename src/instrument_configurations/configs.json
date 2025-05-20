@@ -58,5 +58,11 @@
         "frequency": 900.0,
         "amplitude": 4.8,
         "offset": 2.45
+    },
+    "1": {
+        "name": "1",
+        "frequency": "1",
+        "amplitude": "1",
+        "offset": "1"
     }
 }
