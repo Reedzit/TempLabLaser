@@ -21,7 +21,7 @@ def automation_popup():
 
 class AutomationTab:
     def __init__(self, parent, instruments):
-        self.stabilize = None
+        self.stabilize = tk.BooleanVar(parent, False)
         self.parent = parent
         self.instruments = instruments
         self.setup_ui()
@@ -121,7 +121,7 @@ class AutomationTab:
         offset = (initial_offset, final_offset)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                 args=(freq, amp, offset, timeStep, stepCount, filepath, self.stabilize))
+                                                 args=(freq, amp, offset, timeStep, stepCount, filepath, self.stabilize.get()))
         self.AutomationThread.start()
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"

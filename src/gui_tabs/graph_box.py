@@ -87,18 +87,19 @@ class GraphBox:
 
     def instantaneous_diffusivity(self):
         # I'm not totally sure where all of these variables are going to come from, but we'll need all of them.
-        try:
-            delta_frequency = abs(self.frequency_data[-1] - self.frequency_data[-2])
-        except IndexError:
-            delta_frequency = 1
-        delta_x = self.laser_distance * float(np.sqrt(np.pi * delta_frequency))
-        try:
-            delta_y = self.phase_data[-1] - self.phase_data[-2]  # This is the same as the change in frequency
-        except IndexError:
-            delta_y = 1
-        slope = delta_y / delta_x
-        print(1/slope**2)
-        return (1 / slope ** 2) *1000000
+        # try:
+        #     delta_frequency = abs(self.frequency_data[-1] - self.frequency_data[-2])
+        # except IndexError:
+        #     delta_frequency = 1
+        # delta_x = self.laser_distance * float(np.sqrt(np.pi * delta_frequency))
+        # try:
+        #     delta_y = self.phase_data[-1] - self.phase_data[-2]  # This is the same as the change in frequency
+        # except IndexError:
+        #     delta_y = 1
+        # slope = delta_y / delta_x
+        # print(1/slope**2)
+        # return (1 / slope ** 2) *1000000
+        return 0.1
         # In theory this should be a good instantaneous estimate
     def update_graph(self, amplitude, phase, step, frequency):
         try:

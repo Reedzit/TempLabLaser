@@ -96,8 +96,8 @@ class InstrumentInitialize:
 
     def take_measurement(self):
         if self.lia:
-            amplitude = self.lia.query("OUTP? 3")
-            phase = self.lia.query("OUTP? 4")
+            amplitude = float(self.lia.query("OUTP? 3"))
+            phase = float(self.lia.query("OUTP? 4"))
             return amplitude, phase
         else:
             print("No lock in amplifier connected")
@@ -241,7 +241,7 @@ class InstrumentInitialize:
         measurements_per_config = 3
 
         # Initialize DataFrame
-        data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])
+        data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut", "Convergence"])
         
         current_Step = 1
         try:
@@ -261,7 +261,6 @@ class InstrumentInitialize:
                     )
 
             time_at_last_measurement = datetime.datetime.now()
-            row_idx = 0  # Initialize row index counter
             idx = 0
 
             while self.automation_running and freqRange and ampRange and offsetRange:
@@ -272,18 +271,19 @@ class InstrumentInitialize:
                 current_time = datetime.datetime.now()
                 delta = current_time - time_at_last_measurement
                 # This is where it should check for convergence before moving on.
+                convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
                 if ((delta.total_seconds() >= time_step and wait_for_convergence == False)
-                        or (statAnalysis.check_for_convergence(data, "PhaseOut") and wait_for_convergence == True)):
-                    current_Step += 1
+                        or (convergence and wait_for_convergence == True)):
                     amplitude, phase = self.take_measurement()
                     # Using loc to add new row to the dataframe
-                    data.loc[row_idx] = [
+                    data.loc[len(data)] =[
                         current_time,
                         freqRange[idx],
                         ampRange[idx],
                         offsetRange[idx],
                         amplitude,
-                        phase]
+                        phase,
+                        convergence]
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
                     try:
@@ -293,17 +293,27 @@ class InstrumentInitialize:
                     except queue.Full:
                         print("Automation Queue is full, skipping measurement")
                         pass
-                    row_idx += 1  # Increment row index
-                    current_Step += 1
-                    idx += 1 # Increment the index for the next configuration
-                    print("Updating configuration")
-                    self.update_configuration(
-                        freq=freqRange[idx],
-                        amp=ampRange[idx],
-                        offset=offsetRange[idx]
+
+                    if wait_for_convergence == False or (convergence == True and delta.total_seconds() >= time_step):
+                        current_Step += 1
+                        idx += 1 # Increment the index for the next configuration
+                        print("Updating configuration")
+                        self.update_configuration(
+                            freq=freqRange[idx],
+                            amp=ampRange[idx],
+                            offset=offsetRange[idx]
                     )
                     time_at_last_measurement = current_time
-
+                else:
+                    amplitude, phase = self.take_measurement()
+                    data.loc[len(data)] =[
+                        current_time,
+                        freqRange[idx],
+                        ampRange[idx],
+                        offsetRange[idx],
+                        amplitude,
+                        phase,
+                        convergence]
         except Exception as e:
             self.automation_status = f"error: {str(e)}"
             print(f"Error during automation: {str(e)}")
