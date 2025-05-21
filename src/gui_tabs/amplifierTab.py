@@ -9,9 +9,9 @@ class AmplifierTab:
 
         self.setup_ui()
 
-        self.timeConstantDropDown.set(self.instruments.time_constants[5])
+        self.timeConstantDropDown.set(self.instruments.time_constants[10])
         self.update_time_constant()
-        self.gainDropDown.set(self.instruments.sensitivities[5])
+        self.gainDropDown.set(self.instruments.sensitivities[20])
         self.update_gain()
 
     def setup_ui(self):
