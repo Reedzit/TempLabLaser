@@ -21,6 +21,7 @@ def automation_popup():
 
 class AutomationTab:
     def __init__(self, parent, instruments):
+        self.stabilize = None
         self.parent = parent
         self.instruments = instruments
         self.setup_ui()
@@ -84,7 +85,11 @@ class AutomationTab:
         self.timePerStepInput = tk.Entry(automate_tab, textvariable=self.timePerStep, state='disabled')
         self.timePerStepInput.grid(row=11, column=1, padx=10, pady=10)
         self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
+        self.stabilizationCheckbox = tk.Checkbutton(automate_tab, text="Wait for stable signal before measuring?"
+                                                    , variable=self.stabilize, onvalue=True, offvalue=False)
 
+        self.stabilizationCheckbox.grid(row=11, column=2, padx=10, pady=10)
+        
         self.fileStorageLocation = tk.StringVar(automate_tab, "No Location Given")
         self.fileStorageLabel = tk.Label(automate_tab, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(automate_tab, text="Choose File Location", command=self.select_file_location)
@@ -116,7 +121,7 @@ class AutomationTab:
         offset = (initial_offset, final_offset)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                 args=(freq, amp, offset, timeStep, stepCount, filepath))
+                                                 args=(freq, amp, offset, timeStep, stepCount, filepath, self.stabilize))
         self.AutomationThread.start()
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"

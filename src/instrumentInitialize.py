@@ -5,12 +5,9 @@ from fontTools.merge.util import current_time
 from instrument_configurations.fgConfig import fgConfig
 import numpy as np
 import pandas as pd
-import threading
 import queue
-import sys
-import io
 import random
-
+import statAnalysis
 
 class InstrumentInitialize:
     FgConfigs: dict[str, fgConfig] = {}
@@ -237,7 +234,7 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath):
+    def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath, wait_for_convergence=False):
         print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
@@ -274,7 +271,10 @@ class InstrumentInitialize:
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
                 delta = current_time - time_at_last_measurement
-                if delta.total_seconds() >= time_step:
+                # This is where it should check for convergence before moving on.
+                if ((delta.total_seconds() >= time_step and wait_for_convergence == False)
+                        or (statAnalysis.check_for_convergence(data, "PhaseOut") and wait_for_convergence == True)):
+                    current_Step += 1
                     amplitude, phase = self.take_measurement()
                     # Using loc to add new row to the dataframe
                     data.loc[row_idx] = [
@@ -284,7 +284,6 @@ class InstrumentInitialize:
                         offsetRange[idx],
                         amplitude,
                         phase]
-                    
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
                     try:
