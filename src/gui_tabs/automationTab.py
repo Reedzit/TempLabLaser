@@ -85,6 +85,7 @@ class AutomationTab:
         self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
         self.stabilizationCheckbox = tk.Checkbutton(automate_tab, text="Wait for stable signal before measuring?"
                                                     , variable=self.stabilize, onvalue=True, offvalue=False)
+
         self.stabilizationCheckbox.grid(row=11, column=2, padx=10, pady=10)
         
         self.fileStorageLocation = tk.StringVar(automate_tab, "No Location Given")
@@ -117,7 +118,7 @@ class AutomationTab:
         offset = (initial_offset, final_offset)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                 args=(freq, amp, offset, timeStep, stepCount, filepath))
+                                                 args=(freq, amp, offset, timeStep, stepCount, filepath, self.stabilize))
         self.AutomationThread.start()
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"

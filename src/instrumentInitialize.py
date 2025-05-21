@@ -5,12 +5,9 @@ from fontTools.merge.util import current_time
 from instrument_configurations.fgConfig import fgConfig
 import numpy as np
 import pandas as pd
-import threading
 import queue
-import sys
-import io
 import random
-
+import statAnalysis
 
 class InstrumentInitialize:
     FgConfigs: dict[str, fgConfig] = {}
@@ -183,7 +180,6 @@ class InstrumentInitialize:
             return None
 
     def update_configuration(self, freq = None, amp = None, offset = None):
-        # TODO: Update channel 2 to have a sine wave.
         if freq:
             print("Using dynamic values")
             if self.fg:
@@ -238,7 +234,7 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath):
+    def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath, wait_for_convergence=False):
         print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
@@ -278,7 +274,9 @@ class InstrumentInitialize:
                     phase]
                 row_idx += 1  # Increment row index
 
-                if delta.total_seconds() >= time_step:
+                # This is where it should check for convergence before moving on.
+                if ((delta.total_seconds() >= time_step and wait_for_convergence == False)
+                        or (statAnalysis.check_for_convergence(data, "PhaseOut") and wait_for_convergence == True)):
                     current_Step += 1
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
