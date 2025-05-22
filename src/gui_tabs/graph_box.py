@@ -36,16 +36,44 @@ def plotting_process(data_queue):
             plt.ylabel('Phase (rad)')
             plt.grid(True)
 
-            # Save the figure
+            # Save the figure to a temporary file first
             plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plots')
             if not os.path.exists(plots_dir):
                 os.makedirs(plots_dir)
 
-            plt.savefig(os.path.join(plots_dir, "temp.png"), dpi=100, bbox_inches='tight')
+            temp_path = os.path.join(plots_dir, "temp_plotting.png")
+            final_path = os.path.join(plots_dir, "temp.png")
+
+            # Save to temporary file first
+            plt.savefig(temp_path, dpi=100, bbox_inches='tight')
             plt.close('all')
+
+            # Verify the file was created successfully
+            if os.path.exists(temp_path):
+                try:
+                    # Test if the file is a valid image
+                    with Image.open(temp_path) as img:
+                        img.verify()  # Verify it's a valid image
+
+                    # If verification passed, replace the old file
+                    if os.path.exists(final_path):
+                        os.remove(final_path)
+                    os.rename(temp_path, final_path)
+                except Exception as e:
+                    print(f"Error verifying plot image: {e}")
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+            else:
+                print("Failed to create plot image")
 
         except Exception as e:
             print(f"Error in plotting process: {e}")
+            # Clean up temporary file if it exists
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
             continue
 
 
