@@ -1,3 +1,5 @@
+import multiprocessing
+
 from matplotlib import pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
@@ -56,7 +58,7 @@ class GraphBox:
                                   cmap='viridis',  # color map
                                   marker='o',  # marker style
                                   s=100)  # marker size
-            frequency_delta = self.frequency_data[-1] - self.frequency_data[-2]
+            #frequency_delta = self.frequency_data[-1] - self.frequency_data[-2]
             # plt.bar(self.frequency_data[1:], self.diffusivity_estimates,
             #                   width=frequency_delta, color='blue', alpha = 1)
 
@@ -112,8 +114,8 @@ class GraphBox:
             self.phase_data.append(phase)
             self.step_data.append(step)
             self.frequency_data.append(frequency)
-            self.diffusivity_estimates.append(self.instantaneous_diffusivity())
-
+            #self.diffusivity_estimates.append(self.instantaneous_diffusivity())
+            print(multiprocessing.active_children())
             # Draw and save the updated graph
             self.draw_graph()
 

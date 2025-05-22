@@ -1,7 +1,7 @@
 import datetime
 import pyvisa
 from fontTools.merge.util import current_time
-
+from spoofedLaserData import spoof_laser_data
 from instrument_configurations.fgConfig import fgConfig
 import numpy as np
 import pandas as pd
@@ -10,6 +10,7 @@ import queue
 import sys
 import io
 import random
+import time
 
 
 class InstrumentInitialize:
@@ -75,6 +76,9 @@ class InstrumentInitialize:
         self.automationQueue = queue.LifoQueue()
         self.automation_status = None
         self.automation_running = None
+        self.freq_for_spoofing = 0 # This will only be used if debugging
+        self.lia = None
+
 
         self.rm = pyvisa.ResourceManager()
         print(f"Available resources: {self.rm.list_resources()}")
@@ -99,13 +103,22 @@ class InstrumentInitialize:
 
     def take_measurement(self):
         if self.lia:
+            start_time = time.perf_counter()
             amplitude = self.lia.query("OUTP? 3")
+            query1_time = time.perf_counter() - start_time
+
+            start_time = time.perf_counter()
             phase = self.lia.query("OUTP? 4")
+            query2_time = time.perf_counter() - start_time
+
+            print(f"Query 1 took: {query1_time * 1000:.2f}ms")
+            print(f"Query 2 took: {query2_time * 1000:.2f}ms")
             return amplitude, phase
+
         else:
             print("No lock in amplifier connected")
             #return random.randint(0, 100), random.randint(0, 360) # For debugging
-            return None, None
+            return 4.8, spoof_laser_data(self.freq_for_spoofing)
 
     def auto_gain(self):
         if self.lia:
@@ -185,6 +198,7 @@ class InstrumentInitialize:
     def update_configuration(self, freq = None, amp = None, offset = None):
         if freq:
             print("Using dynamic values")
+            self.freq_for_spoofing = freq
             if self.fg:
                 self.fg.write(f"C2:BSWV WVTP,SINE,FRQ,{freq},AMP,4,OFST,0,DUTY,50")
                 self.fg.write("C2:OUTP ON")
@@ -304,6 +318,7 @@ class InstrumentInitialize:
                         offset=offsetRange[idx]
                     )
                     time_at_last_measurement = current_time
+                    time.sleep(0.25)  # This is for debugging and should be removed when doing tests
 
         except Exception as e:
             self.automation_status = f"error: {str(e)}"
