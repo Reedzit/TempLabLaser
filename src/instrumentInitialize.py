@@ -318,7 +318,7 @@ class InstrumentInitialize:
                         offset=offsetRange[idx]
                     )
                     time_at_last_measurement = current_time
-                    time.sleep(0.25)  # This is for debugging and should be removed when doing tests
+                    #time.sleep(0.25)  # This is for debugging and should be removed when doing tests
 
         except Exception as e:
             self.automation_status = f"error: {str(e)}"
