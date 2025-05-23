@@ -4,7 +4,6 @@ import os
 from io import BytesIO
 import sys
 from multiprocessing.queues import Queue
-
 from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image

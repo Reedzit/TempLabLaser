@@ -104,7 +104,6 @@ class AutomationTab:
 
         # Create a multiprocessing Queue to be able to pass images back and forth
         self.image_queue = self.manager.Queue()
-
         # Reset all data structures
         self.graph.amplitude_data = []
         self.graph.phase_data = []
