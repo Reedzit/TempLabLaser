@@ -251,11 +251,12 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, freq, amp, offset, time_step, step_count, filepath):
+    def automatic_measuring(self, settings, filepath, image_queue):
         print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
         measurements_per_config = 3
+        freq, amp, offset, time_step, step_count = settings
 
         # Initialize DataFrame
         data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])

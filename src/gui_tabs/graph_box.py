@@ -1,13 +1,15 @@
 import multiprocessing as mp
 import queue
 import os
+from io import BytesIO
 import sys
+from multiprocessing.queues import Queue
 from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
 
 
-def plotting_process(data_queue):
+def plotting_process(data_queue, plot_queue):
     """Separate process function for plotting"""
     while True:
         try:
@@ -17,6 +19,7 @@ def plotting_process(data_queue):
 
             frequency_data, phase_data, step_data = data
 
+            # Clear any existing plots and create a new figure
             plt.clf()
             fig = plt.figure(figsize=(8, 8))
 
@@ -36,46 +39,28 @@ def plotting_process(data_queue):
             plt.ylabel('Phase (rad)')
             plt.grid(True)
 
-            # Save the figure to a temporary file first
-            plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plots')
-            if not os.path.exists(plots_dir):
-                os.makedirs(plots_dir)
+            # Instead of saving to file, save to memory buffer
+            buf = BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)  # Move to start of buffer
 
-            temp_path = os.path.join(plots_dir, "temp_plotting.png")
-            final_path = os.path.join(plots_dir, "temp.png")
+            # Create image from buffer and queue it
+            image = Image.open(buf)
+            try:
+                plot_queue.put_nowait(image.copy())  # Use non-blocking put
+                print("Graph image sent to GUI")
+            except queue.Full:
+                # If queue is full, clear it and add new image
+                with plot_queue.mutex:
+                    plot_queue.queue.clear()
+                plot_queue.put(image.copy())
 
-            # Save to temporary file first
-            plt.savefig(temp_path, dpi=100, bbox_inches='tight')
-            plt.close('all')
-
-            # Verify the file was created successfully
-            if os.path.exists(temp_path):
-                try:
-                    # Test if the file is a valid image
-                    with Image.open(temp_path) as img:
-                        img.verify()  # Verify it's a valid image
-
-                    # If verification passed, replace the old file
-                    if os.path.exists(final_path):
-                        os.remove(final_path)
-                    os.rename(temp_path, final_path)
-                except Exception as e:
-                    print(f"Error verifying plot image: {e}")
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-            else:
-                print("Failed to create plot image")
+            # Cleanup
+            buf.close()
+            plt.close(fig)
 
         except Exception as e:
             print(f"Error in plotting process: {e}")
-            # Clean up temporary file if it exists
-            if 'temp_path' in locals() and os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except:
-                    pass
-            continue
-
 
 class GraphBox:
     def __init__(self, distance):
@@ -88,12 +73,13 @@ class GraphBox:
         self.diffusivity_estimates = []
 
         # Create a process-safe queue for plotting
-        self.plot_queue = mp.Queue()
+        self.plot_queue = mp.Queue() # Getting data
+        self.plot_output = mp.Queue() # Sending finished plots
 
         # Start the plotting process
         self.plot_process = mp.Process(
             target=plotting_process,
-            args=(self.plot_queue,),
+            args=(self.plot_queue, self.plot_output),
             daemon=True
         )
         self.plot_process.start()

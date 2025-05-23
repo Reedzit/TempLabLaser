@@ -10,10 +10,10 @@ class MicroscopeGUI():
     instruments = InstrumentInitialize()
     hexapod = None
 
-    def __init__(self):
+    def __init__(self, manager):
         self.AutomationThread = None  # Thread for automation, If not in use, should be None
         self.GraphingThread = None  # Thread for updating the graph
-
+        self.manager = manager
         window = tk.Tk()
         window.geometry("1000x1000")
         window.title("Microscope GUI")
@@ -39,6 +39,7 @@ class MicroscopeGUI():
         self.amplifierTabObject = amplifierTab.AmplifierTab(amplifierFrame, self.instruments)
         ### Automation Tab ###
         self.automationTabObject = automationTab.AutomationTab(automationFrame, self.instruments)
+        self.automationTabObject.manager = manager
 
         # This needs access to the main thread and that's why we call it here.
         window.after(100, self.automationTabObject.schedule_automation_update)
