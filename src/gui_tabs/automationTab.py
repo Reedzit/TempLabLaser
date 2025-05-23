@@ -4,8 +4,10 @@ from PIL import Image, ImageTk
 import os
 import sys
 import threading
+import multiprocessing
 import queue
 from src.gui_tabs.graph_box import GraphBox
+import time
 
 
 def automation_popup():
@@ -67,6 +69,7 @@ class AutomationTab:
         self.laserDistanceLabel = tk.Label(automate_tab, text="Distance between lasers (mm)")
         self.laserDistanceLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
         self.distanceInput = tk.Entry(automate_tab)
+        self.distanceInput.insert(0, "1.0")  # Add a default value
         self.distanceInput.grid(row=7, column=1, padx=10, pady=10)
 
         self.OutputLabel = tk.Label(automate_tab, text="Status:")
@@ -92,12 +95,23 @@ class AutomationTab:
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
         print(self.distanceInput.get())
-        self.graph = GraphBox(1)
+        self.graph = GraphBox(self.distanceInput.get())
         self.automationGraph = tk.Label(automate_tab)
         self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
     def begin_automation(self):
         print("Beginning Automation...")
+
+        # Create a multiprocessing Queue to be able to pass images back and forth
+        self.image_queue = self.manager.Queue()
+
+        # Reset all data structures
+        self.graph.amplitude_data = []
+        self.graph.phase_data = []
+        self.graph.step_data = []
+        self.graph.frequency_data = []
+        self.graph.diffusivity_estimates = []
+
         initial_freq = float(self.freqInitialInput.get())
         final_freq = float(self.freqFinalInput.get())
         initial_amp = float(self.ampInitialInput.get())
@@ -114,9 +128,11 @@ class AutomationTab:
         freq = (initial_freq, final_freq)
         amp = (initial_amp, final_amp)
         offset = (initial_offset, final_offset)
+        # Construct a single tuple that is going to be unpacked
+        settings = (freq, amp, offset, timeStep, stepCount)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                 args=(freq, amp, offset, timeStep, stepCount, filepath))
+                                                 args=(settings, filepath, self.image_queue))
         self.AutomationThread.start()
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"
@@ -131,9 +147,62 @@ class AutomationTab:
 
     def end_automation(self):
         print("Ending Automation...")
+        # Put stop signal in queue in case automation is still going
         self.instruments.q.put("stop")
+
+        # Give it some time
+        time.sleep(0.5)
+
+        # Clear both queues completely
+        while not self.instruments.q.empty():
+            try:
+                self.instruments.q.get_nowait()
+            except queue.Empty:
+                break
+
+        while not self.instruments.automationQueue.empty():
+            try:
+                self.instruments.automationQueue.get_nowait()
+            except queue.Empty:
+                break
+
+        # Wait for automation to actually stop
+        while self.instruments.automation_running:
+            self.parent.after(100)  # Give time for automation to clean up
+
+        # Reset all GUI elements
         self.endMeasurements["state"] = "disabled"
         self.startMeasurements["state"] = "normal"
+        self.fileStorageButton["state"] = "normal"
+        self.fileStorageLabel["state"] = "normal"
+        self.timePerStepInput["state"] = "normal"
+        self.stepCountInput["state"] = "normal"
+
+        # Clear the automation queue
+        while not self.instruments.automationQueue.empty():
+            try:
+                self.instruments.automationQueue.get_nowait()
+            except queue.Empty:
+                break
+
+        # Reset graph data
+        self.graph.amplitude_data = []
+        self.graph.phase_data = []
+        self.graph.step_data = []
+        self.graph.frequency_data = []
+        self.graph.diffusivity_estimates = []
+
+        # Clear the graph display
+        self.graph.clear_graph()
+        self.automationGraph.configure(image='')
+        self.automationGraph.image = None
+
+        # Reset the text box
+        self.automationTxtBx.delete(1.0, tk.END)
+        self.automationTxtBx.insert('1.0', "Automation completed.\nReady for new measurement.\n")
+
+        # Clear all data from the instruments
+        self.instruments.automation_status = None
 
     def select_file_location(self):
         filePath = tk.filedialog.askdirectory()
@@ -148,11 +217,14 @@ class AutomationTab:
             self.startMeasurements["state"] = "normal"
 
     def update_automation_graph(self):
-        image_path = os.path.join(sys.path[0], "temp.png")
-        image = Image.open(image_path)
-        photo = ImageTk.PhotoImage(image)
-        self.automationGraph.configure(image=photo)
-        self.automationGraph.image = photo  # Keep a reference!
+        image = self.graph.plot_output.get_nowait()
+        if image:
+            # Resize image to fit the label
+            image = image.resize((800, 400), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(image)
+            self.automationGraph.configure(image=photo)
+            self.automationGraph.image = photo  # Keep reference
+            print("Graph display updated")
 
     def update_automation_textbox(self, values):
         self.automationTxtBx.delete(1.0, tk.END)
@@ -176,24 +248,11 @@ class AutomationTab:
                 print("Updating graph with new values...")
                 self.graph.update_graph(amplitude, phase, current_Step, freqIn)
 
-                # Update the image display
+                # Try to get new image from the plot output queue
                 try:
-                    plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plots')
-                    image_path = os.path.join(plots_dir, "temp.png")
-                    print(f"Looking for graph image at: {image_path}")
-
-                    if os.path.exists(image_path):
-                        print("Found graph image, updating display...")
-                        image = Image.open(image_path)
-                        # Resize image to fit the label
-                        image = image.resize((800, 400), Image.Resampling.LANCZOS)
-                        photo = ImageTk.PhotoImage(image)
-                        self.automationGraph.configure(image=photo)
-                        self.automationGraph.image = photo  # Keep a reference
-                        print("Graph display updated")
-                    else:
-                        print(f"Graph image not found at {image_path}")
-
+                    self.update_automation_graph()
+                except queue.Empty:
+                    print("No new graph image available")
                 except Exception as e:
                     print(f"Error updating graph display: {e}")
 
@@ -204,4 +263,3 @@ class AutomationTab:
 
         # Schedule the next update
         self.automationTxtBx.after(100, self.schedule_automation_update)
-
