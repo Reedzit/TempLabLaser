@@ -284,6 +284,7 @@ class InstrumentInitialize:
             while self.automation_running and freqRange and ampRange and offsetRange:
                 # First, we need to see if the queue has anything for the thread.
                 if not self.q.empty():
+                    self.q.get() #just to empty the queue
                     break
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()

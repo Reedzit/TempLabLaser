@@ -98,6 +98,18 @@ class GraphBox:
         )
         self.plot_process.start()
 
+    def clear_graph(self):
+        """Clear existing graph file and data"""
+        # Clear the existing graph file if it exists
+        plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plots')
+        if os.path.exists(plots_dir):
+            temp_file = os.path.join(plots_dir, "temp.png")
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except Exception as e:
+                    print(f"Error removing old graph: {e}")
+
     def update_graph(self, amplitude, phase, step, frequency):
         try:
             # Convert values

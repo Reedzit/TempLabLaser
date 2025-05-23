@@ -6,7 +6,7 @@ import sys
 import threading
 import queue
 from src.gui_tabs.graph_box import GraphBox
-
+import time
 
 def automation_popup():
     popup = tk.Toplevel()
@@ -98,6 +98,13 @@ class AutomationTab:
 
     def begin_automation(self):
         print("Beginning Automation...")
+        # Reset all data structures
+        self.graph.amplitude_data = []
+        self.graph.phase_data = []
+        self.graph.step_data = []
+        self.graph.frequency_data = []
+        self.graph.diffusivity_estimates = []
+
         initial_freq = float(self.freqInitialInput.get())
         final_freq = float(self.freqFinalInput.get())
         initial_amp = float(self.ampInitialInput.get())
@@ -131,9 +138,62 @@ class AutomationTab:
 
     def end_automation(self):
         print("Ending Automation...")
+        # Put stop signal in queue in case automation is still going
         self.instruments.q.put("stop")
+
+        # Give it some time
+        time.sleep(0.5)
+
+        # Clear both queues completely
+        while not self.instruments.q.empty():
+            try:
+                self.instruments.q.get_nowait()
+            except queue.Empty:
+                break
+
+        while not self.instruments.automationQueue.empty():
+            try:
+                self.instruments.automationQueue.get_nowait()
+            except queue.Empty:
+                break
+
+        # Wait for automation to actually stop
+        while self.instruments.automation_running:
+            self.parent.after(100)  # Give time for automation to clean up
+
+        # Reset all GUI elements
         self.endMeasurements["state"] = "disabled"
         self.startMeasurements["state"] = "normal"
+        self.fileStorageButton["state"] = "normal"
+        self.fileStorageLabel["state"] = "normal"
+        self.timePerStepInput["state"] = "normal"
+        self.stepCountInput["state"] = "normal"
+
+        # Clear the automation queue
+        while not self.instruments.automationQueue.empty():
+            try:
+                self.instruments.automationQueue.get_nowait()
+            except queue.Empty:
+                break
+
+        # Reset graph data
+        self.graph.amplitude_data = []
+        self.graph.phase_data = []
+        self.graph.step_data = []
+        self.graph.frequency_data = []
+        self.graph.diffusivity_estimates = []
+
+        # Clear the graph display
+        self.graph.clear_graph()
+        self.automationGraph.configure(image='')
+        self.automationGraph.image = None
+
+        # Reset the text box
+        self.automationTxtBx.delete(1.0, tk.END)
+        self.automationTxtBx.insert('1.0', "Automation completed.\nReady for new measurement.\n")
+
+        # Clear all data from the instruments
+        self.instruments.automation_status = None
 
     def select_file_location(self):
         filePath = tk.filedialog.askdirectory()
@@ -204,4 +264,3 @@ class AutomationTab:
 
         # Schedule the next update
         self.automationTxtBx.after(100, self.schedule_automation_update)
-
