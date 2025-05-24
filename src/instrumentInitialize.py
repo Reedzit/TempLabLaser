@@ -73,6 +73,9 @@ class InstrumentInitialize:
     def __init__(self):
         # First we need to initialize the queue for checking if we need to stop automation as well as one to update the GUI
         self.q = queue.Queue()
+        self.time_at_last_measurement = datetime.datetime.now() # We need to use this both for automatic measuring,
+        # but also for better data spoofing.
+
         # This one is LIFO because we want the GUI to only have up to date information about the most recent measurement
         self.automationQueue = queue.LifoQueue()
         self.automation_status = None
@@ -119,7 +122,8 @@ class InstrumentInitialize:
         else:
             print("No lock in amplifier connected")
             #return random.randint(0, 100), random.randint(0, 360) # For debugging
-            return 4.8, spoof_laser_data(self.freq_for_spoofing)
+            time_since_last_measurement = datetime.datetime.now() - self.time_at_last_measurement
+            return 4.8, spoof_laser_data(self.freq_for_spoofing, time_since_last_measurement.total_seconds())
 
     def auto_gain(self):
         if self.lia:
@@ -311,9 +315,9 @@ class InstrumentInitialize:
                 if convergence and data["Convergence"].iloc[-1] == "False": # This checks to see if this is the first converged measurement
                     print("Converged!")
                     data["Convergence"].iloc[-1] = "True" # Correct the last row.
-                    time_at_last_measurement = current_time # We reset the timer so that we will collect enough converged measurements
+                    self.time_at_last_measurement = current_time # We reset the timer so that we will collect enough converged measurements
 
-                # Brief explanation of the logic here: 
+                # Brief explanation of the logic here:
                 # Firstly, it should probably be broken into multiple functions.
                 # But, we want to initiate graphing if
                 # A) we're not waiting for convergences and enough time has passed
@@ -338,7 +342,7 @@ class InstrumentInitialize:
                         amp=ampRange[idx],
                         offset=offsetRange[idx]
                     )
-                    time_at_last_measurement = current_time
+                    self.time_at_last_measurement = current_time
                     #time.sleep(0.25)  # This is for debugging and should be removed when doing tests
                 else:
                     # If we just moved to the next frequency, we also need to reset the convergence flag

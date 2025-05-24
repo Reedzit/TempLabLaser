@@ -4,7 +4,7 @@ import pandas as pd
 # This is written as a package of standalone functions
 
 # Constants for convergence check
-THRESHOLD_STD = 0.01
+THRESHOLD_STD = 0.1
 NUM_SAMPLES = 30
 # This should check for convergence of the data. It needs to read data and return if the data has converged.
 def check_for_convergence(data, index):
