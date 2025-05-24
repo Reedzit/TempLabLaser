@@ -64,7 +64,7 @@ class AutomationTab:
         self.startMeasurements.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
         self.endMeasurements = tk.Button(automate_tab, text="End Measurements", state="disabled",
                                          command=self.end_automation)
-        self.endMeasurements.grid(row=6, column=2, columnspan=2, padx=10, pady=10)
+        self.endMeasurements.grid(row=6, column=2, columnspan=1, padx=10, pady=10)
 
         self.laserDistanceLabel = tk.Label(automate_tab, text="Distance between lasers (mm)")
         self.laserDistanceLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
@@ -82,6 +82,12 @@ class AutomationTab:
         self.stepCountInput = tk.Entry(automate_tab, textvariable=self.stepCount, state='disabled')
         self.stepCountInput.grid(row=12, column=1, padx=10, pady=10)
         self.stepCountLabel.grid(row=12, column=0, padx=10, pady=10)
+
+        self.wait_for_convergence = tk.BooleanVar(automate_tab, False)
+        self.wait_for_convergence_check = tk.Checkbutton(automate_tab, text="Wait for Convergence?",
+                                                         variable=self.wait_for_convergence, onvalue=True, offvalue=False)
+        self.wait_for_convergence_check.grid(row=11, column=2, padx=10, pady=10)
+
         self.timePerStep = tk.IntVar(automate_tab, 1)
         self.timePerStepLabel = tk.Label(automate_tab, text="Time Per Step (s):")
         self.timePerStepInput = tk.Entry(automate_tab, textvariable=self.timePerStep, state='disabled')
@@ -91,7 +97,7 @@ class AutomationTab:
         self.fileStorageLocation = tk.StringVar(automate_tab, "No Location Given")
         self.fileStorageLabel = tk.Label(automate_tab, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(automate_tab, text="Choose File Location", command=self.select_file_location)
-        self.fileStorageLabel.grid(row=10, column=2, columnspan=2, padx=10, pady=10)
+        self.fileStorageLabel.grid(row=10, column=2, columnspan=1, padx=10, pady=10)
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
         print(self.distanceInput.get())
@@ -131,7 +137,7 @@ class AutomationTab:
         settings = (freq, amp, offset, timeStep, stepCount)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                 args=(settings, filepath, self.image_queue))
+                                                 args=(settings, filepath, self.image_queue, self.wait_for_convergence.get()))
         self.AutomationThread.start()
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"

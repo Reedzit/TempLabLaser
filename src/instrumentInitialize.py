@@ -3,6 +3,7 @@ import pyvisa
 from fontTools.merge.util import current_time
 from spoofedLaserData import spoof_laser_data
 from instrument_configurations.fgConfig import fgConfig
+import statAnalysis
 import numpy as np
 import pandas as pd
 import threading
@@ -72,6 +73,9 @@ class InstrumentInitialize:
     def __init__(self):
         # First we need to initialize the queue for checking if we need to stop automation as well as one to update the GUI
         self.q = queue.Queue()
+        self.time_at_last_measurement = datetime.datetime.now() # We need to use this both for automatic measuring,
+        # but also for better data spoofing.
+
         # This one is LIFO because we want the GUI to only have up to date information about the most recent measurement
         self.automationQueue = queue.LifoQueue()
         self.automation_status = None
@@ -118,7 +122,8 @@ class InstrumentInitialize:
         else:
             print("No lock in amplifier connected")
             #return random.randint(0, 100), random.randint(0, 360) # For debugging
-            return 4.8, spoof_laser_data(self.freq_for_spoofing)
+            time_since_last_measurement = datetime.datetime.now() - self.time_at_last_measurement
+            return 4.8, spoof_laser_data(self.freq_for_spoofing, time_since_last_measurement.total_seconds())
 
     def auto_gain(self):
         if self.lia:
@@ -251,15 +256,16 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, settings, filepath, image_queue):
+    def automatic_measuring(self, settings, filepath, image_queue, convergence_check = False):
         print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
         measurements_per_config = 3
         freq, amp, offset, time_step, step_count = settings
+        convergence = False
 
         # Initialize DataFrame
-        data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut"])
+        data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut", "Convergence"])
         
         current_Step = 1
         try:
@@ -287,20 +293,37 @@ class InstrumentInitialize:
                 if not self.q.empty():
                     self.q.get() #just to empty the queue
                     break
+
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
                 delta = current_time - time_at_last_measurement
-                if delta.total_seconds() >= time_step:
-                    amplitude, phase = self.take_measurement()
-                    # Using loc to add new row to the dataframe
-                    data.loc[row_idx] = [
-                        current_time,
-                        freqRange[idx],
-                        ampRange[idx],
-                        offsetRange[idx],
-                        amplitude,
-                        phase]
-                    
+                # First, we want to check for convergence for this measurement regardless of if we're waiting for it
+                # We're going to collect a measurement every tick, but we won't
+                # mark them as converged, and we won't graph them.
+                amplitude, phase = self.take_measurement()
+                # Using loc to add a new row to the dataframe.
+                # We'll flag if the row is converged immediately afterwards.
+                data.loc[len(data)] = [
+                    current_time,
+                    freqRange[idx],
+                    ampRange[idx],
+                    offsetRange[idx],
+                    amplitude,
+                    phase,
+                    convergence]
+                convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
+                if convergence and data["Convergence"].iloc[-1] == "False": # This checks to see if this is the first converged measurement
+                    print("Converged!")
+                    data["Convergence"].iloc[-1] = "True" # Correct the last row.
+                    self.time_at_last_measurement = current_time # We reset the timer so that we will collect enough converged measurements
+
+                # Brief explanation of the logic here:
+                # Firstly, it should probably be broken into multiple functions.
+                # But, we want to initiate graphing if
+                # A) we're not waiting for convergences and enough time has passed
+                # or
+                # B) we ARE waiting for convergence and enough time has passed since convergence
+                if (delta.total_seconds() >= time_step and convergence_check == False) or (convergence_check == True and convergence):
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
                     try:
@@ -319,8 +342,11 @@ class InstrumentInitialize:
                         amp=ampRange[idx],
                         offset=offsetRange[idx]
                     )
-                    time_at_last_measurement = current_time
+                    self.time_at_last_measurement = current_time
                     #time.sleep(0.25)  # This is for debugging and should be removed when doing tests
+                else:
+                    # If we just moved to the next frequency, we also need to reset the convergence flag
+                    convergence = False
 
         except Exception as e:
             self.automation_status = f"error: {str(e)}"
