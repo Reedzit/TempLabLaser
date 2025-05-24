@@ -251,7 +251,7 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, settings, filepath, image_queue):
+    def automatic_measuring(self, settings, filepath, image_queue, convergence = False):
         print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
