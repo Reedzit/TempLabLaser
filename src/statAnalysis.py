@@ -10,10 +10,10 @@ NUM_SAMPLES = 30
 def check_for_convergence(data, index):
     data_std = np.std(data[index].tail(NUM_SAMPLES))
     if data_std < THRESHOLD_STD:
-        print(f"Data converged. Standard deviation: {data_std}")
+        #print(f"Data converged. Standard deviation: {data_std}")
         return True
     else:
-        print(f"Data not converged. Standard deviation: {data_std}")
+        #print(f"Data not converged. Standard deviation: {data_std}")
         return False
 
 def calculate_error_bounds(data, index):

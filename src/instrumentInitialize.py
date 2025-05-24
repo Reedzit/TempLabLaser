@@ -107,20 +107,20 @@ class InstrumentInitialize:
 
     def take_measurement(self):
         if self.lia:
-            start_time = time.perf_counter()
+            #start_time = time.perf_counter()
             amplitude = self.lia.query("OUTP? 3")
-            query1_time = time.perf_counter() - start_time
+            #query1_time = time.perf_counter() - start_time
 
-            start_time = time.perf_counter()
+            #start_time = time.perf_counter()
             phase = self.lia.query("OUTP? 4")
-            query2_time = time.perf_counter() - start_time
+           # query2_time = time.perf_counter() - start_time
 
-            print(f"Query 1 took: {query1_time * 1000:.2f}ms")
-            print(f"Query 2 took: {query2_time * 1000:.2f}ms")
+            #print(f"Query 1 took: {query1_time * 1000:.2f}ms")
+            #print(f"Query 2 took: {query2_time * 1000:.2f}ms")
             return amplitude, phase
 
         else:
-            print("No lock in amplifier connected")
+            #print("No lock in amplifier connected")
             #return random.randint(0, 100), random.randint(0, 360) # For debugging
             time_since_last_measurement = datetime.datetime.now() - self.time_at_last_measurement
             return 4.8, spoof_laser_data(self.freq_for_spoofing, time_since_last_measurement.total_seconds())
@@ -256,7 +256,7 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, settings, filepath, image_queue, convergence_check = False):
+    def automatic_measuring(self, settings, filepath, convergence_check = False, plot_code = "Default"):
         print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
@@ -328,7 +328,10 @@ class InstrumentInitialize:
                     # that the GUI can check periodically.
                     try:
                         # pack the values into a tuple to keep the data together in the queue
-                        values = (current_time, current_Step, freqRange[idx], ampRange[idx], offsetRange[idx], amplitude, phase)
+                        if plot_code == "Default":
+                            values = (current_time, current_Step, freqRange[idx], ampRange[idx], offsetRange[idx], amplitude, phase)
+                        else:
+                            values = data
                         self.automationQueue.put_nowait(values)
                     except queue.Full:
                         print("Automation Queue is full, skipping measurement")

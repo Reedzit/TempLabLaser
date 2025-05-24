@@ -9,6 +9,6 @@ def spoof_laser_data(freq, time_since_last_measurement):
     theoretical_value =  35 - (21.6404*math.log(freq))
 
     spoofed_value = theoretical_value + error_factor*theoretical_value
-    print(f"Spoofed value: {spoofed_value}")
+    #print(f"Spoofed value: {spoofed_value}")
     time.sleep(0.1) # This is roughly the time it takes to read the laser data from the instrument
     return spoofed_value

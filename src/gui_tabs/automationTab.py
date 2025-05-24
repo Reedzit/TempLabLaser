@@ -143,7 +143,8 @@ class AutomationTab:
         settings = (freq, amp, offset, timeStep, stepCount)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                 args=(settings, filepath, self.image_queue, self.wait_for_convergence.get()))
+                                                 args=(settings, filepath,
+                                                       self.wait_for_convergence.get(), self.graph_selector_var.get()))
         self.AutomationThread.start()
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"
