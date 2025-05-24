@@ -8,9 +8,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
 
-
-def plotting_process(data_queue, plot_queue):
-    """Separate process function for plotting"""
+def standard_graph(data_queue, plot_queue):
     while True:
         try:
             data = data_queue.get()
@@ -60,10 +58,32 @@ def plotting_process(data_queue, plot_queue):
             plt.close(fig)
 
         except Exception as e:
-            print(f"Error in plotting process: {e}")
+            print(f"Error in standard plotting process: {e}")
+
+def candlestick_graph(data_queue, plot_queue):
+    while True:
+        try:
+            data = data_queue.get()
+            if data is None:  # Exit signal
+                break
+            # TODO Enter graphing logic here (e.g., candlestick graph)
+        except Exception as e:
+            print(f"Error in candlestick plotting process: {e}")
+
+def plotting_process(data_queue, plot_queue, plot_code = 0):
+    """Separate process function for plotting"""
+    print("Starting plotting process")
+    print(f"Plot code: {plot_code}")
+    if plot_code == "Default":
+        standard_graph(data_queue, plot_queue)
+    if plot_code == "Candlestick":
+        candlestick_graph(data_queue, plot_queue)
+    else:
+        print("Invalid plot code")
+
 
 class GraphBox:
-    def __init__(self, distance):
+    def __init__(self, distance, plot_code):
         self.laser_distance = distance
         # Regular lists for data storage in main thread
         self.amplitude_data = []
@@ -79,7 +99,7 @@ class GraphBox:
         # Start the plotting process
         self.plot_process = mp.Process(
             target=plotting_process,
-            args=(self.plot_queue, self.plot_output),
+            args=(self.plot_queue, self.plot_output, plot_code),
             daemon=True
         )
         self.plot_process.start()

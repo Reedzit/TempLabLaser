@@ -23,6 +23,7 @@ def automation_popup():
 
 class AutomationTab:
     def __init__(self, parent, instruments):
+        self.graph = None
         self.parent = parent
         self.instruments = instruments
         self.setup_ui()
@@ -94,20 +95,25 @@ class AutomationTab:
         self.timePerStepInput.grid(row=11, column=1, padx=10, pady=10)
         self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
 
+        graph_selector_options = ["Default", "Candlestick"]
+        self.graph_selector_var = tk.StringVar(automate_tab, "Default")
+        self.graph_selector =tk.OptionMenu(automate_tab,self.graph_selector_var, *graph_selector_options)
+        self.graph_selector.grid(row=12, column=2, padx=10, pady=10)
+
         self.fileStorageLocation = tk.StringVar(automate_tab, "No Location Given")
         self.fileStorageLabel = tk.Label(automate_tab, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(automate_tab, text="Choose File Location", command=self.select_file_location)
         self.fileStorageLabel.grid(row=10, column=2, columnspan=1, padx=10, pady=10)
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
-        print(self.distanceInput.get())
-        self.graph = GraphBox(self.distanceInput.get())
         self.automationGraph = tk.Label(automate_tab)
         self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
     def begin_automation(self):
         print("Beginning Automation...")
-
+        if self.graph:
+            self.graph.__del__()
+        self.graph = GraphBox(self.distanceInput.get(), self.graph_selector_var.get())
         # Create a multiprocessing Queue to be able to pass images back and forth
         self.image_queue = self.manager.Queue()
         # Reset all data structures
@@ -197,10 +203,9 @@ class AutomationTab:
         self.graph.frequency_data = []
         self.graph.diffusivity_estimates = []
 
-        # Clear the graph display
+        # Clear the graph data
         self.graph.clear_graph()
-        self.automationGraph.configure(image='')
-        self.automationGraph.image = None
+        self.graph.__del__() #Remove the graphing object in case they decide to make another one.
 
         # Reset the text box
         self.automationTxtBx.delete(1.0, tk.END)
