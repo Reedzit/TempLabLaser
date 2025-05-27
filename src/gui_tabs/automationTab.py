@@ -252,12 +252,15 @@ class AutomationTab:
         if not self.instruments.automationQueue.empty():
             try:
                 values = self.instruments.automationQueue.get()
-                current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase = values
-                self.update_automation_textbox(values)
-
-                # Update graph data
-                print("Updating graph with new values...")
-                self.graph.update_graph(amplitude, phase, current_Step, freqIn)
+                if type(values) is tuple:
+                    current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase = values
+                    self.update_automation_textbox(values)
+                    print("Updating graph with new values...")
+                    self.graph.update_graph(amplitude, phase, current_Step, freqIn)
+                elif type(values) is str:
+                    self.automationTxtBx.insert('1.0', f"{values}\n Pickled data received.")
+                    print(f"Received pickled data location: {values}")
+                    self.graph.update_graph(values)  # Pass the file location to update_graph
 
                 # Try to get new image from the plot output queue
                 try:

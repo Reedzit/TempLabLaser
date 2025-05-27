@@ -1,4 +1,6 @@
 import datetime
+
+import pandas
 import pyvisa
 from fontTools.merge.util import current_time
 from spoofedLaserData import spoof_laser_data
@@ -314,7 +316,7 @@ class InstrumentInitialize:
                 convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
                 if convergence and data["Convergence"].iloc[-1] == "False": # This checks to see if this is the first converged measurement
                     print("Converged!")
-                    data["Convergence"].iloc[-1] = "True" # Correct the last row.
+                    data["Convergence"].iloc[-1] = True # Correct the last row.
                     self.time_at_last_measurement = current_time # We reset the timer so that we will collect enough converged measurements
 
                 # Brief explanation of the logic here:
@@ -323,16 +325,18 @@ class InstrumentInitialize:
                 # A) we're not waiting for convergences and enough time has passed
                 # or
                 # B) we ARE waiting for convergence and enough time has passed since convergence
-                if (delta.total_seconds() >= time_step and convergence_check == False) or (convergence_check == True and convergence):
+                if (delta.total_seconds() >= time_step and convergence_check == False) or (convergence_check and convergence):
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
                     try:
                         # pack the values into a tuple to keep the data together in the queue
                         if plot_code == "Default":
                             values = (current_time, current_Step, freqRange[idx], ampRange[idx], offsetRange[idx], amplitude, phase)
+                            self.automationQueue.put_nowait(values)
                         else:
-                            values = data
-                        self.automationQueue.put_nowait(values)
+                            data.to_pickle("./data.pkl")
+                            self.automationQueue.put_nowait("./data.pkl")
+
                     except queue.Full:
                         print("Automation Queue is full, skipping measurement")
                         pass
