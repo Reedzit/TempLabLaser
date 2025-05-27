@@ -3,8 +3,6 @@ import queue
 import os
 from io import BytesIO
 import pandas
-import sys
-from multiprocessing.queues import Queue
 from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
@@ -155,7 +153,8 @@ class GraphBox:
         )
         self.plot_process.start()
 
-    def clear_graph(self):
+    @staticmethod
+    def clear_graph():
         """Clear existing graph file and data"""
         # Clear the existing graph file if it exists
         plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plots')

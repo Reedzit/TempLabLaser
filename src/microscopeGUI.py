@@ -6,7 +6,7 @@ from src.gui_tabs import amplifierTab, hexapodTab, automationTab, instrumentsTab
 
 # import pymeasure.instruments.srs.sr830 as lia
 
-class MicroscopeGUI():
+class MicroscopeGUI:
     instruments = InstrumentInitialize()
     hexapod = None
 

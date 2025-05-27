@@ -1,19 +1,12 @@
 import datetime
 
-import pandas
 import pyvisa
-from fontTools.merge.util import current_time
 from spoofedLaserData import spoof_laser_data
 from instrument_configurations.fgConfig import fgConfig
 import statAnalysis
 import numpy as np
 import pandas as pd
-import threading
 import queue
-import sys
-import io
-import random
-import time
 
 
 class InstrumentInitialize:
