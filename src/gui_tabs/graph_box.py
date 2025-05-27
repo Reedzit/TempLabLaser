@@ -2,15 +2,14 @@ import multiprocessing as mp
 import queue
 import os
 from io import BytesIO
+import pandas
 import sys
 from multiprocessing.queues import Queue
 from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
 
-
-def plotting_process(data_queue, plot_queue):
-    """Separate process function for plotting"""
+def standard_graph(data_queue, plot_queue):
     while True:
         try:
             data = data_queue.get()
@@ -60,10 +59,82 @@ def plotting_process(data_queue, plot_queue):
             plt.close(fig)
 
         except Exception as e:
-            print(f"Error in plotting process: {e}")
+            print(f"Error in standard plotting process: {e}")
+
+
+def candlestick_graph(data_queue, plot_queue):
+    while True:
+        try:
+            file_location = data_queue.get()
+            print(f"Candlestick graph received file location: {file_location}")
+
+            if file_location is None:
+                print("Received exit signal")
+                break  # Exit signal
+
+            # Clear any existing plots and create a new figure
+            plt.clf()
+            fig = plt.figure(figsize=(8, 8))
+
+            print(f"Attempting to read pickle file from: {file_location}")
+            data = pandas.read_pickle(file_location)
+            print(f"Successfully read pickle file. Data columns: {data.columns}")
+
+            grouped = data.groupby('FrequencyIn')['PhaseOut']
+            mean_phase = grouped.mean()
+            std_phase = grouped.std()
+
+            frequencies = mean_phase.index
+
+            sample_size = grouped.count()
+
+            plt.errorbar(frequencies, mean_phase, yerr=std_phase, fmt='none')
+
+            # Plot colored points with sample size mapped to color
+            sc = plt.scatter(frequencies, mean_phase, c=sample_size, cmap='gist_rainbow', zorder=2)
+            plt.colorbar(sc, label='Sample Size')
+
+            plt.title('Phase vs Frequency (Error bars)')
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel('Phase (rad)')
+            plt.grid(True)
+
+            print("Saving plot to buffer...")
+            buf = BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+
+            print("Creating image from buffer...")
+            image = Image.open(buf)
+            print("Attempting to put image in queue...")
+            plot_queue.put_nowait(image.copy())
+            print("Successfully queued new image")
+
+            buf.close()
+            plt.close(fig)
+
+        except Exception as e:
+            print(f"Error in candlestick plotting process: {e}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print(traceback.format_exc())
+
+
+def plotting_process(data_queue, plot_queue, plot_code = "Default"):
+    """Separate process function for plotting"""
+    print("Starting plotting process")
+    print(f"Plot code Type: {type(plot_code)}")
+    print(f"Plot code: {plot_code}")
+    if plot_code == "Default":
+        standard_graph(data_queue, plot_queue)
+    elif plot_code == "Candlestick":
+        candlestick_graph(data_queue, plot_queue)
+    else:
+        print("Invalid plot code")
+
 
 class GraphBox:
-    def __init__(self, distance):
+    def __init__(self, distance, plot_code):
         self.laser_distance = distance
         # Regular lists for data storage in main thread
         self.amplitude_data = []
@@ -79,7 +150,7 @@ class GraphBox:
         # Start the plotting process
         self.plot_process = mp.Process(
             target=plotting_process,
-            args=(self.plot_queue, self.plot_output),
+            args=(self.plot_queue, self.plot_output, plot_code),
             daemon=True
         )
         self.plot_process.start()
@@ -96,29 +167,38 @@ class GraphBox:
                 except Exception as e:
                     print(f"Error removing old graph: {e}")
 
-    def update_graph(self, amplitude, phase, step, frequency):
-        try:
-            # Convert values
-            amplitude = float(amplitude)
-            phase = float(phase)
-            step = int(step)
+    def update_graph(self, *args):
+        if len(args) == 4:  # Standard graph case with (amplitude, phase, step, frequency)
+            amplitude, phase, step, frequency = args
+            try:
+                # Convert values
+                amplitude = float(amplitude)
+                phase = float(phase)
+                step = int(step)
 
-            # Update data in main thread
-            self.amplitude_data.append(amplitude)
-            self.phase_data.append(phase)
-            self.step_data.append(step)
-            self.frequency_data.append(frequency)
+                # Update data in main thread
+                self.amplitude_data.append(amplitude)
+                self.phase_data.append(phase)
+                self.step_data.append(step)
+                self.frequency_data.append(frequency)
 
-            # Send data to plotting process
-            self.plot_queue.put((
-                self.frequency_data.copy(),
-                self.phase_data.copy(),
-                self.step_data.copy()
-            ))
+                # Send data to plotting process
+                self.plot_queue.put((
+                    self.frequency_data.copy(),
+                    self.phase_data.copy(),
+                    self.step_data.copy()
+                ))
 
-        except (ValueError, TypeError) as e:
-            print(f"Error updating graph data: {e}")
-            print(f"Values received: amplitude={amplitude}, phase={phase}, step={step}")
+            except (ValueError, TypeError) as e:
+                print(f"Error updating graph data: {e}")
+                print(f"Values received: amplitude={amplitude}, phase={phase}, step={step}")
+        elif len(args) == 1:  # Candlestick case with pickled data file location
+            file_location = args[0]
+            print(f"Sending pickled data location to plotter: {file_location}")
+            self.plot_queue.put(file_location)
+        else:
+            print(f"Invalid number of arguments received: {len(args)}")
+
 
     def instantaneous_diffusivity(self):
         try:

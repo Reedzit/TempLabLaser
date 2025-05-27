@@ -1,4 +1,6 @@
 import datetime
+
+import pandas
 import pyvisa
 from fontTools.merge.util import current_time
 from spoofedLaserData import spoof_laser_data
@@ -107,20 +109,20 @@ class InstrumentInitialize:
 
     def take_measurement(self):
         if self.lia:
-            start_time = time.perf_counter()
+            #start_time = time.perf_counter()
             amplitude = self.lia.query("OUTP? 3")
-            query1_time = time.perf_counter() - start_time
+            #query1_time = time.perf_counter() - start_time
 
-            start_time = time.perf_counter()
+            #start_time = time.perf_counter()
             phase = self.lia.query("OUTP? 4")
-            query2_time = time.perf_counter() - start_time
+           # query2_time = time.perf_counter() - start_time
 
-            print(f"Query 1 took: {query1_time * 1000:.2f}ms")
-            print(f"Query 2 took: {query2_time * 1000:.2f}ms")
+            #print(f"Query 1 took: {query1_time * 1000:.2f}ms")
+            #print(f"Query 2 took: {query2_time * 1000:.2f}ms")
             return amplitude, phase
 
         else:
-            print("No lock in amplifier connected")
+            #print("No lock in amplifier connected")
             #return random.randint(0, 100), random.randint(0, 360) # For debugging
             time_since_last_measurement = datetime.datetime.now() - self.time_at_last_measurement
             return 4.8, spoof_laser_data(self.freq_for_spoofing, time_since_last_measurement.total_seconds())
@@ -256,7 +258,7 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, settings, filepath, image_queue, convergence_check = False):
+    def automatic_measuring(self, settings, filepath, convergence_check = False, plot_code = "Default"):
         print("Automation Beginning!")
         self.automation_running = True
         self.automation_status = "running"
@@ -314,7 +316,7 @@ class InstrumentInitialize:
                 convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
                 if convergence and data["Convergence"].iloc[-1] == "False": # This checks to see if this is the first converged measurement
                     print("Converged!")
-                    data["Convergence"].iloc[-1] = "True" # Correct the last row.
+                    data["Convergence"].iloc[-1] = True # Correct the last row.
                     self.time_at_last_measurement = current_time # We reset the timer so that we will collect enough converged measurements
 
                 # Brief explanation of the logic here:
@@ -323,13 +325,18 @@ class InstrumentInitialize:
                 # A) we're not waiting for convergences and enough time has passed
                 # or
                 # B) we ARE waiting for convergence and enough time has passed since convergence
-                if (delta.total_seconds() >= time_step and convergence_check == False) or (convergence_check == True and convergence):
+                if (delta.total_seconds() >= time_step and convergence_check == False) or (convergence_check and convergence):
                     # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
                     # that the GUI can check periodically.
                     try:
                         # pack the values into a tuple to keep the data together in the queue
-                        values = (current_time, current_Step, freqRange[idx], ampRange[idx], offsetRange[idx], amplitude, phase)
-                        self.automationQueue.put_nowait(values)
+                        if plot_code == "Default":
+                            values = (current_time, current_Step, freqRange[idx], ampRange[idx], offsetRange[idx], amplitude, phase)
+                            self.automationQueue.put_nowait(values)
+                        else:
+                            data.to_pickle("./data.pkl")
+                            self.automationQueue.put_nowait("./data.pkl")
+
                     except queue.Full:
                         print("Automation Queue is full, skipping measurement")
                         pass
