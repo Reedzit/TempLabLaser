@@ -86,7 +86,14 @@ def candlestick_graph(data_queue, plot_queue):
 
             frequencies = mean_phase.index
 
-            plt.errorbar(frequencies, mean_phase, yerr=std_phase, fmt='o')
+            sample_size = grouped.count()
+
+            plt.errorbar(frequencies, mean_phase, yerr=std_phase, fmt='none')
+
+            # Plot colored points with sample size mapped to color
+            sc = plt.scatter(frequencies, mean_phase, c=sample_size, cmap='gist_rainbow', zorder=2)
+            plt.colorbar(sc, label='Sample Size')
+
             plt.title('Phase vs Frequency (Error bars)')
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('Phase (rad)')
