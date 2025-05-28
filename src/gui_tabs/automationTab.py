@@ -1,5 +1,8 @@
 import tkinter as tk
 import tkinter.filedialog
+
+import pandas
+import pandas as pd
 from PIL import Image, ImageTk
 import os
 import sys
@@ -23,7 +26,7 @@ def automation_popup():
 
 class AutomationTab:
     def __init__(self, parent, instruments):
-        self.graph = None
+        self.graph = GraphBox(1,"Default")
         self.parent = parent
         self.instruments = instruments
         self.setup_ui()
@@ -111,6 +114,8 @@ class AutomationTab:
 
     def begin_automation(self):
         print("Beginning Automation...")
+        print(f"Distance between lasers: {self.distanceInput.get()} mm")
+        print(f"Wait for convergence: {self.wait_for_convergence.get()}")
         if self.graph:
             self.graph.__del__()
         self.graph = GraphBox(self.distanceInput.get(), self.graph_selector_var.get())
@@ -146,6 +151,7 @@ class AutomationTab:
                                                  args=(settings, filepath,
                                                        self.wait_for_convergence.get(), self.graph_selector_var.get()))
         self.AutomationThread.start()
+
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"
         self.stepCountInput["state"] = "normal"
@@ -239,41 +245,43 @@ class AutomationTab:
 
     def update_automation_textbox(self, values):
         self.automationTxtBx.delete(1.0, tk.END)
-        current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase = values
+        current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase, convergence = tuple(values.iloc[-1])
         self.automationTxtBx.insert(tk.END, f"""
             @{current_time} ({current_Step} step(s)/{self.stepCount.get()} step(s)):
             Input:
             Frequency: {freqIn} Hz | Amplitude: {ampIn} V | Offset: {offsetIn} V
             Output:
             Amplitude: {amplitude} V | Phase: {phase} degrees
+            Convergence: {convergence}
 """)
 
     def schedule_automation_update(self):
         if not self.instruments.automationQueue.empty():
+            print("Automation queue not empty")
             try:
-                values = self.instruments.automationQueue.get()
-                if type(values) is tuple:
-                    current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase = values
-                    self.update_automation_textbox(values)
-                    print("Updating graph with new values...")
-                    self.graph.update_graph(amplitude, phase, current_Step, freqIn)
-                elif type(values) is str:
-                    self.automationTxtBx.insert('1.0', f"{values}\n Pickled data received.")
-                    print(f"Received pickled data location: {values}")
-                    self.graph.update_graph(values)  # Pass the file location to update_graph
+                dataFrame = self.instruments.automationQueue.get()
+                print(f"Received new data frame with shape: {dataFrame.shape}")
 
-                # Try to get new image from the plot output queue
-                try:
-                    self.update_automation_graph()
-                except queue.Empty:
-                    print("No new graph image available")
-                except Exception as e:
-                    print(f"Error updating graph display: {e}")
+                # Update text display
+                self.update_automation_textbox(dataFrame)
+
+                # Update graph data
+                pd.to_pickle(dataFrame, self.graph.PICKLE_FILE_LOCATION)
+                self.graph.data_queue.put_nowait(self.graph.PICKLE_FILE_LOCATION)
+                print("Sent new data to plotting process")
 
             except queue.Empty:
                 pass
             except Exception as e:
-                print(f"Error in automation update: {e}")
+                print(f"Error processing automation data: {e}")
 
-        # Schedule the next update
+        # Try to update graph display independently of new data
+        try:
+            self.update_automation_graph()
+        except queue.Empty:
+            pass  # No new graph image available yet
+        except Exception as e:
+            print(f"Error updating graph display: {e}")
+
+        # Schedule next update
         self.automationTxtBx.after(100, self.schedule_automation_update)
