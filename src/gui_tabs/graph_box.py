@@ -7,14 +7,81 @@ from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
 
+PICKLE_FILE_LOCATION = "./temp.pkl"
+
+
 def standard_graph(data_queue, plot_queue):
     while True:
         try:
-            data = data_queue.get()
+            if data_queue.empty():
+                continue
+
+            # Get the file location from the queue
+            file_location = data_queue.get()
+            print(f"Standard graph received file location: {file_location}")
+
+            if file_location is None:  # Exit signal
+                print("Received exit signal")
+                break
+
+            # Read the data from the file location
+            try:
+                data = pandas.read_pickle(file_location)  # Read from the file location
+                print(f"Successfully read data with columns: {data.columns}")
+            except Exception as e:
+                print(f"Error reading pickle file: {e}")
+                continue
+
+            # Create scatter plot using all data points
+            plt.clf()
+            fig = plt.figure(figsize=(8, 8))
+
+            # Plot all points
+            plt.scatter(data['FrequencyIn'],
+                        data['PhaseOut'],
+                        c=range(len(data)),  # Color by index for time progression
+                        cmap='viridis',
+                        marker='o',
+                        s=100)
+
+            plt.colorbar(label='Sample Size')
+
+            plt.title('Phase vs Frequency (Error bars)')
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel('Phase (rad)')
+            plt.grid(True)
+
+            print("Saving plot to buffer...")
+            buf = BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+
+            print("Creating image from buffer...")
+            image = Image.open(buf)
+            print("Attempting to put image in queue...")
+            plot_queue.put_nowait(image.copy())
+            print("Successfully queued new image")
+
+            buf.close()
+            plt.close(fig)
+
+        except Exception as e:
+            print(f"Error in candlestick plotting process: {e}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print(traceback.format_exc())
+            # Collect the data
+            if data_queue.empty():
+                continue
+            data = pandas.read_pickle(data_queue.get())
             if data is None:  # Exit signal
                 break
 
-            frequency_data, phase_data, step_data = data
+            # Grab the crap we care about
+            last_row = data.iloc[-1]
+            current_time, current_Step, frequency_data, ampIn, offsetIn, amplitude, phase_data, convergence = tuple(last_row)
+
+            step_data = current_time.timestamp()
 
             # Clear any existing plots and create a new figure
             plt.clf()
@@ -78,7 +145,16 @@ def candlestick_graph(data_queue, plot_queue):
             data = pandas.read_pickle(file_location)
             print(f"Successfully read pickle file. Data columns: {data.columns}")
 
-            grouped = data.groupby('FrequencyIn')['PhaseOut']
+            if 'Convergence' in data.columns:
+                converged_data = data[data['Convergence'] == True]
+                if len(converged_data) == 0:
+                    print("No converged data points found")
+                    continue
+            else:
+                print("No convergence data found in dataset")
+                converged_data = data
+
+            grouped = converged_data.groupby('FrequencyIn')['PhaseOut']
             mean_phase = grouped.mean()
             std_phase = grouped.std()
 
@@ -133,6 +209,7 @@ def plotting_process(data_queue, plot_queue, plot_code = "Default"):
 
 class GraphBox:
     def __init__(self, distance, plot_code):
+        self.PICKLE_FILE_LOCATION = PICKLE_FILE_LOCATION
         self.laser_distance = distance
         # Regular lists for data storage in main thread
         self.amplitude_data = []
@@ -142,13 +219,13 @@ class GraphBox:
         self.diffusivity_estimates = []
 
         # Create a process-safe queue for plotting
-        self.plot_queue = mp.Queue() # Getting data
+        self.data_queue = mp.Queue() # Getting data
         self.plot_output = mp.Queue() # Sending finished plots
 
         # Start the plotting process
         self.plot_process = mp.Process(
             target=plotting_process,
-            args=(self.plot_queue, self.plot_output, plot_code),
+            args=(self.data_queue, self.plot_output, plot_code),
             daemon=True
         )
         self.plot_process.start()
@@ -166,37 +243,11 @@ class GraphBox:
                 except Exception as e:
                     print(f"Error removing old graph: {e}")
 
-    def update_graph(self, *args):
-        if len(args) == 4:  # Standard graph case with (amplitude, phase, step, frequency)
-            amplitude, phase, step, frequency = args
-            try:
-                # Convert values
-                amplitude = float(amplitude)
-                phase = float(phase)
-                step = int(step)
-
-                # Update data in main thread
-                self.amplitude_data.append(amplitude)
-                self.phase_data.append(phase)
-                self.step_data.append(step)
-                self.frequency_data.append(frequency)
-
-                # Send data to plotting process
-                self.plot_queue.put((
-                    self.frequency_data.copy(),
-                    self.phase_data.copy(),
-                    self.step_data.copy()
-                ))
-
-            except (ValueError, TypeError) as e:
-                print(f"Error updating graph data: {e}")
-                print(f"Values received: amplitude={amplitude}, phase={phase}, step={step}")
-        elif len(args) == 1:  # Candlestick case with pickled data file location
-            file_location = args[0]
-            print(f"Sending pickled data location to plotter: {file_location}")
-            self.plot_queue.put(file_location)
-        else:
-            print(f"Invalid number of arguments received: {len(args)}")
+    def update_graph(self, data):
+        print(f"Sending pickled data location to plotter: {PICKLE_FILE_LOCATION}")
+        # Send pickled data location to plotting process
+        pandas.to_pickle(data, PICKLE_FILE_LOCATION)
+        self.data_queue.put(PICKLE_FILE_LOCATION)
 
 
     def instantaneous_diffusivity(self):
@@ -215,8 +266,8 @@ class GraphBox:
 
     def __del__(self):
         # Cleanup: send exit signal to plotting process
-        if hasattr(self, 'plot_queue'):
-            self.plot_queue.put(None)
+        if hasattr(self, 'data_queue'):
+            self.data_queue.put(None)
         if hasattr(self, 'plot_process'):
             self.plot_process.join(timeout=1.0)
             if self.plot_process.is_alive():

@@ -7,6 +7,7 @@ import statAnalysis
 import numpy as np
 import pandas as pd
 import queue
+import os
 
 
 class InstrumentInitialize:
@@ -75,7 +76,7 @@ class InstrumentInitialize:
         self.automationQueue = queue.LifoQueue()
         self.automation_status = None
         self.automation_running = None
-        self.freq_for_spoofing = 0 # This will only be used if debugging
+        self.freq_for_spoofing = None # This will only be used if debugging
         self.lia = None
 
 
@@ -103,11 +104,11 @@ class InstrumentInitialize:
     def take_measurement(self):
         if self.lia:
             #start_time = time.perf_counter()
-            amplitude = self.lia.query("OUTP? 3")
+            amplitude = float(self.lia.query("OUTP? 3"))
             #query1_time = time.perf_counter() - start_time
 
             #start_time = time.perf_counter()
-            phase = self.lia.query("OUTP? 4")
+            phase = float(self.lia.query("OUTP? 4"))
            # query2_time = time.perf_counter() - start_time
 
             #print(f"Query 1 took: {query1_time * 1000:.2f}ms")
@@ -118,6 +119,8 @@ class InstrumentInitialize:
             #print("No lock in amplifier connected")
             #return random.randint(0, 100), random.randint(0, 360) # For debugging
             time_since_last_measurement = datetime.datetime.now() - self.time_at_last_measurement
+            if self.freq_for_spoofing == None:
+                return False
             return 4.8, spoof_laser_data(self.freq_for_spoofing, time_since_last_measurement.total_seconds())
 
     def auto_gain(self):
@@ -251,8 +254,10 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, settings, filepath, convergence_check = False, plot_code = "Default"):
+    def automatic_measuring(self, settings, filepath, convergence_check, plot_code="Default"):
         print("Automation Beginning!")
+
+        #print(f"Waiting for convergence? {convergence_check}")
         self.automation_running = True
         self.automation_status = "running"
         measurements_per_config = 3
@@ -260,7 +265,7 @@ class InstrumentInitialize:
         convergence = False
 
         # Initialize DataFrame
-        data = pd.DataFrame(columns=["Time", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut", "Convergence"])
+        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut", "Convergence"])
         
         current_Step = 1
         try:
@@ -272,98 +277,81 @@ class InstrumentInitialize:
             ampRange = np.linspace(initial_amp, final_amp, step_count).tolist()
             offsetRange = np.linspace(initial_offset, final_offset, step_count).tolist()
 
-            # Set the initial configuration
-            self.update_configuration(
-                        freq=freqRange[0],
-                        amp=ampRange[0],
-                        offset=offsetRange[0]
-                    )
-
-            time_at_last_measurement = datetime.datetime.now()
-            row_idx = 0  # Initialize row index counter
+            print(f"Number of steps planned: {step_count}")
+            print(f"Frequency range: {freqRange}")
             idx = 0
+            self.update_configuration(
+                freq=freqRange[idx],
+                amp=ampRange[idx],
+                offset=offsetRange[idx]
+            )
 
-            while self.automation_running and freqRange and ampRange and offsetRange:
-                # First, we need to see if the queue has anything for the thread.
+            while self.automation_running and idx < len(freqRange):
                 if not self.q.empty():
-                    self.q.get() #just to empty the queue
+                    print("Stop command received")
+                    self.q.get()
                     break
 
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
-                delta = current_time - time_at_last_measurement
-                # First, we want to check for convergence for this measurement regardless of if we're waiting for it
-                # We're going to collect a measurement every tick, but we won't
-                # mark them as converged, and we won't graph them.
-                amplitude, phase = self.take_measurement()
-                # Using loc to add a new row to the dataframe.
-                # We'll flag if the row is converged immediately afterwards.
+                delta = current_time - self.time_at_last_measurement
+
+                try:
+                    amplitude, phase = self.take_measurement()
+                except Exception as e:
+                    print(f"Error during measurement: {str(e)}")
+                    continue
+                #print(f"Measurement {idx}: freq={freqRange[idx]}, amplitude={amplitude}, phase={phase}")
+
+                # Add data to DataFrame
                 data.loc[len(data)] = [
                     current_time,
+                    idx,
                     freqRange[idx],
                     ampRange[idx],
                     offsetRange[idx],
                     amplitude,
                     phase,
                     convergence]
+
                 convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
-                if convergence and data["Convergence"].iloc[-1] == "False": # This checks to see if this is the first converged measurement
-                    print("Converged!")
-                    data["Convergence"].iloc[-1] = True # Correct the last row.
-                    self.time_at_last_measurement = current_time # We reset the timer so that we will collect enough converged measurements
+                #print(
+            #f"Debug values: delta={delta.total_seconds()}, time_step={time_step}, convergence_check={convergence_check}, convergence={convergence}")
 
-                # Brief explanation of the logic here:
-                # Firstly, it should probably be broken into multiple functions.
-                # But, we want to initiate graphing if
-                # A) we're not waiting for convergences and enough time has passed
-                # or
-                # B) we ARE waiting for convergence and enough time has passed since convergence
-                if (delta.total_seconds() >= time_step and convergence_check == False) or (convergence_check and convergence):
-                    # Because we don't want to have to watch the terminal nonstop we're going to put things into a queue
-                    # that the GUI can check periodically.
+                if ((delta.total_seconds() >= time_step and not convergence_check) or
+                        (convergence_check and convergence and delta.total_seconds() >= time_step)):
+                    print(f"Moving to next frequency. Current idx: {idx}")
+                    self.automationQueue.put_nowait(data)
                     try:
-                        # pack the values into a tuple to keep the data together in the queue
-                        if plot_code == "Default":
-                            values = (current_time, current_Step, freqRange[idx], ampRange[idx], offsetRange[idx], amplitude, phase)
-                            self.automationQueue.put_nowait(values)
-                        else:
-                            data.to_pickle("./data.pkl")
-                            self.automationQueue.put_nowait("./data.pkl")
+                        # Update configuration for next frequency
+                        self.update_configuration(
+                            freq=freqRange[idx + 1],
+                            amp=ampRange[idx + 1],
+                            offset=offsetRange[idx + 1]
+                        )
+                    except IndexError as e:
+                        print(f"Index error when trying to update configuration: {e}")
+                        break
 
-                    except queue.Full:
-                        print("Automation Queue is full, skipping measurement")
-                        pass
-                    row_idx += 1  # Increment row index
-                    current_Step += 1
-                    idx += 1 # Increment the index for the next configuration
-                    print("Updating configuration")
-                    self.update_configuration(
-                        freq=freqRange[idx],
-                        amp=ampRange[idx],
-                        offset=offsetRange[idx]
-                    )
+                    idx += 1
                     self.time_at_last_measurement = current_time
-                    #time.sleep(0.25)  # This is for debugging and should be removed when doing tests
-                else:
-                    # If we just moved to the next frequency, we also need to reset the convergence flag
                     convergence = False
+                    print(f"Updated idx: {idx}, total steps: {len(freqRange)}")
 
         except Exception as e:
-            self.automation_status = f"error: {str(e)}"
             print(f"Error during automation: {str(e)}")
+            self.automation_status = f"error: {str(e)}"
         finally:
             print("Automation Ended!")
             self.automation_running = False
             self.automation_status = "completed"
-        
-        if not data.empty:
-            name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")+".csv"
-            full_path = os.path.join(filepath, name)
-            data.to_csv(full_path, index=False)
-            print(f"Data saved to {full_path}")
-            print(f"DataFrame contains {len(data)} rows")
-        else:
-            print("No data collected during automation")
+            # Save data to CSV
+            if not data.empty and filepath:
+                name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M") + ".csv"
+                full_path = os.path.join(filepath, name)
+                data.to_csv(full_path, index=False)
+                print(f"Data saved to {full_path}")
+
 
 ##################### DEBUG #####################
 # channel2 for fg will always be twice the frequency of channel1
@@ -399,4 +387,3 @@ class InstrumentInitialize:
 # print(lia.read("OUTX?"))
 # lia.write("OUTX 1")
 # print(lia.read("OUTX?"))
-import os
