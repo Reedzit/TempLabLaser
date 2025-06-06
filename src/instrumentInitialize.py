@@ -7,6 +7,7 @@ import statAnalysis
 import numpy as np
 import pandas as pd
 import queue
+import os
 
 
 class InstrumentInitialize:
@@ -103,11 +104,11 @@ class InstrumentInitialize:
     def take_measurement(self):
         if self.lia:
             #start_time = time.perf_counter()
-            amplitude = self.lia.query("OUTP? 3")
+            amplitude = float(self.lia.query("OUTP? 3"))
             #query1_time = time.perf_counter() - start_time
 
             #start_time = time.perf_counter()
-            phase = self.lia.query("OUTP? 4")
+            phase = float(self.lia.query("OUTP? 4"))
            # query2_time = time.perf_counter() - start_time
 
             #print(f"Query 1 took: {query1_time * 1000:.2f}ms")
@@ -344,6 +345,12 @@ class InstrumentInitialize:
             print("Automation Ended!")
             self.automation_running = False
             self.automation_status = "completed"
+            # Save data to CSV
+            if not data.empty and filepath:
+                name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M") + ".csv"
+                full_path = os.path.join(filepath, name)
+                data.to_csv(full_path, index=False)
+                print(f"Data saved to {full_path}")
 
 
 ##################### DEBUG #####################
@@ -380,4 +387,3 @@ class InstrumentInitialize:
 # print(lia.read("OUTX?"))
 # lia.write("OUTX 1")
 # print(lia.read("OUTX?"))
-import os

@@ -4,7 +4,7 @@ import pandas as pd
 # This is written as a package of standalone functions
 
 # Constants for convergence check
-THRESHOLD_STD = 0.1
+THRESHOLD_STD_PERCENT = 1
 NUM_SAMPLES = 30
 # This should check for convergence of the data. It needs to read data and return if the data has converged.
 def check_for_convergence(data, index):
@@ -19,10 +19,10 @@ def check_for_convergence(data, index):
     data_mean = np.mean(last_samples)
     #print(f"Last {NUM_SAMPLES} samples:")
     # print(f"Mean: {data_mean:.4f}")
-    # print(f"Standard deviation: {data_std:.4f}")
+    #print(f"Standard deviation: {data_std/data_mean*100:.4f}% of mean")
     # print(f"Threshold: {THRESHOLD_STD}")
 
-    if data_std < THRESHOLD_STD:
+    if data_std/last_samples.mean()*100 < THRESHOLD_STD_PERCENT:
         print("*** CONVERGENCE ACHIEVED ***")
         return True
     else:
