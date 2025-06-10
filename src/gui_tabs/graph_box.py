@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
 
-PICKLE_FILE_LOCATION = "./temp.pkl"
+PICKLE_FILE_LOCATION = "./temp"
 
 
 def standard_graph(data_queue, plot_queue):
@@ -23,6 +23,10 @@ def standard_graph(data_queue, plot_queue):
             if file_location is None:  # Exit signal
                 print("Received exit signal")
                 break
+
+            # Detect the spacing type using the file name
+            spacing_type = file_location.split("_")[-1].split(".")[0]
+            print(f"Detected spacing type: {spacing_type}")
 
             # Read the data from the file location
             try:
@@ -62,6 +66,8 @@ def standard_graph(data_queue, plot_queue):
             plt.title('Phase vs Frequency (standard)')
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('Phase (rad)')
+            if spacing_type == "logspace":
+                plt.xscale('log')
             plt.grid(True)
 
             print("Saving plot to buffer...")
@@ -83,61 +89,6 @@ def standard_graph(data_queue, plot_queue):
             print(f"Error type: {type(e)}")
             import traceback
             print(traceback.format_exc())
-            # Collect the data
-            if data_queue.empty():
-                continue
-            data = pandas.read_pickle(data_queue.get())
-            if data is None:  # Exit signal
-                break
-
-            # Grab the crap we care about
-            last_row = data.iloc[-1]
-            current_time, current_Step, frequency_data, ampIn, offsetIn, amplitude, phase_data, convergence = tuple(last_row)
-
-            step_data = current_time.timestamp()
-
-            # Clear any existing plots and create a new figure
-            plt.clf()
-            fig = plt.figure(figsize=(8, 8))
-
-            # Create scatter plot
-            plt.scatter(frequency_data,
-                        phase_data,
-                        c=step_data,
-                        cmap='viridis',
-                        marker='o',
-                        s=100)
-
-            # Add colorbar and labels
-            colorbar = plt.colorbar()
-            colorbar.set_label('Step Number')
-            plt.title('Phase vs Frequency')
-            plt.xlabel('Frequency (Hz)')
-            plt.ylabel('Phase (rad)')
-            plt.grid(True)
-
-            # Instead of saving to file, save to memory buffer
-            buf = BytesIO()
-            plt.savefig(buf, format='png')
-            buf.seek(0)  # Move to start of buffer
-
-            # Create image from buffer and queue it
-            image = Image.open(buf)
-            try:
-                plot_queue.put_nowait(image.copy())  # Use non-blocking put
-                print("Graph image sent to GUI")
-            except queue.Full:
-                # If queue is full, clear it and add new image
-                with plot_queue.mutex:
-                    plot_queue.queue.clear()
-                plot_queue.put(image.copy())
-
-            # Cleanup
-            buf.close()
-            plt.close(fig)
-
-        except Exception as e:
-            print(f"Error in standard plotting process: {e}")
 
 
 def candlestick_graph(data_queue, plot_queue):

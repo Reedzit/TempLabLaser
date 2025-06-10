@@ -45,6 +45,11 @@ class AutomationTab:
         self.freqFinalInput = tk.Entry(automate_tab)
         self.freqFinalInput.grid(row=3, column=2, padx=10, pady=5)
 
+        spacing_selector_options = ["linspace", "logspace"]
+        self.spacing_selector_var = tk.StringVar(automate_tab, "linspace")
+        self.spacing_selector = tk.OptionMenu(automate_tab, self.spacing_selector_var, *spacing_selector_options)
+        self.spacing_selector.grid(row=3, column=3, padx=10, pady=10)
+
         self.ampLabel = tk.Label(automate_tab, text="Amplitude (V)")
         self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
         self.ampInitialInput = tk.Entry(automate_tab)
@@ -139,13 +144,14 @@ class AutomationTab:
         timeStep = int(self.timePerStep.get())
         stepCount = int(self.stepCount.get())
         filepath = self.fileStorageLocation.get()
+        spacing = self.spacing_selector_var.get()
 
         # Construct tuples out of the inputs
         freq = (initial_freq, final_freq)
         amp = (initial_amp, final_amp)
         offset = (initial_offset, final_offset)
         # Construct a single tuple that is going to be unpacked
-        settings = (freq, amp, offset, timeStep, stepCount)
+        settings = (freq, amp, offset, timeStep, stepCount, spacing)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
                                                  args=(settings, filepath,
@@ -266,8 +272,9 @@ class AutomationTab:
                 self.update_automation_textbox(dataFrame)
 
                 # Update graph data
-                pd.to_pickle(dataFrame, self.graph.PICKLE_FILE_LOCATION)
-                self.graph.data_queue.put_nowait(self.graph.PICKLE_FILE_LOCATION)
+                pickle_loc = self.graph.PICKLE_FILE_LOCATION +"_"+self.spacing_selector_var.get() +".pickle"
+                pd.to_pickle(dataFrame, pickle_loc)
+                self.graph.data_queue.put_nowait(pickle_loc)
                 print("Sent new data to plotting process")
 
             except queue.Empty:

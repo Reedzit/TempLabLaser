@@ -261,7 +261,7 @@ class InstrumentInitialize:
         self.automation_running = True
         self.automation_status = "running"
         measurements_per_config = 3
-        freq, amp, offset, time_step, step_count = settings
+        freq, amp, offset, time_step, step_count, spacing = settings
         convergence = False
 
         # Initialize DataFrame
@@ -273,7 +273,15 @@ class InstrumentInitialize:
             initial_amp, final_amp = amp
             initial_offset, final_offset = offset
 
-            freqRange = np.linspace(initial_freq, final_freq, step_count).tolist()
+            # Here is where we check if we're in logspace or linspace:
+            if spacing == "linspace":
+                freqRange = np.linspace(initial_freq, final_freq, step_count).tolist()
+            elif spacing == "logspace":
+                freqRange = np.logspace(np.log10(initial_freq), np.log10(final_freq), step_count).tolist()
+            else:
+                # If for some reason a broken spacing code is given, we'll default to linspace.
+                print("Invalid spacing value. Using linspace instead.")
+                freqRange = np.linspace(initial_freq, final_freq, step_count).tolist()
             ampRange = np.linspace(initial_amp, final_amp, step_count).tolist()
             offsetRange = np.linspace(initial_offset, final_offset, step_count).tolist()
 
