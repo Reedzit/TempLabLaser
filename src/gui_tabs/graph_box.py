@@ -11,6 +11,8 @@ PICKLE_FILE_LOCATION = "./temp"
 
 
 def standard_graph(data_queue, plot_queue):
+
+    # TODO: Add a legend for the colors used in the plot
     while True:
         try:
             if data_queue.empty():

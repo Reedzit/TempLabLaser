@@ -4,6 +4,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
 
+# TODO:
+# - Research the API and how to use it
+# - Move in Z direction (Z is the direciton of the lasers)
+# - Move in X and Y for rastering
+# - Rotation about a point
+
 
 class HexapodControl():
     ssh_API = None
