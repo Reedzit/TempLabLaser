@@ -36,17 +36,30 @@ def standard_graph(data_queue, plot_queue):
             plt.clf()
             fig = plt.figure(figsize=(8, 8))
 
-            # Plot all points
-            plt.scatter(data['FrequencyIn'],
-                        data['PhaseOut'],
-                        c=range(len(data)),  # Color by index for time progression
-                        cmap='viridis',
+            # Here we select just the last measurements since that's all we really care about
+            last_measurements = data.groupby('FrequencyIn').last()
+
+            # Plot all points that are last measurements
+            plt.scatter(last_measurements.index,
+                        last_measurements['PhaseOut'],
                         marker='o',
-                        s=100)
+                        s=100,
+                        c='Red',
+                        alpha=0.75)
 
-            plt.colorbar(label='Sample Size')
+            # We're also going to plot the averages since that could possibly be helpful and is also
+            # relatively easy.
 
-            plt.title('Phase vs Frequency (Error bars)')
+            average_frequencies = data.groupby('FrequencyIn')
+            mean_phases = average_frequencies['PhaseOut'].mean()
+            plt.scatter(mean_phases.index,
+                        mean_phases,
+                        marker='o',
+                        s=100,
+                        c='Blue',
+                        alpha=0.5)
+
+            plt.title('Phase vs Frequency (standard)')
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('Phase (rad)')
             plt.grid(True)
