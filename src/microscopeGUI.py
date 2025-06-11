@@ -45,5 +45,9 @@ class MicroscopeGUI:
         window.after(100, self.automationTabObject.schedule_automation_update)
         window.mainloop()
 
+    def __del__(self):
+        print("Closing GUI")
+        self.automationTabObject.graph.close_plotting_process()
+
 if __name__ == '__main__':
     MicroscopeGUI()

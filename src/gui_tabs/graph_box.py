@@ -44,7 +44,7 @@ def standard_graph(data_queue, plot_queue):
             last_measurements = data.groupby('FrequencyIn').last()
 
             # Plot all points that are last measurements
-            plt.scatter(last_measurements.index,
+            last_scatter = plt.scatter(last_measurements.index,
                         last_measurements['PhaseOut'],
                         marker='o',
                         s=100,
@@ -56,13 +56,14 @@ def standard_graph(data_queue, plot_queue):
 
             average_frequencies = data.groupby('FrequencyIn')
             mean_phases = average_frequencies['PhaseOut'].mean()
-            plt.scatter(mean_phases.index,
+            mean_scatter = plt.scatter(mean_phases.index,
                         mean_phases,
                         marker='o',
                         s=100,
                         c='Blue',
                         alpha=0.5)
 
+            plt.legend([last_scatter, mean_scatter], ['Most Recent Measurement', 'Average over period'])
             plt.title('Phase vs Frequency (standard)')
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('Phase (rad)')
@@ -193,6 +194,10 @@ class GraphBox:
             daemon=True
         )
         self.plot_process.start()
+
+    def close_plotting_process(self):
+        """Close the plotting process"""
+        self.data_queue.put(None)
 
     @staticmethod
     def clear_graph():
