@@ -145,13 +145,14 @@ class AutomationTab:
         stepCount = int(self.stepCount.get())
         filepath = self.fileStorageLocation.get()
         spacing = self.spacing_selector_var.get()
+        spot_distance = float(self.distanceInput.get())
 
         # Construct tuples out of the inputs
         freq = (initial_freq, final_freq)
         amp = (initial_amp, final_amp)
         offset = (initial_offset, final_offset)
         # Construct a single tuple that is going to be unpacked
-        settings = (freq, amp, offset, timeStep, stepCount, spacing)
+        settings = (freq, amp, offset, timeStep, stepCount, spot_distance,spacing)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
                                                  args=(settings, filepath,
@@ -251,7 +252,7 @@ class AutomationTab:
 
     def update_automation_textbox(self, values):
         self.automationTxtBx.delete(1.0, tk.END)
-        current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase, convergence = tuple(values.iloc[-1])
+        current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase, convergence, diffusivity = tuple(values.iloc[-1])
         self.automationTxtBx.insert(tk.END, f"""
             @{current_time} ({current_Step} step(s)/{self.stepCount.get()} step(s)):
             Input:

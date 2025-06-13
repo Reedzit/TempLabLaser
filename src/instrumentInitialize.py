@@ -261,11 +261,11 @@ class InstrumentInitialize:
         self.automation_running = True
         self.automation_status = "running"
         measurements_per_config = 3
-        freq, amp, offset, time_step, step_count, spacing = settings
+        freq, amp, offset, time_step, step_count, spot_distance, spacing = settings
         convergence = False
 
         # Initialize DataFrame
-        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut", "Convergence"])
+        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut", "Convergence", "DiffusivityEstimate"])
         
         current_Step = 1
         try:
@@ -320,7 +320,8 @@ class InstrumentInitialize:
                     offsetRange[idx],
                     amplitude,
                     phase,
-                    convergence]
+                    convergence,
+                    ""]
 
                 convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
                 #print(
@@ -344,6 +345,10 @@ class InstrumentInitialize:
                     idx += 1
                     self.time_at_last_measurement = current_time
                     convergence = False
+                    diffusivityEstimate = statAnalysis.estimate_diffusivity(data, spot_distance)
+                    print(diffusivityEstimate)
+                    data.iloc[-1, data.columns.get_loc("DiffusivityEstimate")] = diffusivityEstimate
+
                     print(f"Updated idx: {idx}, total steps: {len(freqRange)}")
 
         except Exception as e:

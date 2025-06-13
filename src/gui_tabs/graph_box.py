@@ -11,86 +11,99 @@ PICKLE_FILE_LOCATION = "./temp"
 
 
 def standard_graph(data_queue, plot_queue):
-
-    # TODO: Add a legend for the colors used in the plot
     while True:
         try:
             if data_queue.empty():
                 continue
 
-            # Get the file location from the queue
             file_location = data_queue.get()
             print(f"Standard graph received file location: {file_location}")
 
-            if file_location is None:  # Exit signal
+            if file_location is None:
                 print("Received exit signal")
                 break
 
-            # Detect the spacing type using the file name
             spacing_type = file_location.split("_")[-1].split(".")[0]
             print(f"Detected spacing type: {spacing_type}")
 
-            # Read the data from the file location
             try:
-                data = pandas.read_pickle(file_location)  # Read from the file location
+                data = pandas.read_pickle(file_location)
                 print(f"Successfully read data with columns: {data.columns}")
             except Exception as e:
                 print(f"Error reading pickle file: {e}")
                 continue
 
-            # Create scatter plot using all data points
             plt.clf()
             fig = plt.figure(figsize=(8, 8))
+            ax1 = fig.gca()
+            ax2 = ax1.twinx()
 
-            # Here we select just the last measurements since that's all we really care about
+            # Plot phase measurements on left axis
             last_measurements = data.groupby('FrequencyIn').last()
-
-            # Plot all points that are last measurements
-            last_scatter = plt.scatter(last_measurements.index,
-                        last_measurements['PhaseOut'],
-                        marker='o',
-                        s=100,
-                        c='Red',
-                        alpha=0.75)
-
-            # We're also going to plot the averages since that could possibly be helpful and is also
-            # relatively easy.
+            last_scatter = ax1.scatter(last_measurements.index,
+                                     last_measurements['PhaseOut'],
+                                     marker='o',
+                                     s=100,
+                                     c='Red',
+                                     alpha=0.75)
 
             average_frequencies = data.groupby('FrequencyIn')
             mean_phases = average_frequencies['PhaseOut'].mean()
-            mean_scatter = plt.scatter(mean_phases.index,
-                        mean_phases,
-                        marker='o',
-                        s=100,
-                        c='Blue',
-                        alpha=0.5)
+            mean_scatter = ax1.scatter(mean_phases.index,
+                                     mean_phases,
+                                     marker='o',
+                                     s=100,
+                                     c='Blue',
+                                     alpha=0.5)
 
-            plt.legend([last_scatter, mean_scatter], ['Most Recent Measurement', 'Average over period'])
-            plt.title('Phase vs Frequency (standard)')
-            plt.xlabel('Frequency (Hz)')
-            plt.ylabel('Phase (rad)')
+            # Plot diffusivity on right axis
+            filtered_data = data[data['DiffusivityEstimate'].apply(lambda x: isinstance(x, float) and not np.isnan(x))]
+            if not filtered_data.empty:
+                diff_data = filtered_data.groupby('FrequencyIn')['DiffusivityEstimate'].last()
+                barGraph = ax2.bar(diff_data.index, 
+                                 diff_data.values, 
+                                 alpha=0.3,
+                                 color='green',
+                                 zorder=2,
+                                 width=(ax1.get_xlim()[1] - ax1.get_xlim()[0])*(1/(len(diff_data)+1)))
+                
+                # Combine legends from both axes
+                ax1.legend([last_scatter, mean_scatter, barGraph], 
+                         ['Most Recent Phase', 'Average Phase', 'Diffusivity Estimate'])
+            else:
+                ax1.legend([last_scatter, mean_scatter], 
+                         ['Most Recent Phase', 'Average Phase'])
+
+            # Set labels
+            ax1.set_xlabel('Frequency (Hz)')
+            ax1.set_ylabel('Phase (rad)', color='blue')
+            ax2.set_ylabel('Diffusivity', color='green')
+
+            # Set scales
             if spacing_type == "logspace":
-                plt.xscale('log')
-            plt.grid(True)
+                ax1.set_xscale('log')
 
-            print("Saving plot to buffer...")
+            plt.title('Phase and Diffusivity vs Frequency')
+            ax1.grid(True)
+
+            # Adjust colors of tick labels to match their data
+            ax1.tick_params(axis='y', labelcolor='blue')
+            ax2.tick_params(axis='y', labelcolor='green')
+
+            plt.tight_layout()
+
             buf = BytesIO()
             plt.savefig(buf, format='png')
             buf.seek(0)
 
-            print("Creating image from buffer...")
             image = Image.open(buf)
-            print("Attempting to put image in queue...")
             plot_queue.put_nowait(image.copy())
-            print("Successfully queued new image")
 
             buf.close()
             plt.close(fig)
 
         except Exception as e:
-            print(f"Error in candlestick plotting process: {e}")
-            print(f"Error type: {type(e)}")
-            import traceback
+            print(f"Error in plotting process: {e}")
             print(traceback.format_exc())
 
 
