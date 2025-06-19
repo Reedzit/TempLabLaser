@@ -33,88 +33,124 @@ class AutomationTab:
 
     def setup_ui(self):
         automate_tab = self.parent
-        self.start_label = tk.Label(automate_tab, text="INITIAL VALUE")
+    
+        # Create a main frame to hold the canvas
+        main_frame = tk.Frame(automate_tab)
+        main_frame.pack(fill=tk.BOTH, expand=1)
+        
+        # Create a canvas
+        canvas = tk.Canvas(main_frame)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
+        
+        # Add a scrollbar to the canvas
+        scrollbar = tk.Scrollbar(main_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Configure the canvas
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Create a frame inside the canvas to hold the widgets
+        inner_frame = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=inner_frame, anchor='nw')
+        
+        # Change all your existing widget parents from automate_tab to inner_frame
+        # For example:
+        self.start_label = tk.Label(inner_frame, text="INITIAL VALUE")
         self.start_label.grid(row=2, column=1, padx=10, pady=0)
-        self.end_label = tk.Label(automate_tab, text="FINAL VALUE")
+        # ... (continue with all other widgets, using inner_frame as parent)
+        
+        # Update scroll region when the size of the frame changes
+        def _on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        inner_frame.bind('<Configure>', _on_frame_configure)
+        
+        # Bind mouse wheel to scroll
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        self.end_label = tk.Label(inner_frame, text="FINAL VALUE")
         self.end_label.grid(row=2, column=2, padx=10, pady=0)
 
-        self.freq_label_auto = tk.Label(automate_tab, text="Frequency (Hz)")
+        self.freq_label_auto = tk.Label(inner_frame, text="Frequency (Hz)")
         self.freq_label_auto.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
-        self.freqInitialInput = tk.Entry(automate_tab)
+        self.freqInitialInput = tk.Entry(inner_frame)
         self.freqInitialInput.grid(row=3, column=1, padx=10, pady=5)
-        self.freqFinalInput = tk.Entry(automate_tab)
+        self.freqFinalInput = tk.Entry(inner_frame)
         self.freqFinalInput.grid(row=3, column=2, padx=10, pady=5)
 
         spacing_selector_options = ["linspace", "logspace"]
-        self.spacing_selector_var = tk.StringVar(automate_tab, "linspace")
-        self.spacing_selector = tk.OptionMenu(automate_tab, self.spacing_selector_var, *spacing_selector_options)
+        self.spacing_selector_var = tk.StringVar(inner_frame, "linspace")
+        self.spacing_selector = tk.OptionMenu(inner_frame, self.spacing_selector_var, *spacing_selector_options)
         self.spacing_selector.grid(row=3, column=3, padx=10, pady=10)
 
-        self.ampLabel = tk.Label(automate_tab, text="Amplitude (V)")
+        self.ampLabel = tk.Label(inner_frame, text="Amplitude (V)")
         self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
-        self.ampInitialInput = tk.Entry(automate_tab)
+        self.ampInitialInput = tk.Entry(inner_frame)
         self.ampInitialInput.insert(-1, "4.8")
         self.ampInitialInput.grid(row=4, column=1, padx=10, pady=5)
-        self.ampFinalInput = tk.Entry(automate_tab)
+        self.ampFinalInput = tk.Entry(inner_frame)
         self.ampFinalInput.insert(-1, "4.8")
         self.ampFinalInput.grid(row=4, column=2, padx=10, pady=5)
 
-        self.offsetLabelAuto = tk.Label(automate_tab, text="Offset (V)")
+        self.offsetLabelAuto = tk.Label(inner_frame, text="Offset (V)")
         self.offsetLabelAuto.grid(row=5, column=0, padx=10, pady=5, sticky=tk.E)
-        self.offsetInitialInput = tk.Entry(automate_tab)
+        self.offsetInitialInput = tk.Entry(inner_frame)
         self.offsetInitialInput.insert(-1, "2.5")
         self.offsetInitialInput.grid(row=5, column=1, padx=10, pady=5)
-        self.offsetFinalInput = tk.Entry(automate_tab)
+        self.offsetFinalInput = tk.Entry(inner_frame)
         self.offsetFinalInput.insert(-1, "2.5")
         self.offsetFinalInput.grid(row=5, column=2, padx=10, pady=5)
 
-        self.startMeasurements = tk.Button(automate_tab, text="Start Measurements", state="disabled",
+        self.startMeasurements = tk.Button(inner_frame, text="Start Measurements", state="disabled",
                                            command=self.begin_automation)
         self.startMeasurements.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
-        self.endMeasurements = tk.Button(automate_tab, text="End Measurements", state="disabled",
+        self.endMeasurements = tk.Button(inner_frame, text="End Measurements", state="disabled",
                                          command=self.end_automation)
         self.endMeasurements.grid(row=6, column=2, columnspan=1, padx=10, pady=10)
 
-        self.laserDistanceLabel = tk.Label(automate_tab, text="Distance between lasers (mm)")
+        self.laserDistanceLabel = tk.Label(inner_frame, text="Distance between lasers (mm)")
         self.laserDistanceLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
-        self.distanceInput = tk.Entry(automate_tab)
+        self.distanceInput = tk.Entry(inner_frame)
         self.distanceInput.insert(0, "1.0")  # Add a default value
         self.distanceInput.grid(row=7, column=1, padx=10, pady=10)
 
-        self.OutputLabel = tk.Label(automate_tab, text="Status:")
+        self.OutputLabel = tk.Label(inner_frame, text="Status:")
         self.OutputLabel.grid(row=8, column=0)
-        self.automationTxtBx = tk.Text(automate_tab, height=8, font=('Arial', 16))
+        self.automationTxtBx = tk.Text(inner_frame, height=8, font=('Arial', 16))
         self.automationTxtBx.grid(row=9, column=0, columnspan=4, padx=10, pady=10)
 
-        self.stepCountLabel = tk.Label(automate_tab, text="Step Count:")
-        self.stepCount = tk.IntVar(automate_tab, 1)
-        self.stepCountInput = tk.Entry(automate_tab, textvariable=self.stepCount, state='disabled')
+        self.stepCountLabel = tk.Label(inner_frame, text="Step Count:")
+        self.stepCount = tk.IntVar(inner_frame, 1)
+        self.stepCountInput = tk.Entry(inner_frame, textvariable=self.stepCount, state='disabled')
         self.stepCountInput.grid(row=12, column=1, padx=10, pady=10)
         self.stepCountLabel.grid(row=12, column=0, padx=10, pady=10)
 
-        self.wait_for_convergence = tk.BooleanVar(automate_tab, False)
-        self.wait_for_convergence_check = tk.Checkbutton(automate_tab, text="Wait for Convergence?",
+        self.wait_for_convergence = tk.BooleanVar(inner_frame, False)
+        self.wait_for_convergence_check = tk.Checkbutton(inner_frame, text="Wait for Convergence?",
                                                          variable=self.wait_for_convergence, onvalue=True, offvalue=False)
         self.wait_for_convergence_check.grid(row=11, column=2, padx=10, pady=10)
 
-        self.timePerStep = tk.IntVar(automate_tab, 1)
-        self.timePerStepLabel = tk.Label(automate_tab, text="Time Per Step (s):")
-        self.timePerStepInput = tk.Entry(automate_tab, textvariable=self.timePerStep, state='disabled')
+        self.timePerStep = tk.IntVar(inner_frame, 1)
+        self.timePerStepLabel = tk.Label(inner_frame, text="Time Per Step (s):")
+        self.timePerStepInput = tk.Entry(inner_frame, textvariable=self.timePerStep, state='disabled')
         self.timePerStepInput.grid(row=11, column=1, padx=10, pady=10)
         self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
 
         graph_selector_options = ["Default", "Candlestick"]
-        self.graph_selector_var = tk.StringVar(automate_tab, "Default")
-        self.graph_selector =tk.OptionMenu(automate_tab,self.graph_selector_var, *graph_selector_options)
+        self.graph_selector_var = tk.StringVar(inner_frame, "Default")
+        self.graph_selector =tk.OptionMenu(inner_frame,self.graph_selector_var, *graph_selector_options)
         self.graph_selector.grid(row=12, column=2, padx=10, pady=10)
 
-        self.fileStorageLocation = tk.StringVar(automate_tab, "No Location Given")
-        self.fileStorageLabel = tk.Label(automate_tab, textvariable=self.fileStorageLocation)
-        self.fileStorageButton = tk.Button(automate_tab, text="Choose File Location", command=self.select_file_location)
+        self.fileStorageLocation = tk.StringVar(inner_frame, "No Location Given")
+        self.fileStorageLabel = tk.Label(inner_frame, textvariable=self.fileStorageLocation)
+        self.fileStorageButton = tk.Button(inner_frame, text="Choose File Location", command=self.select_file_location)
         self.fileStorageLabel.grid(row=10, column=2, columnspan=1, padx=10, pady=10)
         self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
 
-        self.automationGraph = tk.Label(automate_tab)
+        self.automationGraph = tk.Label(inner_frame)
         self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
     def begin_automation(self):
