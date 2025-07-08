@@ -1,4 +1,9 @@
 import re
+import time
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import src.hexapod.hexapodControl2 as hexapodControl
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -9,18 +14,18 @@ from matplotlib.transforms import Bbox, IdentityTransform, TransformedBbox
 
 
 
-matplotlib.use('macosx')
+matplotlib.use('tkagg')  # Use TkAgg backend for interactive plotting
 
 # Constants
 MAXIMUM_DISTANCE = 30  # mm, This comes from the datasheet
 MACHINE_SPEED = 3 # mm/s, from datasheet
 MEASUREMENT_TIME = 300 # s, this is a rough estimate of time to sweep through frequencies
 
-PUMP_DISTANCE_FROM_CENTER = 10  # mm, scaled as normal
-PROBE_DISTANCE_FROM_PUMP = 5  # mm, should be scaled up so you can see it.
+PUMP_DISTANCE_FROM_CENTER = 1  # mm, scaled as normal
+PROBE_DISTANCE_FROM_PUMP = 10  # mm, should be scaled up so you can see it.
 
-AUTOMATION_ROTATION_ANGLE = 40  # degrees, maximum sweep according to datasheet
-AUTOMATION_STEPS = 150  # unitless and arbitrary
+AUTOMATION_ROTATION_ANGLE = 20  # degrees, maximum sweep according to datasheet
+AUTOMATION_STEPS = 15  # unitless and arbitrary
 
 # Initialize position lists
 pumpLaser = [np.array([PUMP_DISTANCE_FROM_CENTER, 0, 1])]
@@ -146,6 +151,16 @@ def rotate(theta, verbose=True):
     add_points(probeLaser, new_probe_position, verbose)
     add_points(hexapodCenter, new_hexapod_center, verbose)
 
+    if hexapod:
+            rotationVector = np.array([0, 0, theta*100])
+            hexapod.rotate(rotationVector)
+            while True:
+                hexapod.getState()
+                if hexapod.status_dict['s_hexa_bits']['Motion task running'] is False:
+                    break
+                print("hexapod has not finished moving yet, waiting...")
+                time.sleep(0.1)
+
     return
 
 
@@ -164,6 +179,15 @@ def transform(vector, verbose=True):
     translated_points = [(x + p[0], y + p[1]) for p in translated_points]
     hexapod_points = translated_points
 
+    if hexapod:
+            transformVector = np.array([x, y, 0])
+            hexapod.translate(transformVector)
+            while True:
+                hexapod.getState()
+                if hexapod.status_dict['s_hexa_bits']['Motion task running'] is False:
+                    break
+                print("hexapod has not finished moving yet, waiting...")
+                time.sleep(0.1)
     return
 
 
@@ -201,6 +225,9 @@ def calculate_total_machine_time():
     print(f"Total machine time: {time:.2f} s")
 
 
+# initialize the hexapod class
+hexapod = None
+
 # Now here we can begin the logic loop
 while True:
     user_input = input("Waiting for Command \n")
@@ -208,10 +235,9 @@ while True:
     rotate_regex = r"^R\s(-?\d+)$"
     transform_regex = r"^T\s(-?\d+)\s(-?\d+)$"
 
-    rotate_match = re.search(rotate_regex, user_input)
-    transform_match = re.search(transform_regex, user_input)
-
     try:
+        rotate_match = re.search(rotate_regex, user_input)
+        transform_match = re.search(transform_regex, user_input)
         if rotate_match:
             rotate_amount = int(rotate_match.group(1))
             print(rotate_amount)
@@ -228,6 +254,11 @@ while True:
             break
         elif user_input.upper() == "T":
             calculate_total_machine_time()
+        elif user_input.upper() == "CONNECT":
+            hexapod = hexapodControl.HexapodControl()
+        elif user_input.upper() == "HOME":
+            if hexapod:
+                hexapod.home()
         else:
             print("Invalid command")
         update_plot()
