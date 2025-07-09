@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.patches import Arc
 from matplotlib.transforms import Bbox, IdentityTransform, TransformedBbox
 
-matplotlib.use('tkagg')  # Use TkAgg backend for interactive plotting
+matplotlib.use('tk-agg')  # Use TkAgg backend for interactive plotting
 
 
 class HexapodManager():
