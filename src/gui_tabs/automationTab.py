@@ -188,7 +188,7 @@ class AutomationTab:
         amp = (initial_amp, final_amp)
         offset = (initial_offset, final_offset)
         # Construct a single tuple that is going to be unpacked
-        settings = (freq, amp, offset, timeStep, stepCount, spot_distance,spacing)
+        settings = (freq, amp, offset, timeStep, stepCount, spot_distance, spacing)
 
         self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
                                                  args=(settings, filepath,
