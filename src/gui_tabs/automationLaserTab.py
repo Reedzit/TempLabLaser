@@ -57,8 +57,7 @@ class AutomationTab:
         # For example:
         self.start_label = tk.Label(inner_frame, text="INITIAL VALUE")
         self.start_label.grid(row=2, column=1, padx=10, pady=0)
-        # ... (continue with all other widgets, using inner_frame as parent)
-        
+
         # Update scroll region when the size of the frame changes
         def _on_frame_configure(event):
             canvas.configure(scrollregion=canvas.bbox("all"))
@@ -188,12 +187,8 @@ class AutomationTab:
         amp = (initial_amp, final_amp)
         offset = (initial_offset, final_offset)
         # Construct a single tuple that is going to be unpacked
-        settings = (freq, amp, offset, timeStep, stepCount, spot_distance, spacing)
+        self.parent.laser_settings = (freq, amp, offset, timeStep, stepCount, spot_distance, spacing)
 
-        self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                 args=(settings, filepath,
-                                                       self.wait_for_convergence.get(), self.graph_selector_var.get()))
-        self.AutomationThread.start()
 
         self.startMeasurements["state"] = "disabled"
         self.endMeasurements["state"] = "normal"

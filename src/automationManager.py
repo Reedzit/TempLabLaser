@@ -14,24 +14,35 @@ This should work as follows:
 6. Process Data
 """
 import numpy as np
-
+import threading
 
 
 class AutomationManager:
-    def __init__(self, instruments, hexapod):
-        if hexapod.status_dict:
-            print(hexapod.status_dict)
-        else:
-            raise Exception("Hexapod not connected")
-        self.instruments = instruments
-        self.hexapod = hexapod
+    def __init__(self, parent, instruments, hexapod):
+        self.AutomationThread = None
+        try:
+            if hexapod.status_dict:
+                print(hexapod.status_dict)
+            else:
+                raise Exception("Hexapod not connected")
+            self.hexapodGUI = parent.parent.hexapodTabObject
+            self.laserGUI = parent.parent.laserTabObject
+
+            self.instruments = instruments
+            self.hexapod = hexapod
+        except Exception as e:
+            print("Error with general automation manager initialization: " + str(e))
+            self.hexapod = None
 
     def runAutomationCycle(self, DEBUG_MODE=False):
         def setupAutomation():
-            """
-            Should collect all the settings needed to run the automation.
-            """
-            pass
+            laser_settings = self.laserGUI.laser_settings
+            hexapod_settings = (self.hexapodGUI.AUTOMATION_ROTATION_ANGLE, 
+                                self.hexapodGUI.AUTOMATION_STEPS,
+                                self.hexapodGUI.hexapodCenter, 
+                                self.hexapodGUI.pumpLaser)
+            collection_settings = self.laserGUI.filepath, self.laserGUI.convergence_check
+            return hexapod_settings, laser_settings, collection_settings
 
         def runLaser():
             """
@@ -40,12 +51,15 @@ class AutomationManager:
             pass
         if not DEBUG_MODE:
             # Here we get all the variables ready to run through the automation tab.
-            hexapod_settings, laser_settings, collection_settings = setupAutomation()
-            AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS, hexapodCenter, pumpLaser = hexapod_settings
-            freq, amp, offset, timeStep, stepCount, spot_distance, spacing = laser_settings
-            filepath, convergence_check = collection_settings
+            hexapodSettings, laserSettings, collectionSettings = setupAutomation()
+            AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS, hexapodCenter, pumpLaser = hexapodSettings
+            freq, amp, offset, timeStep, stepCount, spot_distance, spacing = laserSettings
+            filepath, convergence_check = collectionSettings
         else:
             print("DEBUG MODE ACTIVATED, ONLY HEXAPOD WILL MOVE")
+            laserSettings = None
+            filepath = None
+            convergence_check = None
             AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS, hexapodCenter, pumpLaser = (20, 10,
                                                                                      [np.array([0, 0, 0])],
                                                                                      [np.array([0, 0, 0])])
@@ -61,7 +75,10 @@ class AutomationManager:
             self.hexapod.transform(adjustment_vector)
             self.hexapod.compoundMove()
             if not DEBUG_MODE:
-                self.instruments.automatic_measuring(laser_settings, filepath, convergence_check)
+                self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
+                                                         args=(laserSettings, filepath,
+                                                               convergence_check))
+                self.AutomationThread.start()
             else:
                 print("DEBUG MODE ACTIVATED, NO LASER IN USE")
 
