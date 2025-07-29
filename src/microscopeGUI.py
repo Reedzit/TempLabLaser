@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from instrumentInitialize import InstrumentInitialize
-from src.gui_tabs import amplifierTab, hexapodTab, automationTab, instrumentsTab
+from instrumentManager import InstrumentInitialize
+from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab
 
 
 # import pymeasure.instruments.srs.sr830 as lia
@@ -14,40 +14,44 @@ class MicroscopeGUI:
         self.AutomationThread = None  # Thread for automation, If not in use, should be None
         self.GraphingThread = None  # Thread for updating the graph
         self.manager = manager
+
+        # These are GUI global variables:
+        self.laser_gain = None
+        self.file_path = None
+        self.convergence_check = False
+        self.step_count = 0
+        self.laser_settings = None
+
         window = tk.Tk()
         window.geometry("1000x1000")
         window.title("Microscope GUI")
         notebook = ttk.Notebook(window)
 
-        instrumentsFrame = tk.Frame(notebook)
-        hexapodFrame = tk.Frame(notebook)
-        amplifierFrame  = tk.Frame(notebook)
-        automationFrame = tk.Frame(notebook)
+        laserAutomationFrame = tk.Frame(notebook)
+        hexapodAutomationFrame = tk.Frame(notebook)
+        generalAutomationFrame = tk.Frame(notebook)
 
-        # The notebook contains the rest of the frames and puts them in an easy to shuffle spot.
-        notebook.add(instrumentsFrame, text='Instruments')
-        notebook.add(hexapodFrame, text='Hexapod')
-        notebook.add(amplifierFrame, text='Lock In Amplifier')
-        notebook.add(automationFrame, text='🤖Automation🤖')
+        notebook.add(laserAutomationFrame, text='Laser Automation')
+        notebook.add(hexapodAutomationFrame, text='Hexapod Automation')
+        notebook.add(generalAutomationFrame, text='Automation Finalization')
         notebook.pack(expand=1, fill='both')
 
-        ### Instruments Tab ###
-        self.instrumentsTabObject = instrumentsTab.InstrumentsTab(instrumentsFrame, self.instruments)
-        ### Hexapod Tab ###
-        self.hexapodTabObject = hexapodTab.HexapodTab(hexapodFrame)
-        ### Lock In Amplifier Tab ###
-        self.amplifierTabObject = amplifierTab.AmplifierTab(amplifierFrame, self.instruments)
         ### Automation Tab ###
-        self.automationTabObject = automationTab.AutomationTab(automationFrame, self.instruments)
-        self.automationTabObject.manager = manager
+        self.laserTabObject = automationLaserTab.AutomationTab(laserAutomationFrame, self.instruments, self)
+        self.laserTabObject.manager = manager
+
+        self.hexapodTabObject = automationHexapodTab.HexapodAutomationTab(hexapodAutomationFrame, self.instruments, self)
+
+        self.automationTab = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
         # This needs access to the main thread and that's why we call it here.
-        window.after(100, self.automationTabObject.schedule_automation_update)
+        window.after(100, self.laserTabObject.schedule_automation_update)
         window.mainloop()
 
     def __del__(self):
         print("Closing GUI")
-        self.automationTabObject.graph.close_plotting_process()
+        self.laserTabObject.graph.close_plotting_process()
+
 
 if __name__ == '__main__':
     MicroscopeGUI()
