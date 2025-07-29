@@ -1,6 +1,8 @@
 import src.hexapod.SYM_HexaPy as SYM_HexaPy
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from time import sleep
+import threading
 from matplotlib.figure import Figure
 import numpy as np
 import re
@@ -10,7 +12,114 @@ class HexapodControl():
     def __init__(self):
         self.ssh_API = None
         self.status_dict = None
+        self.ready_for_commands = True
         self.connectHexapod()
+
+    def getState(self):
+            """
+            Hexapod status dictionary format:
+            - 's_hexa': int — raw system status bits
+            - 's_hexa_bits': dict — decoded bits from s_hexa:
+                {'Error', 'System initialized', 'Control on', 'In position', 'Motion task running',
+                'Home task running', 'Home complete', 'Home virtual', 'Phase found', 'Brake on',
+                'Motion restricted', 'Power on encoders', 'Power on limit switches', 'Power on drives'}
+            - 's_action': str — current action, e.g. '4:Stop'
+            - 's_uto_tx', ..., 's_uto_rz': float — user target offsets (translations/rotations)
+            - 's_mtp_tx', ..., 's_mtp_rz': float — motion target positions
+            - 's_ax_1' to 's_ax_6': int — raw axis status bits for axes 1–6
+            - 's_ax_1_bits' to 's_ax_6_bits': dict — decoded bits for each axis:
+                {'Error', 'Control on', 'In position', 'Motion task running', 'Home task running',
+                'Home complete', 'Phase found', 'Brake on', 'Home hardware input',
+                'Negative hardware limit switch', 'Positive hardware limit switch',
+                'Software limit reached', 'Following error', 'Drive fault'}
+            - 's_pos_ax_1' to 's_pos_ax_6': str — position feedback per axis (may be 'nan')
+            - 's_dio_1' to 's_dio_8': int — digital input/output values
+            - 's_ai_1' to 's_ai_8': int — analog input values
+            - 's_cycle': int — internal cycle counter
+            - 's_index': int — internal index counter
+            - 's_err_nr': int — error code (0 = no error)
+            - 's_reserve_01' to 's_reserve_04': int — reserved fields (unknown purpose)
+            """
+
+            def parse_symetrie_state(state_str):
+                status = {}
+
+                # Split the data into lines
+                lines = state_str.strip().split('\n')
+
+                key = None
+                bitfield_lines = []
+                axis_state_prefix = 's_ax_' # this seems to just be hardcoded into the response
+                current_axis = None
+
+                for line in lines:
+                    line = line.strip()
+
+                    # Bitfield-style continuation (e.g., indented lines under s_hexa or s_ax_*)
+                    # Go through each line and identify if it follows the bitfield format
+                    if re.match(r'^\d+:\s', line):
+                        bitfield_lines.append(line)
+                        continue
+
+                    # Save the previous bitfield block
+                    if bitfield_lines:
+                        if key:
+                            status[key + '_bits'] = parse_bitfield(bitfield_lines)
+                        bitfield_lines = []
+
+                    # Parse simple key=value
+                    if '=' in line:
+                        key, val = line.split('=', 1)
+                        key = key.strip()
+                        val = val.strip()
+                        # Try to parse as float or int
+                        try:
+                            if '.' in val or 'e' in val:
+                                val = float(val)
+                            else:
+                                val = int(val)
+                        except ValueError:
+                            pass  # Leave as string
+
+                        status[key] = val
+
+                # Final bitfield block (e.g., last axis)
+                if bitfield_lines and key:
+                    status[key + '_bits'] = parse_bitfield(bitfield_lines)
+
+                return status
+
+            def parse_bitfield(lines):
+                """Parse lines like '0: Error' into a dict."""
+                result = {}
+                for line in lines:
+                    match = re.match(r'^(\d+):\s+(.*)', line.strip())
+                    if match:
+                        val, label = match.groups()
+                        result[label.strip()] = bool(int(val))
+                return result
+            answer = self.ssh_API.STATE()
+            self.status_dict = parse_symetrie_state(answer)
+            if answer in self.ssh_API.CommandReturns.keys():
+                answer = self.ssh_API.CommandReturns[answer]
+            elif answer in self.ssh_API.ErrorCodes.keys():
+                answer = self.ssh_API.ErrorCodes[answer]
+            return answer
+
+    def checkStatus(self):
+        self.getState()
+        if self.status_dict is not None:
+            # Check if the hexapod is ready for commands
+            if self.status_dict["s_hexa_bits"]["Motion task running"] is False:
+                self.ready_for_commands = True
+                return True
+            else:
+                self.ready_for_commands = False
+                return False
+        else:
+            print("Status dictionary is empty. Please call getState() first.")
+            return None
+
 
     # Shout out to Reed Zittler for this code
     def connectHexapod(self):
@@ -32,10 +141,35 @@ class HexapodControl():
         if self.ssh_API.ssh_obj.connected is True:
             print("Connected to the Hexapod")
 
+    def waitForCommandResolution(self):
+        """
+        Wait for the hexapod to finish executing the current command.
+        Notice that this is a blocking function, so it will wait until the hexapod is ready for new commands.
+        Because of this, this function will be run in a separate thread from the GUI.
+        """
+        print("Waiting for hexapod to finish executing the current command...")
+        def loop():
+            while not self.checkStatus():
+                print("Hexapod is still busy, waiting for it to finish...", end='\r')
+                self.getState()
+                sleep(0.25)  # Sleep for a short time to avoid busy waiting
+            print("Hexapod is now ready for new commands.")
+            return True
+        threading.Thread(target=loop).start()
+        
     def home(self):
+        print("Homing the hexapod, this may take a while...")
+
         answer = int(self.ssh_API.SendCommand("HOME").strip())
         print(f"This is the code for the home command: {self.ssh_API.CommandReturns[answer]}")
-        return answer
+
+        # Homing takes forever, so we need to wait for it to finish before we can send any more commands.
+        self.ready_for_commands = False
+        self.waitForCommandResolution()
+        self.ready_for_commands = True
+
+        print("Hexapod is now homed and ready for commands.", end='\r')
+        return True
 
     # API Documentation seems to have gone entirely missing, so I'm not entirely sure what this command does,
     # but some trial and error suggests it might be used to turn the hexapod on and off.
@@ -103,84 +237,3 @@ class HexapodControl():
         elif answer in self.ssh_API.ErrorCodes.keys():
             answer = self.ssh_API.ErrorCodes[answer]
         return answer
-
-    def waitForCommandResolution(self):
-        answer = self.ssh_API.waitCommandExecuted()
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
-        return answer
-    # no idea what this API command does but need to figure it out ig
-    # okay so it took a lot of conversation with chatGPT to figure out what this does
-    # but it seems to be used to get the current state of the hexapod, return it as a string in a 'bitfield' format.
-    # So, we'll parse that string to get the current state of the hexapod and then parse it into a dictionary.
-
-    def getState(self):
-        def parse_symetrie_state(state_str):
-            status = {}
-
-            # Split the data into lines
-            lines = state_str.strip().split('\n')
-
-            key = None
-            bitfield_lines = []
-            axis_state_prefix = 's_ax_' # this seems to just be hardcoded into the response
-            current_axis = None
-
-            for line in lines:
-                line = line.strip()
-
-                # Bitfield-style continuation (e.g., indented lines under s_hexa or s_ax_*)
-                # Go through each line and identify if it follows the bitfield format
-                if re.match(r'^\d+:\s', line):
-                    bitfield_lines.append(line)
-                    continue
-
-                # Save the previous bitfield block
-                if bitfield_lines:
-                    if key:
-                        status[key + '_bits'] = parse_bitfield(bitfield_lines)
-                    bitfield_lines = []
-
-                # Parse simple key=value
-                if '=' in line:
-                    key, val = line.split('=', 1)
-                    key = key.strip()
-                    val = val.strip()
-                    # Try to parse as float or int
-                    try:
-                        if '.' in val or 'e' in val:
-                            val = float(val)
-                        else:
-                            val = int(val)
-                    except ValueError:
-                        pass  # Leave as string
-
-                    status[key] = val
-
-            # Final bitfield block (e.g., last axis)
-            if bitfield_lines and key:
-                status[key + '_bits'] = parse_bitfield(bitfield_lines)
-
-            return status
-
-        def parse_bitfield(lines):
-            """Parse lines like '0: Error' into a dict."""
-            result = {}
-            for line in lines:
-                match = re.match(r'^(\d+):\s+(.*)', line.strip())
-                if match:
-                    val, label = match.groups()
-                    result[label.strip()] = bool(int(val))
-            return result
-        answer = self.ssh_API.STATE()
-        self.status_dict = parse_symetrie_state(answer)
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
-        return answer
-
-
-

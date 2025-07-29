@@ -37,12 +37,12 @@ class MicroscopeGUI:
         notebook.pack(expand=1, fill='both')
 
         ### Automation Tab ###
-        self.laserTabObject = automationLaserTab.AutomationTab(laserAutomationFrame, self.instruments)
+        self.laserTabObject = automationLaserTab.AutomationTab(laserAutomationFrame, self.instruments, self)
         self.laserTabObject.manager = manager
 
-        self.hexapodTabObject = automationHexapodTab.HexapodAutomationTab(hexapodAutomationFrame, self.instruments)
+        self.hexapodTabObject = automationHexapodTab.HexapodAutomationTab(hexapodAutomationFrame, self.instruments, self)
 
-        self.automationTab = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments)
+        self.automationTab = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
         # This needs access to the main thread and that's why we call it here.
         window.after(100, self.laserTabObject.schedule_automation_update)

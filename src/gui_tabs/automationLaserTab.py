@@ -13,19 +13,8 @@ from src.gui_tabs.graph_box import GraphBox
 import time
 
 
-def automation_popup():
-    popup = tk.Toplevel()
-    popup.title("Pop-up Window")
-    image_path = os.path.join(sys.path[0], "res\\HeMan.png")
-    print(image_path)
-    img = tk.PhotoImage(file=image_path)
-    popup.image = img
-    label = tk.Label(popup, image=img)
-    label.pack()
-
-
 class AutomationTab:
-    def __init__(self, parent, instruments):
+    def __init__(self, parent, instruments, main_gui):
         self.graph = GraphBox(1,"Default")
         self.parent = parent
         self.instruments = instruments
@@ -79,6 +68,9 @@ class AutomationTab:
         self.freqInitialInput.grid(row=3, column=1, padx=10, pady=5)
         self.freqFinalInput = tk.Entry(inner_frame)
         self.freqFinalInput.grid(row=3, column=2, padx=10, pady=5)
+
+        self.freqInitialInput.insert(-1, "50")
+        self.freqFinalInput.insert(-1, "5000000")
 
         spacing_selector_options = ["linspace", "logspace"]
         self.spacing_selector_var = tk.StringVar(inner_frame, "linspace")
@@ -187,7 +179,7 @@ class AutomationTab:
         amp = (initial_amp, final_amp)
         offset = (initial_offset, final_offset)
         # Construct a single tuple that is going to be unpacked
-        self.parent.laser_settings = (freq, amp, offset, timeStep, stepCount, spot_distance, spacing)
+        self.laser_settings = (freq, amp, offset, timeStep, stepCount, spot_distance, spacing)
 
 
         self.startMeasurements["state"] = "disabled"
@@ -198,8 +190,6 @@ class AutomationTab:
         self.automationTxtBx.insert('1.0', f"Starting Automation...\n")
         self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
         self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
-
-        automation_popup()
 
     def end_automation(self):
         print("Ending Automation...")
