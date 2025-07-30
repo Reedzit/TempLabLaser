@@ -106,6 +106,13 @@ class HexapodControl():
                 answer = self.ssh_API.ErrorCodes[answer]
             return answer
 
+    def stop(self):
+        answer = self.ssh_API.SendCommand("C_STOP")
+        answer = int(answer.strip())
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        return answer
+
     def checkStatus(self):
         self.getState()
         if self.status_dict is not None:
@@ -154,6 +161,7 @@ class HexapodControl():
                 self.getState()
                 sleep(0.25)  # Sleep for a short time to avoid busy waiting
             print("Hexapod is now ready for new commands.")
+            self.ready_for_commands = True
             return True
         threading.Thread(target=loop).start()
         
@@ -166,8 +174,6 @@ class HexapodControl():
         # Homing takes forever, so we need to wait for it to finish before we can send any more commands.
         self.ready_for_commands = False
         self.waitForCommandResolution()
-        self.ready_for_commands = True
-
         print("Hexapod is now homed and ready for commands.", end='\r')
         return True
 
@@ -183,11 +189,13 @@ class HexapodControl():
         print(f"This is the code for the control off command: {self.ssh_API.CommandReturns[answer]}")
 
     def translate(self, movement_vector=np.array([0.0, 0.0, 0.0]), magnitude=None):
+        self.ready_for_commands = False
         x, y, z = movement_vector
         if magnitude:
             normalizedMovementVector = (movement_vector / np.linalg.norm(movement_vector)) * magnitude
             x, y, z = normalizedMovementVector
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, x, y, z, 0.0, 0.0, 0.0])
+        self.waitForCommandResolution()
         answer = int(answer.strip())
         if answer in self.ssh_API.CommandReturns.keys():
             answer = self.ssh_API.CommandReturns[answer]
@@ -196,8 +204,10 @@ class HexapodControl():
         return answer
 
     def rotate(self, rotation_vector=np.array([0.0, 0.0, 0.0])):
+        self.ready_for_commands = False
         alpha, beta, tau = rotation_vector # naming conventions come from
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 0.0, alpha, beta, tau])
+        self.waitForCommandResolution()
         answer = int(answer.strip())
         if answer in self.ssh_API.CommandReturns.keys():
             answer = self.ssh_API.CommandReturns[answer]
