@@ -30,6 +30,14 @@ class HexapodAutomationTab:
                                             command=lambda: self.hexapod.home())
         self.homeHexapodButton.grid(row=6, column=2, columnspan=1, padx=10, pady=10)
 
+        self.controlOnHexapodButton = tk.Button(hexapod_automation_tab, text="Turn on Control (Press this after homing)",
+                                                command=lambda: self.hexapod.control_on())
+        self.controlOnHexapodButton.grid(row=6, column=3, columnspan=1, padx=10, pady=10)
+
+        self.controlOffHexapodButton = tk.Button(hexapod_automation_tab, text="Turn off Control",
+                                                 command=lambda: self.hexapod.control_off())
+        self.controlOffHexapodButton.grid(row=6, column=4, columnspan=1, padx=10, pady=10)
+
         self.degreesSweepLabel = tk.Label(hexapod_automation_tab, text="Degrees of Sweep")
         self.degreesSweepLabel.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
         self.degreesSweepInput = tk.Entry(hexapod_automation_tab, textvariable=self.degrees_of_sweep)
