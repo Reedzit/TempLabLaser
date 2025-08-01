@@ -21,11 +21,15 @@ class AutomationManagerTab:
         self.checkConnectionButton = tk.Button(self.parent, text="Check Connections", command=lambda: self.check_connections(self.parent.laserTabObject, self.parent.hexapodTabObject))
         self.checkConnectionButton.grid(row=0, column=4, padx=10, pady=10)
 
-        self.startFocussingButton = tk.Button(self.parent, text="Start Focussing", command=self.manager.runFocussingCycle())
+        self.startFocussingButton = tk.Button(self.parent, text="Start Focussing", command=self.runFocussingCycle)
         self.startFocussingButton.grid(row=0, column=5, padx=10, pady=10)
 
-        self.stopFocussingButton = tk.Button(self.parent, text="Stop Focussing", command=self.manager.endFocussing)
+        self.stopFocussingButton = tk.Button(self.parent, text="Stop Focussing", command=self.endFocussing)
         self.stopFocussingButton.grid(row=0, column=6, padx=10, pady=10)
+        
+        # 
+
+
 
     def check_connections(self, laserGUI, hexapodGUI):
         self.manager.checkConnections(laserGUI, hexapodGUI)
@@ -35,3 +39,9 @@ class AutomationManagerTab:
 
     def stop_automation(self):
         self.manager.endAutomation()
+    
+    def runFocussingCycle(self):
+        self.manager.runFocussingCycle()
+
+    def endFocussing(self):
+        self.manager.endFocussing()

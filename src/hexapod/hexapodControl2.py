@@ -127,6 +127,22 @@ class HexapodControl():
             print("Status dictionary is empty. Please call getState() first.")
             return None
 
+    def waitForCommandResolution(self):
+            """
+            Wait for the hexapod to finish executing the current command.
+            Notice that this is a blocking function, so it will wait until the hexapod is ready for new commands.
+            Because of this, this function will be run in a separate thread from the GUI.
+            """
+            print("Waiting for hexapod to finish executing the current command...")
+            def loop():
+                while not self.checkStatus():
+                    print("Hexapod is still busy, waiting for it to finish...", end='\r')
+                    self.getState()
+                    sleep(0.25)  # Sleep for a short time to avoid busy waiting
+                print("Hexapod is now ready for new commands.")
+                self.ready_for_commands = True
+                return True
+            threading.Thread(target=loop).start()
 
     # Shout out to Reed Zittler for this code
     def connectHexapod(self):
@@ -147,24 +163,9 @@ class HexapodControl():
         self.ssh_API.connect(ip, self.verbose, log)
         if self.ssh_API.ssh_obj.connected is True:
             print("Connected to the Hexapod")
+        self.ready_for_commands = False
+        self.waitForCommandResolution()
 
-    def waitForCommandResolution(self):
-        """
-        Wait for the hexapod to finish executing the current command.
-        Notice that this is a blocking function, so it will wait until the hexapod is ready for new commands.
-        Because of this, this function will be run in a separate thread from the GUI.
-        """
-        print("Waiting for hexapod to finish executing the current command...")
-        def loop():
-            while not self.checkStatus():
-                print("Hexapod is still busy, waiting for it to finish...", end='\r')
-                self.getState()
-                sleep(0.25)  # Sleep for a short time to avoid busy waiting
-            print("Hexapod is now ready for new commands.")
-            self.ready_for_commands = True
-            return True
-        threading.Thread(target=loop).start()
-        
     def home(self):
         print("Homing the hexapod, this may take a while...")
 

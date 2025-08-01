@@ -64,11 +64,11 @@ class AutomationManager:
             3. Align the hexapod to those vectors.
             4. Repeat until the hexapod has reached the focussing point.
             """
-            TILT_CHANGE = 0.001
+            TILT_CHANGE = 1
 
             n0 = np.array([0, 0, 1])
-            self.hexapod.home()
-            while self.hexapod.ready_for_motion is False:
+            # self.hexapod.home()
+            while self.hexapod.ready_for_commands is False:
                 time.sleep(0.1)
 
             def generate_tilted_vectors(n0, tilt_deg, num_steps):
@@ -145,7 +145,7 @@ class AutomationManager:
                 rotation_vector = np.array([x, y, z])
 
                 # wait until there is a signal for movement being ready.
-                while self.hexapod.ready_for_motion is False:
+                while self.hexapod.ready_for_commands is False:
                     time.sleep(0.1)
                 self.hexapod.rotate(rotation_vector)
 
