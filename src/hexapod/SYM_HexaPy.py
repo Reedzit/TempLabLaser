@@ -115,6 +115,8 @@ class API:
         self.column_max = 0
         self.line_max = 0
 
+        self.waiting_for_reply = False
+
         self.INIT_ST()
 
         self.log = False
@@ -143,7 +145,10 @@ class API:
         return answer
 
     def waitCommandExecuted(self):
-      
+        
+        self.waiting_for_reply = True # raising a flag to indicate that we are waiting for a 
+        # command reply so that we can avoid sending new commands until we get the reply
+
         elapsedTime = 0
         beginTime = time.process_time()
         delayToWaitSecond = 5

@@ -9,7 +9,6 @@ import pandas as pd
 import queue
 import os
 
-
 class InstrumentInitialize:
     FgConfigs: dict[str, fgConfig] = {}
     fgConfigNames = []
@@ -293,7 +292,7 @@ class InstrumentInitialize:
                 amp=ampRange[idx],
                 offset=offsetRange[idx]
             )
-
+            self.time_at_last_measurement = datetime.datetime.now()
             while self.automation_running and idx < len(freqRange):
                 if not self.q.empty():
                     print("Stop command received")
@@ -302,7 +301,6 @@ class InstrumentInitialize:
 
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
-                self.time_at_last_measurement = current_time
                 delta = current_time - self.time_at_last_measurement
 
                 try:
@@ -365,6 +363,7 @@ class InstrumentInitialize:
                 full_path = os.path.join(filepath, name)
                 data.to_csv(full_path, index=False)
                 print(f"Data saved to {full_path}")
+                
 
 
 ##################### DEBUG #####################

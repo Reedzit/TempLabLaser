@@ -267,5 +267,5 @@ class AutomationManager:
         self.hexapod.rotate([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])
         pumpLaser.append(rotate_point(pumpLaser[-1], np.array([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])))
 
-        vector_for_reset = hexapodCenter[0][:2] - hexapodCenter[-1][:2]
+        vector_for_reset = hexapodCenter[0] - hexapodCenter[-1]
         self.hexapod.translate(vector_for_reset, False)

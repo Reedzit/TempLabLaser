@@ -16,95 +16,101 @@ class HexapodControl():
         self.connectHexapod()
 
     def getState(self):
-            """
-            Hexapod status dictionary format:
-            - 's_hexa': int — raw system status bits
-            - 's_hexa_bits': dict — decoded bits from s_hexa:
-                {'Error', 'System initialized', 'Control on', 'In position', 'Motion task running',
-                'Home task running', 'Home complete', 'Home virtual', 'Phase found', 'Brake on',
-                'Motion restricted', 'Power on encoders', 'Power on limit switches', 'Power on drives'}
-            - 's_action': str — current action, e.g. '4:Stop'
-            - 's_uto_tx', ..., 's_uto_rz': float — user target offsets (translations/rotations)
-            - 's_mtp_tx', ..., 's_mtp_rz': float — motion target positions
-            - 's_ax_1' to 's_ax_6': int — raw axis status bits for axes 1–6
-            - 's_ax_1_bits' to 's_ax_6_bits': dict — decoded bits for each axis:
-                {'Error', 'Control on', 'In position', 'Motion task running', 'Home task running',
-                'Home complete', 'Phase found', 'Brake on', 'Home hardware input',
-                'Negative hardware limit switch', 'Positive hardware limit switch',
-                'Software limit reached', 'Following error', 'Drive fault'}
-            - 's_pos_ax_1' to 's_pos_ax_6': str — position feedback per axis (may be 'nan')
-            - 's_dio_1' to 's_dio_8': int — digital input/output values
-            - 's_ai_1' to 's_ai_8': int — analog input values
-            - 's_cycle': int — internal cycle counter
-            - 's_index': int — internal index counter
-            - 's_err_nr': int — error code (0 = no error)
-            - 's_reserve_01' to 's_reserve_04': int — reserved fields (unknown purpose)
-            """
+        if self.ssh_API.waiting_for_reply:
+            print("Hexapod is currently busy, waiting for the current command to resolve.")
+            while self.ssh_API.waiting_for_reply:
+                sleep(0.1)
+        self.ssh_API.waiting_for_reply = True
+        """
+        Hexapod status dictionary format:
+        - 's_hexa': int — raw system status bits
+        - 's_hexa_bits': dict — decoded bits from s_hexa:
+            {'Error', 'System initialized', 'Control on', 'In position', 'Motion task running',
+            'Home task running', 'Home complete', 'Home virtual', 'Phase found', 'Brake on',
+            'Motion restricted', 'Power on encoders', 'Power on limit switches', 'Power on drives'}
+        - 's_action': str — current action, e.g. '4:Stop'
+        - 's_uto_tx', ..., 's_uto_rz': float — user target offsets (translations/rotations)
+        - 's_mtp_tx', ..., 's_mtp_rz': float — motion target positions
+        - 's_ax_1' to 's_ax_6': int — raw axis status bits for axes 1–6
+        - 's_ax_1_bits' to 's_ax_6_bits': dict — decoded bits for each axis:
+            {'Error', 'Control on', 'In position', 'Motion task running', 'Home task running',
+            'Home complete', 'Phase found', 'Brake on', 'Home hardware input',
+            'Negative hardware limit switch', 'Positive hardware limit switch',
+            'Software limit reached', 'Following error', 'Drive fault'}
+        - 's_pos_ax_1' to 's_pos_ax_6': str — position feedback per axis (may be 'nan')
+        - 's_dio_1' to 's_dio_8': int — digital input/output values
+        - 's_ai_1' to 's_ai_8': int — analog input values
+        - 's_cycle': int — internal cycle counter
+        - 's_index': int — internal index counter
+        - 's_err_nr': int — error code (0 = no error)
+        - 's_reserve_01' to 's_reserve_04': int — reserved fields (unknown purpose)
+        """
+        def parse_symetrie_state(state_str):
+            status = {}
 
-            def parse_symetrie_state(state_str):
-                status = {}
+            # Split the data into lines
+            lines = state_str.strip().split('\n')
 
-                # Split the data into lines
-                lines = state_str.strip().split('\n')
+            key = None
+            bitfield_lines = []
+            axis_state_prefix = 's_ax_' # this seems to just be hardcoded into the response
+            current_axis = None
 
-                key = None
-                bitfield_lines = []
-                axis_state_prefix = 's_ax_' # this seems to just be hardcoded into the response
-                current_axis = None
+            for line in lines:
+                line = line.strip()
 
-                for line in lines:
-                    line = line.strip()
+                # Bitfield-style continuation (e.g., indented lines under s_hexa or s_ax_*)
+                # Go through each line and identify if it follows the bitfield format
+                if re.match(r'^\d+:\s', line):
+                    bitfield_lines.append(line)
+                    continue
 
-                    # Bitfield-style continuation (e.g., indented lines under s_hexa or s_ax_*)
-                    # Go through each line and identify if it follows the bitfield format
-                    if re.match(r'^\d+:\s', line):
-                        bitfield_lines.append(line)
-                        continue
+                # Save the previous bitfield block
+                if bitfield_lines:
+                    if key:
+                        status[key + '_bits'] = parse_bitfield(bitfield_lines)
+                    bitfield_lines = []
 
-                    # Save the previous bitfield block
-                    if bitfield_lines:
-                        if key:
-                            status[key + '_bits'] = parse_bitfield(bitfield_lines)
-                        bitfield_lines = []
+                # Parse simple key=value
+                if '=' in line:
+                    key, val = line.split('=', 1)
+                    key = key.strip()
+                    val = val.strip()
+                    # Try to parse as float or int
+                    try:
+                        if '.' in val or 'e' in val:
+                            val = float(val)
+                        else:
+                            val = int(val)
+                    except ValueError:
+                        pass  # Leave as string
 
-                    # Parse simple key=value
-                    if '=' in line:
-                        key, val = line.split('=', 1)
-                        key = key.strip()
-                        val = val.strip()
-                        # Try to parse as float or int
-                        try:
-                            if '.' in val or 'e' in val:
-                                val = float(val)
-                            else:
-                                val = int(val)
-                        except ValueError:
-                            pass  # Leave as string
+                    status[key] = val
 
-                        status[key] = val
+            # Final bitfield block (e.g., last axis)
+            if bitfield_lines and key:
+                status[key + '_bits'] = parse_bitfield(bitfield_lines)
 
-                # Final bitfield block (e.g., last axis)
-                if bitfield_lines and key:
-                    status[key + '_bits'] = parse_bitfield(bitfield_lines)
+            return status
 
-                return status
-
-            def parse_bitfield(lines):
-                """Parse lines like '0: Error' into a dict."""
-                result = {}
-                for line in lines:
-                    match = re.match(r'^(\d+):\s+(.*)', line.strip())
-                    if match:
-                        val, label = match.groups()
-                        result[label.strip()] = bool(int(val))
-                return result
-            answer = self.ssh_API.STATE()
-            self.status_dict = parse_symetrie_state(answer)
-            if answer in self.ssh_API.CommandReturns.keys():
-                answer = self.ssh_API.CommandReturns[answer]
-            elif answer in self.ssh_API.ErrorCodes.keys():
-                answer = self.ssh_API.ErrorCodes[answer]
-            return answer
+        def parse_bitfield(lines):
+            """Parse lines like '0: Error' into a dict."""
+            result = {}
+            for line in lines:
+                match = re.match(r'^(\d+):\s+(.*)', line.strip())
+                if match:
+                    val, label = match.groups()
+                    result[label.strip()] = bool(int(val))
+            return result
+        answer = self.ssh_API.STATE()
+        self.status_dict = parse_symetrie_state(answer)
+        print(self.status_dict)
+        if answer in self.ssh_API.CommandReturns.keys():
+            answer = self.ssh_API.CommandReturns[answer]
+        elif answer in self.ssh_API.ErrorCodes.keys():
+            answer = self.ssh_API.ErrorCodes[answer]
+        return answer
+        self.ssh_API.waiting_for_reply = False
 
     def stop(self):
         answer = self.ssh_API.SendCommand("C_STOP")
