@@ -11,6 +11,7 @@ import multiprocessing
 import queue
 from src.gui_tabs.graph_box import GraphBox
 import time
+from tkinter import ttk
 
 
 class AutomationTab:
@@ -41,12 +42,108 @@ class AutomationTab:
         # Create a frame inside the canvas to hold the widgets
         inner_frame = tk.Frame(canvas)
         canvas.create_window((0, 0), window=inner_frame, anchor='nw')
-        
+
+        # Create LabelFrames for different sections
+        input_frame = ttk.LabelFrame(inner_frame, text="Measurement Parameters")
+        input_frame.grid(row=0, column=0, columnspan=4, padx=10, pady=5, sticky='nsew')
+
+        control_frame = ttk.LabelFrame(inner_frame, text="Measurement Control")
+        control_frame.grid(row=1, column=0, columnspan=4, padx=10, pady=5, sticky='nsew')
+
+        output_frame = ttk.LabelFrame(inner_frame, text="Output and Status")
+        output_frame.grid(row=2, column=0, columnspan=4, padx=10, pady=5, sticky='nsew')
+
+        # Parameter inputs (in input_frame)
+        self.start_label = tk.Label(input_frame, text="INITIAL VALUE")
+        self.start_label.grid(row=0, column=1, padx=10, pady=0)
+        self.end_label = tk.Label(input_frame, text="FINAL VALUE")
+        self.end_label.grid(row=0, column=2, padx=10, pady=0)
+
+        self.freq_label_auto = tk.Label(input_frame, text="Frequency (Hz)")
+        self.freq_label_auto.grid(row=1, column=0, padx=10, pady=5, sticky=tk.E)
+        self.freqInitialInput = tk.Entry(input_frame)
+        self.freqInitialInput.grid(row=1, column=1, padx=10, pady=5)
+        self.freqFinalInput = tk.Entry(input_frame)
+        self.freqFinalInput.grid(row=1, column=2, padx=10, pady=5)
+        self.freqInitialInput.insert(-1, "50")
+        self.freqFinalInput.insert(-1, "5000000")
+
+        spacing_selector_options = ["linspace", "logspace"]
+        self.spacing_selector_var = tk.StringVar(input_frame, "linspace")
+        self.spacing_selector = tk.OptionMenu(input_frame, self.spacing_selector_var, *spacing_selector_options)
+        self.spacing_selector.grid(row=1, column=3, padx=10, pady=10)
+
+        self.ampLabel = tk.Label(input_frame, text="Amplitude (V)")
+        self.ampLabel.grid(row=2, column=0, padx=10, pady=10, sticky=tk.E)
+        self.ampInitialInput = tk.Entry(input_frame)
+        self.ampInitialInput.insert(-1, "4.8")
+        self.ampInitialInput.grid(row=2, column=1, padx=10, pady=5)
+        self.ampFinalInput = tk.Entry(input_frame)
+        self.ampFinalInput.insert(-1, "4.8")
+        self.ampFinalInput.grid(row=2, column=2, padx=10, pady=5)
+
+        self.offsetLabelAuto = tk.Label(input_frame, text="Offset (V)")
+        self.offsetLabelAuto.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
+        self.offsetInitialInput = tk.Entry(input_frame)
+        self.offsetInitialInput.insert(-1, "2.5")
+        self.offsetInitialInput.grid(row=3, column=1, padx=10, pady=5)
+        self.offsetFinalInput = tk.Entry(input_frame)
+        self.offsetFinalInput.insert(-1, "2.5")
+        self.offsetFinalInput.grid(row=3, column=2, padx=10, pady=5)
+
+        self.laserDistanceLabel = tk.Label(input_frame, text="Distance between lasers (mm)")
+        self.laserDistanceLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
+        self.distanceInput = tk.Entry(input_frame)
+        self.distanceInput.insert(0, "1.0")
+        self.distanceInput.grid(row=4, column=1, padx=10, pady=10)
+
+        # Control section (in control_frame)
+        self.startMeasurements = tk.Button(control_frame, text="Start Measurements", state="disabled",
+                                           command=self.begin_automation)
+        self.startMeasurements.grid(row=0, column=0, padx=10, pady=10)
+        self.endMeasurements = tk.Button(control_frame, text="End Measurements", state="disabled",
+                                         command=self.end_automation)
+        self.endMeasurements.grid(row=0, column=1, padx=10, pady=10)
+
+        self.wait_for_convergence = tk.BooleanVar(control_frame, False)
+        self.wait_for_convergence_check = tk.Checkbutton(control_frame, text="Wait for Convergence?",
+                                                         variable=self.wait_for_convergence, onvalue=True, offvalue=False)
+        self.wait_for_convergence_check.grid(row=1, column=1, padx=10, pady=10)
+
+        self.timePerStep = tk.IntVar(control_frame, 1)
+        self.timePerStepLabel = tk.Label(control_frame, text="Time Per Step (s):")
+        self.timePerStepInput = tk.Entry(control_frame, textvariable=self.timePerStep, state='disabled')
+        self.timePerStepInput.grid(row=1, column=0, padx=10, pady=10)
+        self.timePerStepLabel.grid(row=0, column=2, padx=10, pady=10)
+
+        # Output section (in output_frame)
+        self.OutputLabel = tk.Label(output_frame, text="Status:")
+        self.OutputLabel.grid(row=0, column=0)
+        self.automationTxtBx = tk.Text(output_frame, height=8, font=('Arial', 16))
+        self.automationTxtBx.grid(row=1, column=0, columnspan=4, padx=10, pady=10)
+
+        self.stepCountLabel = tk.Label(output_frame, text="Step Count:")
+        self.stepCount = tk.IntVar(output_frame, 1)
+        self.stepCountInput = tk.Entry(output_frame, textvariable=self.stepCount, state='disabled')
+        self.stepCountInput.grid(row=2, column=1, padx=10, pady=10)
+        self.stepCountLabel.grid(row=2, column=0, padx=10, pady=10)
+
+        graph_selector_options = ["Default", "Candlestick"]
+        self.graph_selector_var = tk.StringVar(output_frame, "Default")
+        self.graph_selector = tk.OptionMenu(output_frame, self.graph_selector_var, *graph_selector_options)
+        self.graph_selector.grid(row=2, column=2, padx=10, pady=10)
+
+        self.fileStorageLocation = tk.StringVar(output_frame, "No Location Given")
+        self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageLocation)
+        self.fileStorageButton = tk.Button(output_frame, text="Choose File Location", command=self.select_file_location)
+        self.fileStorageLabel.grid(row=3, column=1, columnspan=2, padx=10, pady=10)
+        self.fileStorageButton.grid(row=3, column=0, padx=10, pady=10)
+
+        self.automationGraph = tk.Label(output_frame)
+        self.automationGraph.grid(row=4, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
+
         # Change all your existing widget parents from automate_tab to inner_frame
         # For example:
-        self.start_label = tk.Label(inner_frame, text="INITIAL VALUE")
-        self.start_label.grid(row=2, column=1, padx=10, pady=0)
-
         # Update scroll region when the size of the frame changes
         def _on_frame_configure(event):
             canvas.configure(scrollregion=canvas.bbox("all"))
@@ -58,91 +155,6 @@ class AutomationTab:
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        self.end_label = tk.Label(inner_frame, text="FINAL VALUE")
-        self.end_label.grid(row=2, column=2, padx=10, pady=0)
-
-        self.freq_label_auto = tk.Label(inner_frame, text="Frequency (Hz)")
-        self.freq_label_auto.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
-        self.freqInitialInput = tk.Entry(inner_frame)
-        self.freqInitialInput.grid(row=3, column=1, padx=10, pady=5)
-        self.freqFinalInput = tk.Entry(inner_frame)
-        self.freqFinalInput.grid(row=3, column=2, padx=10, pady=5)
-
-        self.freqInitialInput.insert(-1, "50")
-        self.freqFinalInput.insert(-1, "5000000")
-
-        spacing_selector_options = ["linspace", "logspace"]
-        self.spacing_selector_var = tk.StringVar(inner_frame, "linspace")
-        self.spacing_selector = tk.OptionMenu(inner_frame, self.spacing_selector_var, *spacing_selector_options)
-        self.spacing_selector.grid(row=3, column=3, padx=10, pady=10)
-
-        self.ampLabel = tk.Label(inner_frame, text="Amplitude (V)")
-        self.ampLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
-        self.ampInitialInput = tk.Entry(inner_frame)
-        self.ampInitialInput.insert(-1, "4.8")
-        self.ampInitialInput.grid(row=4, column=1, padx=10, pady=5)
-        self.ampFinalInput = tk.Entry(inner_frame)
-        self.ampFinalInput.insert(-1, "4.8")
-        self.ampFinalInput.grid(row=4, column=2, padx=10, pady=5)
-
-        self.offsetLabelAuto = tk.Label(inner_frame, text="Offset (V)")
-        self.offsetLabelAuto.grid(row=5, column=0, padx=10, pady=5, sticky=tk.E)
-        self.offsetInitialInput = tk.Entry(inner_frame)
-        self.offsetInitialInput.insert(-1, "2.5")
-        self.offsetInitialInput.grid(row=5, column=1, padx=10, pady=5)
-        self.offsetFinalInput = tk.Entry(inner_frame)
-        self.offsetFinalInput.insert(-1, "2.5")
-        self.offsetFinalInput.grid(row=5, column=2, padx=10, pady=5)
-
-        self.startMeasurements = tk.Button(inner_frame, text="Start Measurements", state="disabled",
-                                           command=self.begin_automation)
-        self.startMeasurements.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
-        self.endMeasurements = tk.Button(inner_frame, text="End Measurements", state="disabled",
-                                         command=self.end_automation)
-        self.endMeasurements.grid(row=6, column=2, columnspan=1, padx=10, pady=10)
-
-        self.laserDistanceLabel = tk.Label(inner_frame, text="Distance between lasers (mm)")
-        self.laserDistanceLabel.grid(row=7, column=0, padx=10, pady=10, sticky=tk.E)
-        self.distanceInput = tk.Entry(inner_frame)
-        self.distanceInput.insert(0, "1.0")  # Add a default value
-        self.distanceInput.grid(row=7, column=1, padx=10, pady=10)
-
-        self.OutputLabel = tk.Label(inner_frame, text="Status:")
-        self.OutputLabel.grid(row=8, column=0)
-        self.automationTxtBx = tk.Text(inner_frame, height=8, font=('Arial', 16))
-        self.automationTxtBx.grid(row=9, column=0, columnspan=4, padx=10, pady=10)
-
-        self.stepCountLabel = tk.Label(inner_frame, text="Step Count:")
-        self.stepCount = tk.IntVar(inner_frame, 1)
-        self.stepCountInput = tk.Entry(inner_frame, textvariable=self.stepCount, state='disabled')
-        self.stepCountInput.grid(row=12, column=1, padx=10, pady=10)
-        self.stepCountLabel.grid(row=12, column=0, padx=10, pady=10)
-
-        self.wait_for_convergence = tk.BooleanVar(inner_frame, False)
-        self.wait_for_convergence_check = tk.Checkbutton(inner_frame, text="Wait for Convergence?",
-                                                         variable=self.wait_for_convergence, onvalue=True, offvalue=False)
-        self.wait_for_convergence_check.grid(row=11, column=2, padx=10, pady=10)
-
-        self.timePerStep = tk.IntVar(inner_frame, 1)
-        self.timePerStepLabel = tk.Label(inner_frame, text="Time Per Step (s):")
-        self.timePerStepInput = tk.Entry(inner_frame, textvariable=self.timePerStep, state='disabled')
-        self.timePerStepInput.grid(row=11, column=1, padx=10, pady=10)
-        self.timePerStepLabel.grid(row=11, column=0, padx=10, pady=10)
-
-        graph_selector_options = ["Default", "Candlestick"]
-        self.graph_selector_var = tk.StringVar(inner_frame, "Default")
-        self.graph_selector =tk.OptionMenu(inner_frame,self.graph_selector_var, *graph_selector_options)
-        self.graph_selector.grid(row=12, column=2, padx=10, pady=10)
-
-        self.fileStorageLocation = tk.StringVar(inner_frame, "No Location Given")
-        self.fileStorageLabel = tk.Label(inner_frame, textvariable=self.fileStorageLocation)
-        self.fileStorageButton = tk.Button(inner_frame, text="Choose File Location", command=self.select_file_location)
-        self.fileStorageLabel.grid(row=10, column=2, columnspan=1, padx=10, pady=10)
-        self.fileStorageButton.grid(row=10, column=1, padx=10, pady=10)
-
-        self.automationGraph = tk.Label(inner_frame)
-        self.automationGraph.grid(row=13, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
     def begin_automation(self):
         print("Beginning Automation...")

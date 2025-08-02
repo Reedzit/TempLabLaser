@@ -11,11 +11,11 @@ class MicroscopeGUI:
     hexapod = None
 
     def __init__(self, manager):
-        self.AutomationThread = None  # Thread for automation, If not in use, should be None
-        self.GraphingThread = None  # Thread for updating the graph
+        self.AutomationThread = None
+        self.GraphingThread = None
         self.manager = manager
 
-        # These are GUI global variables:
+        # GUI global variables remain the same
         self.laser_gain = None
         self.file_path = None
         self.convergence_check = False
@@ -25,18 +25,26 @@ class MicroscopeGUI:
         window = tk.Tk()
         window.geometry("1000x1000")
         window.title("Microscope GUI")
-        notebook = ttk.Notebook(window)
 
-        laserAutomationFrame = tk.Frame(notebook)
-        hexapodAutomationFrame = tk.Frame(notebook)
-        generalAutomationFrame = tk.Frame(notebook)
+        # Create centered container frame with fixed size
+        main_container = ttk.Frame(window)
+        main_container.pack(expand=True)  # This centers the frame without making it expand
 
+        # Create notebook with fixed size
+        notebook = ttk.Notebook(main_container, width=1000, height=1000)
+        notebook.pack(padx=20, pady=20)
+
+        # Create frames for each tab
+        laserAutomationFrame = ttk.Frame(notebook)
+        hexapodAutomationFrame = ttk.Frame(notebook)
+        generalAutomationFrame = ttk.Frame(notebook)
+
+        # Add frames to notebook
         notebook.add(laserAutomationFrame, text='Laser Automation')
         notebook.add(hexapodAutomationFrame, text='Hexapod Automation')
         notebook.add(generalAutomationFrame, text='Automation Finalization')
-        notebook.pack(expand=1, fill='both')
 
-        ### Automation Tab ###
+        # Create tab objects
         self.laserTabObject = automationLaserTab.AutomationTab(laserAutomationFrame, self.instruments, self)
         self.laserTabObject.manager = manager
 
@@ -44,14 +52,5 @@ class MicroscopeGUI:
 
         self.automationTab = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
-        # This needs access to the main thread and that's why we call it here.
         window.after(100, self.laserTabObject.schedule_automation_update)
         window.mainloop()
-
-    def __del__(self):
-        print("Closing GUI")
-        self.laserTabObject.graph.close_plotting_process()
-
-
-if __name__ == '__main__':
-    MicroscopeGUI()

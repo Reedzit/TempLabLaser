@@ -248,6 +248,7 @@ class AutomationManager:
         
         # Everything below here should be the main loop
         for i in range(len(hexapod_rotation_stepList)):
+            self.parent.automation_progress_bar = (i/len(hexapod_rotation_stepList))*100 # Update the progress bar
             theta = hexapod_rotation_stepList[i] - hexapod_rotation_stepList[i - 1]
             rotation_vector = np.array([0, 0, theta])
             self.hexapod.rotate(rotation_vector)
