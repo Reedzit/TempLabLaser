@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import queue
 import os
+import traceback
 from io import BytesIO
 import pandas
 from matplotlib import pyplot as plt
