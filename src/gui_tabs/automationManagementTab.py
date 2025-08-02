@@ -11,6 +11,7 @@ class AutomationManagerTab:
         self.setup_ui()
         self.manager = automationManager.AutomationManager(self, instruments, None, main_gui)
         self.setup_ui()
+        self.automation_progress = 0
 
     def setup_ui(self):
     # Create main frames
@@ -53,8 +54,8 @@ class AutomationManagerTab:
         self.checkConnectionButton.grid(row=0, column=0, padx=5, pady=5)
 
         # Status Section
-        progress_label = ttk.Label(status_frame, text="Automation Progress:")
-        progress_label.grid(row=0, column=0, padx=5, pady=2, sticky='w')
+        self.progress_label = ttk.Label(status_frame, text="Automation Progress: 0.0%")
+        self.progress_label.grid(row=0, column=0, padx=5, pady=2, sticky='w')
 
         self.progress_bar = ttk.Progressbar(status_frame, orient="horizontal", 
                                         length=300, mode="determinate")
@@ -68,8 +69,40 @@ class AutomationManagerTab:
         for frame in (control_frame, status_frame):
             frame.grid_columnconfigure(0, weight=1)
         
-        # 
 
+    def update_progress(self):
+        """
+        Updates the progress bar and schedules the next update.
+        Called every 100ms to update the progress display.
+        """
+        # Add progress value update logic here
+        try:
+            # The progress value should be between 0 and 100
+            current_progress = self.automation_progress
+            self.progress_bar['value'] = current_progress
+
+            # Update progress label with percentage
+            progress_text = f"Automation Progress: {current_progress:.1f}%"
+            self.progress_label.configure(text=progress_text)
+
+        except Exception as e:
+            print(f"Error updating progress: {e}")
+
+        # Schedule next update in 100ms
+        self.parent.after(100, self.update_progress)
+
+    def start_progress_updates(self):
+        """
+        Starts the progress update loop
+        """
+        self.update_progress()
+
+    def stop_progress_updates(self):
+        """
+        Resets the progress bar to 0
+        """
+        self.progress_bar['value'] = 0
+        self.progress_label.configure(text="Automation Progress: 0.0%")
 
 
     def check_connections(self, laserGUI, hexapodGUI):
@@ -77,9 +110,11 @@ class AutomationManagerTab:
 
     def start_automation(self):
         self.manager.beginAutomation()
+        self.start_progress_updates()
 
     def stop_automation(self):
         self.manager.endAutomation()
+        self.stop_progress_updates()
     
     def runFocussingCycle(self):
         self.manager.runFocussingCycle()
