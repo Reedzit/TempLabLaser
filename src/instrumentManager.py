@@ -302,6 +302,7 @@ class InstrumentInitialize:
 
                 # If there's been no command to stop, we can continue with the loop as usual
                 current_time = datetime.datetime.now()
+                self.time_at_last_measurement = current_time
                 delta = current_time - self.time_at_last_measurement
 
                 try:
