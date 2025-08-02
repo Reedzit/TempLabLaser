@@ -149,16 +149,22 @@ class AutomationManager:
                     time.sleep(0.1)
                 self.hexapod.rotate(rotation_vector)
 
+            # This is the main loop for the automation. Everything above basically just sets everthing up.
+            current_angle = 0 # This is only used for the printout
             while True:
                 tilted_vectors = generate_tilted_vectors(n0, TILT_CHANGE, num_steps)
+                current_angle += TILT_CHANGE
+                print("Tilt angle: ", current_angle)
                 for vector in tilted_vectors:
+                    print("Aligning to vector: ", vector)
+                    print(f"This is step {tilted_vectors.index(vector) + 1} of {num_steps} for this angle")
                     align_hexapod_normal(n0, vector)
                     n0 = vector
 
         self.automationThread = threading.Thread(target=conical_spiral_search, args=(12,)).start()
 
     def endFocussing(self):
-        if self.AutomationThread and self.AutomationThread.is_alive():
+        if self.AutomationThread.is_alive():
             print("Stopping automation...")
             self.AutomationThread.join(timeout=1)
             self.AutomationThread = None
