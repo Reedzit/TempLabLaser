@@ -9,6 +9,11 @@ import pandas as pd
 import queue
 import os
 
+"""
+This is a giga script. I am so sorry for this, but I don't want to split it up into multiple files.
+It is a bit of a mess, but it works. I will try to refactor it in the future.
+"""
+
 class InstrumentInitialize:
     FgConfigs: dict[str, fgConfig] = {}
     fgConfigNames = []
@@ -253,8 +258,14 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, settings, filepath, convergence_check, plot_code="Default"):
+    def automatic_measuring(self, settings, filepath, convergence_check, degree = None, plot_code="Default"):
         print("Automation Beginning!")
+        """
+        This is the main culprit of the bad factoring. I probably won't ever fix it. If you are reading this, I am sorry.
+        if you have questions. Feel free to reach out to me.
+        This function will run the laser through all the frequencies and take measurements. I thought that would be smaller than it is.
+        """
+
 
         #print(f"Waiting for convergence? {convergence_check}")
         self.automation_running = True
@@ -264,7 +275,7 @@ class InstrumentInitialize:
         convergence = False
 
         # Initialize DataFrame
-        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeIn", "OffsetIn", "AmplitudeOut", "PhaseOut", "Convergence", "DiffusivityEstimate"])
+        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeOut", "PhaseOut", "Convergence", "Degrees of Rotation"])
         
         current_Step = 1
         try:
@@ -310,17 +321,18 @@ class InstrumentInitialize:
                     continue
                 #print(f"Measurement {idx}: freq={freqRange[idx]}, amplitude={amplitude}, phase={phase}")
 
+                # "Time","index", "FrequencyIn", "AmplitudeOut", "PhaseOut", "Convergence", "Degrees of Rotation"
+                
                 # Add data to DataFrame
                 data.loc[len(data)] = [
                     current_time,
                     idx,
                     freqRange[idx],
-                    ampRange[idx],
-                    offsetRange[idx],
                     amplitude,
                     phase,
                     convergence,
-                    ""]
+                    degree if degree is not None else 0  # Degrees of rotation, defaults to 0
+                    ]
 
                 convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
                 #print(

@@ -282,13 +282,13 @@ class AutomationManager:
             os.rmdir(os.path.join(file_location))
             print("Stitching complete.")
 
-        def runLaser():
+        def runLaser(degree):
             """
             Should run the laser through all the frequencies.
             """
             self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
                                                      args=(laserSettings, filepath,
-                                                           convergence_check))
+                                                           convergence_check, degree))
             self.AutomationThread.start()
             while self.AutomationThread.is_alive():
                 time.sleep(0.1)
@@ -329,12 +329,12 @@ class AutomationManager:
             pumpLaser.append(pumpLaser[-1] + adjustment_vector)
 
             if not DEBUG_MODE:
-                runLaser()
+                runLaser(degree=hexapod_rotation_stepList[i])
             else:
                 print("DEBUG MODE ACTIVATED, NO LASER IN USE")
 
-        hexapod_settings, laser_settings, collection_settings = collectAutomationValues()  # We need to collect the values here as well
-        cleanUpFiles(collection_settings)
+        #hexapod_settings, laser_settings, collection_settings = collectAutomationValues()  # We need to collect the values here as well
+        #cleanUpFiles(collection_settings)
 
         # Reset Rotation and transformation
         self.hexapod.rotate([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])
