@@ -11,6 +11,15 @@ class MicroscopeGUI:
     hexapod = None
 
     def __init__(self, manager):
+
+        def on_closing():
+            if self.AutomationThread is not None:
+                self.AutomationThread.stop()
+            if self.GraphingThread is not None:
+                self.GraphingThread.stop()
+            window.destroy()
+            quit()
+
         self.AutomationThread = None
         self.GraphingThread = None
         self.manager = manager
@@ -53,4 +62,7 @@ class MicroscopeGUI:
         self.automationTab = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
         window.after(100, self.laserTabObject.schedule_automation_update)
+
+        window.protocol("WM_DELETE_WINDOW", on_closing)
         window.mainloop()
+    
