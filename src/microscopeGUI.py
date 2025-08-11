@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from instrumentManager import InstrumentInitialize
 from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab
-
+import os
 
 # import pymeasure.instruments.srs.sr830 as lia
 
@@ -18,7 +18,7 @@ class MicroscopeGUI:
             if self.GraphingThread is not None:
                 self.GraphingThread.stop()
             window.destroy()
-            quit()
+            os._exit(0)
 
         self.AutomationThread = None
         self.GraphingThread = None

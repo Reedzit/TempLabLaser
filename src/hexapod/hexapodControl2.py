@@ -105,12 +105,12 @@ class HexapodControl():
         answer = self.ssh_API.STATE()
         self.status_dict = parse_symetrie_state(answer)
         print(self.status_dict)
+        self.ssh_API.waiting_for_reply = False
         if answer in self.ssh_API.CommandReturns.keys():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
             answer = self.ssh_API.ErrorCodes[answer]
         return answer
-        self.ssh_API.waiting_for_reply = False
 
     def stop(self):
         answer = self.ssh_API.SendCommand("C_STOP")

@@ -2,7 +2,8 @@ import tkinter as tk
 import tkinter.filedialog
 from tkinter import ttk
 import ttkbootstrap as ttk
-
+import numpy as np
+import threading
 from src.hexapod.hexapodControl2 import HexapodControl
 
 
@@ -31,12 +32,18 @@ class HexapodAutomationTab:
         movement_frame = ttk.LabelFrame(hexapod_automation_tab, text="Movement Parameters")
         movement_frame.grid(row=1, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
 
+        adjustment_frame = ttk.LabelFrame(hexapod_automation_tab, text="Manual Adjustment")
+        adjustment_frame.grid(row=2, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
+
         output_frame = ttk.LabelFrame(hexapod_automation_tab, text="Output and Data")
-        output_frame.grid(row=2, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
+        output_frame.grid(row=3, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
+
+        debugging_frame = ttk.LabelFrame(hexapod_automation_tab, text="Debugging Stuff")
+        debugging_frame.grid(row=4, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
 
         # Add new constraints frame
         constraints_frame = ttk.LabelFrame(hexapod_automation_tab, text="Movement Constraints")
-        constraints_frame.grid(row=2, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
+        constraints_frame.grid(row=3, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
 
         # Create a subframe for the meters to control their size and layout
         meters_frame = ttk.Frame(constraints_frame)
@@ -93,11 +100,11 @@ class HexapodAutomationTab:
         self.homeHexapodButton.grid(row=1, column=1, padx=10, pady=5)
 
         self.controlOnHexapodButton = tk.Button(status_frame, text="Turn on Control (Press this after homing)",
-                                                command=lambda: self.hexapod.control_on())
+                                                command=lambda: self.hexapod.controlOn())
         self.controlOnHexapodButton.grid(row=1, column=2, padx=10, pady=5)
 
         self.controlOffHexapodButton = tk.Button(status_frame, text="Turn off Control",
-                                                 command=lambda: self.hexapod.control_off())
+                                                 command=lambda: self.hexapod.controlOff())
         self.controlOffHexapodButton.grid(row=1, column=3, padx=10, pady=5)
 
         # Movement Parameters Section
@@ -133,6 +140,67 @@ class HexapodAutomationTab:
         self.automationGraph = tk.Label(output_frame)
         self.automationGraph.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
+        # Manual Adjustment Section
+        def verify_input(value):
+            return value.isdigit() or value == "" or value == "-" or value == "."
+        vcmd = self.parent.register(verify_input)
+                
+        self.manualTranslationLabel = tk.Label(adjustment_frame, text="Manual Translation (mm):")
+        self.manualTranslationLabel.grid(row=1, column=0, padx=10, pady=5, sticky=tk.E)
+        self.manualTranslationX = tk.Entry(adjustment_frame, width=5, validate="all", validatecommand=(vcmd, '%P'))
+        self.manualTranslationX.insert(0, "0")
+        self.manualTranslationX.grid(row=1, column=1, padx=5, pady=5)
+        self.TranslationXLabel = tk.Label(adjustment_frame, text="X")
+        self.TranslationXLabel.grid(row=0, column=1, padx=5, pady=5)
+
+        self.manualTranslationY = tk.Entry(adjustment_frame, width=5, validate="all", validatecommand=(vcmd, '%P'))
+        self.manualTranslationY.insert(0, "0")
+        self.manualTranslationY.grid(row=1, column=2, padx=5, pady=5)
+        self.TranslationYLabel = tk.Label(adjustment_frame, text="Y")
+        self.TranslationYLabel.grid(row=0, column=2, padx=5, pady=5)
+
+
+        self.manualTranslationZ = tk.Entry(adjustment_frame, width=5, validate="all", validatecommand=(vcmd, '%P'))
+        self.manualTranslationZ.insert(0, "0")
+        self.manualTranslationZ.grid(row=1, column=3, padx=5, pady=5)
+        self.TranslationZLabel = tk.Label(adjustment_frame, text="Z")
+        self.TranslationZLabel.grid(row=0, column=3, padx=5, pady=5)
+
+
+        self.manualTranslationButton = tk.Button(adjustment_frame, text="Translate",
+                                                command=lambda: self.hexapod.translate(
+                                                    np.array([
+                                                        float(self.manualTranslationX.get()),
+                                                        float(self.manualTranslationY.get()),
+                                                        float(self.manualTranslationZ.get())
+                                                    ])))
+        self.manualTranslationButton.grid(row=1, column=4, padx=10, pady=5)
+
+        self.manualRotationLabel = tk.Label(adjustment_frame, text="Rotation (θ°):")
+        self.manualRotationLabel.grid(row=2, column=0, padx=10, pady=5, sticky=tk.E)
+        self.manualRotationX = tk.Entry(adjustment_frame, width=5)
+        self.manualRotationX.grid(row=2, column=1, padx=5, pady=5)
+
+        self.manualRotationY = tk.Entry(adjustment_frame, width=5)
+        self.manualRotationY.grid(row=2, column=2, padx=5, pady=5)
+
+        self.manualRotationZ = tk.Entry(adjustment_frame, width=5)
+        self.manualRotationZ.grid(row=2, column=3, padx=5, pady=5)
+
+        self.manualRotationButton = tk.Button(adjustment_frame, text="Rotate",
+                                                command=lambda: self.hexapod.rotate(
+                                                    np.array([
+                                                        float(self.manualRotationY.get()),
+                                                        float(self.manualRotationX.get()),
+                                                        float(self.manualRotationZ.get())
+                                                    ])))
+        self.manualRotationButton.grid(row=2, column=4, padx=10, pady=5)
+
+        # Debugging Section
+        self.printStateButton = tk.Button(debugging_frame, text="Print Hexapod State",
+                                          command=self.print_hexapod_state)
+        self.printStateButton.grid(row=0, column=0, padx=10, pady=5)
+
         # Configure update timer
         self.hexapodStatusLabel.after(100, self.update_hexapod_status)
 
@@ -162,6 +230,18 @@ class HexapodAutomationTab:
             amountused=(pos_amount + neg_amount) / total_range * 100,
             sublabel=f"+{pos_amount:.1f}/-{neg_amount:.1f}"
         )
+
+    def print_hexapod_state(self):
+        def actually_print():
+            if self.hexapod is not None:
+                print(self.hexapod.getState())
+            else:
+                print("Hexapod is not connected.")
+        if self.hexapod is not None:
+            # Run the print in a separate thread to avoid blocking the GUI
+            threading.Thread(target=actually_print).start()
+        else:
+            print("Hexapod is not connected.")
 
     def select_file_location(self):
         filePath = tk.filedialog.askdirectory()

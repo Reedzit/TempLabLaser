@@ -183,6 +183,9 @@ class API:
                 return response
 
         print("Cannot get command return code with c_cmd: timeout! Elapsed time is ", elapsedTime)
+        # If we reach this point, it means that the command did not return in the expected time frame
+        # We can return an error code and reset the waiting flag
+        self.waiting_for_reply = False
         return -1
 
     def getCommandParameters(self, number = 20):
