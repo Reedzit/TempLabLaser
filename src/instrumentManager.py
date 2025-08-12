@@ -356,9 +356,9 @@ class InstrumentInitialize:
                     idx += 1
                     self.time_at_last_measurement = current_time
                     convergence = False
-                    diffusivityEstimate = statAnalysis.estimate_diffusivity(data, spot_distance)
-                    print(diffusivityEstimate)
-                    data.iloc[-1, data.columns.get_loc("DiffusivityEstimate")] = diffusivityEstimate
+                    #diffusivityEstimate = statAnalysis.estimate_diffusivity(data, spot_distance)
+                    #print(diffusivityEstimate)
+                    #data.iloc[-1, data.columns.get_loc("DiffusivityEstimate")] = diffusivityEstimate
 
                     print(f"Updated idx: {idx}, total steps: {len(freqRange)}")
 

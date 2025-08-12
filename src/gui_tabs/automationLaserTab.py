@@ -99,7 +99,7 @@ class AutomationTab:
 
         # Control section (in control_frame)
         self.startMeasurements = tk.Button(control_frame, text="Start Measurements", state="disabled",
-                                           command=self.begin_automation)
+                                           command=lambda: self.begin_automation(begin=True))
         self.startMeasurements.grid(row=0, column=0, padx=10, pady=10)
         self.endMeasurements = tk.Button(control_frame, text="End Measurements", state="disabled",
                                          command=self.end_automation)
@@ -156,7 +156,7 @@ class AutomationTab:
         
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-    def begin_automation(self):
+    def begin_automation(self, begin = False):
         print("Beginning Automation...")
         print(f"Distance between lasers: {self.distanceInput.get()} mm")
         print(f"Wait for convergence: {self.wait_for_convergence.get()}")
@@ -202,6 +202,11 @@ class AutomationTab:
         self.automationTxtBx.insert('1.0', f"Starting Automation...\n")
         self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
         self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
+        
+        if begin == True:
+            threading.Thread(target=self.instruments.automatic_measuring, 
+                             args=(self.laser_settings, filepath, False)).start()
+
 
     def end_automation(self):
         print("Ending Automation...")
@@ -285,11 +290,11 @@ class AutomationTab:
 
     def update_automation_textbox(self, values):
         self.automationTxtBx.delete(1.0, tk.END)
-        current_time, current_Step, freqIn, ampIn, offsetIn, amplitude, phase, convergence, diffusivity = tuple(values.iloc[-1])
+        current_time, current_Step, freqIn, amplitude, phase, convergence, Rotation = tuple(values.iloc[-1])
         self.automationTxtBx.insert(tk.END, f"""
             @{current_time} ({current_Step} step(s)/{self.stepCount.get()} step(s)):
             Input:
-            Frequency: {freqIn} Hz | Amplitude: {ampIn} V | Offset: {offsetIn} V
+            Frequency: {freqIn} Hz
             Output:
             Amplitude: {amplitude} V | Phase: {phase} degrees
             Convergence: {convergence}

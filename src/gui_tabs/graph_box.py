@@ -57,23 +57,23 @@ def standard_graph(data_queue, plot_queue):
                                      c='Blue',
                                      alpha=0.5)
 
-            # Plot diffusivity on right axis
-            filtered_data = data[data['DiffusivityEstimate'].apply(lambda x: isinstance(x, float) and not np.isnan(x))]
-            if not filtered_data.empty:
-                diff_data = filtered_data.groupby('FrequencyIn')['DiffusivityEstimate'].last()
-                barGraph = ax2.bar(diff_data.index, 
-                                 diff_data.values, 
-                                 alpha=0.3,
-                                 color='green',
-                                 zorder=2,
-                                 width=(ax1.get_xlim()[1] - ax1.get_xlim()[0])*(1/(len(diff_data)+1)))
+            # # # Plot diffusivity on right axis
+            # # filtered_data = data[data['DiffusivityEstimate'].apply(lambda x: isinstance(x, float) and not np.isnan(x))]
+            # # if not filtered_data.empty:
+            # #     diff_data = filtered_data.groupby('FrequencyIn')['DiffusivityEstimate'].last()
+            # #     barGraph = ax2.bar(diff_data.index, 
+            # #                      diff_data.values, 
+            # #                      alpha=0.3,
+            # #                      color='green',
+            # #                      zorder=2,
+            # #                      width=(ax1.get_xlim()[1] - ax1.get_xlim()[0])*(1/(len(diff_data)+1)))
                 
-                # Combine legends from both axes
-                ax1.legend([last_scatter, mean_scatter, barGraph], 
-                         ['Most Recent Phase', 'Average Phase', 'Diffusivity Estimate'])
-            else:
-                ax1.legend([last_scatter, mean_scatter], 
-                         ['Most Recent Phase', 'Average Phase'])
+            # #     # Combine legends from both axes
+            # #     ax1.legend([last_scatter, mean_scatter, barGraph], 
+            # #              ['Most Recent Phase', 'Average Phase', 'Diffusivity Estimate'])
+            # else:
+            #     ax1.legend([last_scatter, mean_scatter], 
+            #              ['Most Recent Phase', 'Average Phase'])
 
             # Set labels
             ax1.set_xlabel('Frequency (Hz)')

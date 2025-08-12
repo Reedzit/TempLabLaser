@@ -5,6 +5,7 @@ import ttkbootstrap as ttk
 import numpy as np
 import threading
 from src.hexapod.hexapodControl2 import HexapodControl
+import regex as re
 
 
 class HexapodAutomationTab:
@@ -142,7 +143,11 @@ class HexapodAutomationTab:
 
         # Manual Adjustment Section
         def verify_input(value):
-            return value.isdigit() or value == "" or value == "-" or value == "."
+            expression = r"^-?(?:\d+(\.\d*)?|\.\d*)?$"
+            if value == "" or re.fullmatch(expression, value):
+                return True
+            else:
+                return False
         vcmd = self.parent.register(verify_input)
                 
         self.manualTranslationLabel = tk.Label(adjustment_frame, text="Manual Translation (mm):")
