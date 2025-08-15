@@ -223,10 +223,10 @@ class AutomationManager:
 
             # Here we'll create the temporary folder where all the chunks will be stored
             file_location = collection_settings[0]
-            file_name = "automationBatches"
-            os.mkdir(os.path.join(file_location, file_name))
+            #file_name = "automationBatches"
+            #os.mkdir(os.path.join(file_location, file_name))
 
-            collection_settings = os.path.join(file_location, file_name), collection_settings[1]
+            #collection_settings = os.path.join(file_location, file_name), collection_settings[1]
             return hexapod_settings, laser_settings, collection_settings
 
         def cleanUpFiles(collection_tuple):

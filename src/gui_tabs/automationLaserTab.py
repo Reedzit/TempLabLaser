@@ -65,8 +65,8 @@ class AutomationTab:
         self.freqInitialInput.grid(row=1, column=1, padx=10, pady=5)
         self.freqFinalInput = tk.Entry(input_frame)
         self.freqFinalInput.grid(row=1, column=2, padx=10, pady=5)
-        self.freqInitialInput.insert(-1, "50")
-        self.freqFinalInput.insert(-1, "5000000")
+        self.freqInitialInput.insert(-1, "1")
+        self.freqFinalInput.insert(-1, "102000")
 
         spacing_selector_options = ["linspace", "logspace"]
         self.spacing_selector_var = tk.StringVar(input_frame, "linspace")
