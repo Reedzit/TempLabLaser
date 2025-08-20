@@ -191,6 +191,27 @@ class AutomationManager:
             self.hexapod = self.main_gui.hexapodTabObject.hexapod
             if not self.hexapod:
                 raise RuntimeError("Hexapod is not connected. Please check the connection.")
+        
+        def create_measurement_file(file_location):
+            """
+            Creates the measurement directory if needed and returns the full file path for the new CSV.
+            """
+            print("Creating measurement file...")
+            if self.hexapod.status_dict:
+                x_value = round(self.hexapod.status_dict.get("s_mtp_tx", 0), 3)
+                y_value = round(self.hexapod.status_dict.get("s_mtp_ty", 0), 3)
+                subdir = f"x_{x_value}_y_{y_value}"
+                file_location = os.path.join(file_location, subdir)
+            else:
+                print("Hexapod is not connected. Please check the connection.")
+                return None
+
+            # Ensure the directory exists
+            os.makedirs(file_location, exist_ok=True)
+
+            print(file_location)
+            return file_location
+
 
         def rotate_point(point, rotationVector):
             copy_of_point = np.copy(point)
@@ -219,12 +240,13 @@ class AutomationManager:
                                 # this should be the center, assuming that the hexapod is homed and calibrated.
                                 [np.array([float(self.hexapodGUI.pumpLaser.get()), 0, 0])]
                                 )
-            collection_settings = self.laserGUI.fileStorageLocation.get(), self.laserGUI.wait_for_convergence.get()
-
-            # Here we'll create the temporary folder where all the chunks will be stored
-            file_location = collection_settings[0]
-            #file_name = "automationBatches"
-            #os.mkdir(os.path.join(file_location, file_name))
+            requested_file_location = self.laserGUI.fileStorageLocation.get()
+            file_location = create_measurement_file(requested_file_location)
+            if not file_location:
+                print("Failed to create measurement file. Exiting automation.")
+                return None, None, None
+            convergence_check = self.laserGUI.wait_for_convergence.get()
+            collection_settings = file_location, convergence_check
 
             #collection_settings = os.path.join(file_location, file_name), collection_settings[1]
             return hexapod_settings, laser_settings, collection_settings
@@ -274,7 +296,7 @@ class AutomationManager:
 
             # Step 4: We now need to move the file to the originally requested location and delete the temp folder
             name = "../automation_data" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M') + ".csv"
-            os.rename(files[0], name)  # we move the file up by 1 folder
+            os.rename(files[0], name)  # we move the file up to 1 folder
             # Step 5: Go back to the original working directory
             os.chdir(working_directory)
             # Step 6: Delete the temp folder
