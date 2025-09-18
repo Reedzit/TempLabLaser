@@ -374,7 +374,7 @@ class InstrumentInitialize:
                 if degree is None:
                     name = f"measurement_data_{datetime.datetime.now}" + ".csv"
                 else:
-                    name = f"{degree}" + ".csv"
+                    name = f"{round(degree,1)} degrees" + ".csv"
                 full_path = os.path.join(filepath, name)
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 data.to_csv(full_path, index=False)

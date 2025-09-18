@@ -192,7 +192,8 @@ class AutomationManager:
             if not self.hexapod:
                 raise RuntimeError("Hexapod is not connected. Please check the connection.")
         
-        def create_measurement_file(file_location):
+        
+        def create_measurement_folder(file_location):
             """
             Creates the measurement directory if needed and returns the full file path for the new CSV.
             """
@@ -241,7 +242,7 @@ class AutomationManager:
                                 [np.array([float(self.hexapodGUI.pumpLaser.get()), 0, 0])]
                                 )
             requested_file_location = self.laserGUI.fileStorageLocation.get()
-            file_location = create_measurement_file(requested_file_location)
+            file_location = create_measurement_folder(requested_file_location)
             if not file_location:
                 print("Failed to create measurement file. Exiting automation.")
                 return None, None, None
