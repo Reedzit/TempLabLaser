@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from instrumentManager import InstrumentInitialize
-from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab
+from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab, sampleMappingTab
 import os
 
 # import pymeasure.instruments.srs.sr830 as lia
@@ -46,11 +46,13 @@ class MicroscopeGUI:
         # Create frames for each tab
         laserAutomationFrame = ttk.Frame(notebook)
         hexapodAutomationFrame = ttk.Frame(notebook)
+        sampleMappingFrame = ttk.Frame(notebook)
         generalAutomationFrame = ttk.Frame(notebook)
 
         # Add frames to notebook
         notebook.add(laserAutomationFrame, text='Laser Automation')
         notebook.add(hexapodAutomationFrame, text='Hexapod Automation')
+        notebook.add(sampleMappingFrame, text='Sample Mapping')
         notebook.add(generalAutomationFrame, text='Automation Finalization')
 
         # Create tab objects
@@ -58,8 +60,11 @@ class MicroscopeGUI:
         self.laserTabObject.manager = manager
 
         self.hexapodTabObject = automationHexapodTab.HexapodAutomationTab(hexapodAutomationFrame, self.instruments, self)
+        
+        #TODO: Implement Sample Mapping Tab
+        self.sampleMappingTabObject = sampleMappingTab.SampleMappingTab(sampleMappingFrame, self.instruments, self.hexapodTabObject)
 
-        self.automationTab = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
+        self.automationTabObject = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
         window.after(100, self.laserTabObject.schedule_automation_update)
 

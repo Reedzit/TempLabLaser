@@ -13,13 +13,15 @@ class HexapodControl():
         self.ssh_API = None
         self.status_dict = None
         self.ready_for_commands = True
+        self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
         self.connectHexapod()
 
     def getState(self):
         if self.ssh_API.waiting_for_reply:
             print("Hexapod is currently busy, waiting for the current command to resolve.")
             while self.ssh_API.waiting_for_reply:
-                sleep(0.1)
+                print("API is still busy, waiting for it to finish...")
+                sleep(0.25)
         self.ssh_API.waiting_for_reply = True
         """
         Hexapod status dictionary format:
@@ -134,21 +136,27 @@ class HexapodControl():
             return None
 
     def waitForCommandResolution(self):
-            """
-            Wait for the hexapod to finish executing the current command.
-            Notice that this is a blocking function, so it will wait until the hexapod is ready for new commands.
-            Because of this, this function will be run in a separate thread from the GUI.
-            """
-            print("Waiting for hexapod to finish executing the current command...")
-            def loop():
-                while not self.checkStatus():
-                    print("Hexapod is still busy, waiting for it to finish...", end='\r')
-                    self.getState()
-                    sleep(0.25)  # Sleep for a short time to avoid busy waiting
-                print("Hexapod is now ready for new commands.")
-                self.ready_for_commands = True
-                return True
-            threading.Thread(target=loop).start()
+        """
+        Non-blocking: Starts a background thread that updates self.ready_for_commands
+        when the hexapod is ready for new commands.
+        The calling code should check self.ready_for_commands as needed.
+        """
+        print("Waiting for hexapod to finish executing the current command...")
+        def loop():
+            while not self.checkStatus():
+                print("Hexapod is still busy, waiting for it to finish...", end='\r')
+                self.getState()
+                sleep(0.25)
+            print("Hexapod is now ready for new commands.")
+            self.ready_for_commands = True
+            self.commandResolutionThread = None  # Reset thread reference
+            return
+        if not self.commandResolutionThread or not self.commandResolutionThread.is_alive():
+            self.commandResolutionThread = threading.Thread(target=loop, daemon=True)
+            self.commandResolutionThread.start()
+        else:
+            print("A command resolution thread is already running.")
+        
 
     # Shout out to Reed Zittler for this code
     def connectHexapod(self):
@@ -202,8 +210,9 @@ class HexapodControl():
             normalizedMovementVector = (movement_vector / np.linalg.norm(movement_vector)) * magnitude
             x, y, z = normalizedMovementVector
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, x, y, z, 0.0, 0.0, 0.0])
-        self.waitForCommandResolution()
         answer = int(answer.strip())
+        self.waitForCommandResolution()
+
         if answer in self.ssh_API.CommandReturns.keys():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
@@ -214,8 +223,8 @@ class HexapodControl():
         self.ready_for_commands = False
         alpha, beta, tau = rotation_vector # naming conventions come from
         answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 0.0, alpha, beta, tau])
-        self.waitForCommandResolution()
         answer = int(answer.strip())
+        self.waitForCommandResolution()        
         if answer in self.ssh_API.CommandReturns.keys():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
