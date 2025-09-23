@@ -1,14 +1,16 @@
 from tkinter import ttk
 import tkinter as tk
+import src.sampleMapper as sm
 import threading
 
 
 
 class SampleMappingTab:
-    def __init__(self, parent, instruments, hexapod):
+    def __init__(self, parent, instruments, hexapodTab):
         self.parent = parent
         self.instruments = instruments
-        self.hexapod = hexapod.hexapod
+        self.hexapodTab = hexapodTab
+        self.hexapod = self.hexapodTab.hexapod
 
         self.setup_ui()
 
@@ -42,7 +44,7 @@ class SampleMappingTab:
         output_frame.grid(row=2, column=0, columnspan=4, padx=10, pady=5, sticky='nsew')
 
         # Control section (in control_frame)
-        self.startMapping = tk.Button(control_frame, text="Start Mapping", state="disabled",
+        self.startMapping = tk.Button(control_frame, text="Start Mapping", state="normal",
                                            command=lambda: self.begin_mapping())
         self.startMapping.grid(row=0, column=0, padx=10, pady=10)
         self.endMapping = tk.Button(control_frame, text="End Mapping", state="disabled",
@@ -88,6 +90,9 @@ class SampleMappingTab:
         
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
     
+    def update_hexapod(self):
+        self.hexapod = self.hexapodTab.hexapod
+
     def select_file_location(self):
         from tkinter import filedialog
         file_path = filedialog.askdirectory()
@@ -98,20 +103,26 @@ class SampleMappingTab:
             print("No file path selected.")
     
     def begin_mapping(self, begin=True):
+        self.update_hexapod()
+        if self.fileStorageLocation.get():
+            print(f"File storage location: {self.fileStorageLocation.get()}")
+            file_storage_location = self.fileStorageLocation.get()
+        else:
+            file_storage_location = None
         if self.hexapod is None:
             print("Hexapod not initialized.")
             return
         else:
             print("Starting sample mapping...")
-            # Implement the logic to start sample mapping
-            # Enable/disable buttons and inputs as needed
+            settings = (0.5, 0.02, file_storage_location) # TODO Gather settings from UI elements
+            self.mapper = sm.SampleMapper(self.hexapod, self.instruments, None, settings) # This currently just uses the default settings.
             self.startMapping.config(state="disabled")
             self.endMapping.config(state="normal")
             self.timePerStepInput.config(state="normal")
             self.stepSizeInput.config(state="normal")
             self.automationTxtBx.insert(tk.END, "Sample mapping started...\n")
 
-            # TODO: Add actual mapping logic here
+            self.mapper.debug_mode() # Blocking call for now, will run in thread later
     
     def end_mapping(self):
         pass # TODO Implement the logic to end sample mapping
