@@ -179,7 +179,8 @@ class API:
                     message = self.CommandReturns[code]
                     print("Command error, code is: {} : {}".format(code, message))                    
                 elif self.ssh_obj.verbose == True:
-                    print("Command successful: {} Execution time: {} sec".format(response, elapsedTime))	
+                    print("Command successful: {} Execution time: {} sec".format(response, elapsedTime))
+                self.waiting_for_reply = False	
                 return response
 
         print("Cannot get command return code with c_cmd: timeout! Elapsed time is ", elapsedTime)
