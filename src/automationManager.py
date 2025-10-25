@@ -17,16 +17,21 @@ This should work as follows:
 9. Reset everything
 10. Process Data
 """
+from imaplib import Debug
+
 import numpy as np
 import threading
 import time
 import os
 import datetime
 import pandas as pd
-
+from tqdm import tqdm
 
 class AutomationManager:
-    def __init__(self, parent, instruments, hexapod, main_gui):
+    def __init__(self, parent, instruments, hexapod, main_gui, DEBUG_MODE=False):
+        if DEBUG_MODE:
+            print("DEBUG MODE ACTIVATED")
+            return
         self.instruments = instruments
         self.hexapod = hexapod
         self.parent = parent
@@ -183,9 +188,10 @@ class AutomationManager:
         else:
             print("No focussing is running.")
 
-    def runAutomationCycle(self, DEBUG_MODE=False):
+    def runAutomationCycle(self, DEBUG_MODE=False, alternate_file_location=None):
         # First we need to load in the laser settings from begin automation
-        self.laserGUI.begin_automation()  # This will load in the laser settings and check if the laser is connected        # We also need to make sure that the hexapod is connected
+        self.laserGUI.begin_automation()  # This will load in the laser settings and check if the laser is connected
+        # We also need to make sure that the hexapod is connected
         if not self.hexapod:
             # If the hexapod is not passed in, we will try to get it from the main GUI
             self.hexapod = self.main_gui.hexapodTabObject.hexapod
@@ -201,6 +207,7 @@ class AutomationManager:
                 x_value = round(self.hexapod.status_dict.get("s_mtp_tx", 0), 3)
                 y_value = round(self.hexapod.status_dict.get("s_mtp_ty", 0), 3)
                 subdir = f"x_{x_value}_y_{y_value}"
+                file_location = file_location if not alternate_file_location else alternate_file_location
                 file_location = os.path.join(file_location, subdir)
             else:
                 print("Hexapod is not connected. Please check the connection.")
@@ -211,7 +218,6 @@ class AutomationManager:
 
             print(file_location)
             return file_location
-
 
         def rotate_point(point, rotationVector):
             copy_of_point = np.copy(point)
@@ -250,59 +256,6 @@ class AutomationManager:
 
             #collection_settings = os.path.join(file_location, file_name), collection_settings[1]
             return hexapod_settings, laser_settings, collection_settings
-
-        def cleanUpFiles(collection_tuple):
-            # The main point here is to just stitch together the files
-            print("cleaning files")
-
-            # Step 1: get to the correct working directory
-            working_directory = os.getcwd()  # We're saving this so we can go back to the original directory later
-            file_location = collection_tuple[0]
-            os.chdir(file_location)
-
-            # Step 2: get all the files that we want to stitch together
-            files = os.listdir(file_location)
-            files = [file for file in files if
-                     file.endswith(".csv")]  # This just removes anything that wasn't saved correctly
-            files.sort(key=lambda x: os.path.getmtime(x),
-                       reverse=True)  # We want to sort the files from newest to oldest
-            print(files)
-
-            # Step 3: take the newest file and add it onto the next newest to it. Delete the first file.
-            # Then, repeat until all the files are done.
-            print("Now stitching together the files...")
-            while len(files) > 1:
-                time.sleep(0.1)
-                print(f"\rStitching... files left: {len(files) - 1}", end="")
-                file1 = files.pop(0)  # This is the newest file
-                file2 = files.pop(0)  # This is the next newest file
-
-                d1 = pd.read_csv(file1)  # This is the dataframe corresponding to the newest file
-                d2 = pd.read_csv(file2)  # This is the dataframe corresponding to the next newest file
-
-                os.remove(file1)  # Here we remove the files
-                os.remove(file2)  # Since we've read them, we no longer need them.
-
-                d2 = pd.concat((d2, d1),
-                               ignore_index=True)  # now we add the newest file at the bottom of the second-newest file
-                d2.to_csv(str(datetime.datetime.now()) + ".csv", index=False)  # This will be the new newest file.
-
-                # Now we need to update the list of files.
-                files = os.listdir(file_location)
-                files = [file for file in files if
-                         file.endswith(".csv")]  # This just removes anything that wasn't saved correctly
-                files.sort(key=lambda x: os.path.getmtime(x),
-                           reverse=True)  # We want to sort the files from newest to oldest
-
-            # Step 4: We now need to move the file to the originally requested location and delete the temp folder
-            name = "../automation_data" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M') + ".csv"
-            os.rename(files[0], name)  # we move the file up to 1 folder
-            # Step 5: Go back to the original working directory
-            os.chdir(working_directory)
-            # Step 6: Delete the temp folder
-            time.sleep(1)
-            os.rmdir(os.path.join(file_location))
-            print("Stitching complete.")
 
         def runLaser(degree):
             """
@@ -364,3 +317,82 @@ class AutomationManager:
 
         vector_for_reset = hexapodCenter[0] - hexapodCenter[-1]
         self.hexapod.translate(vector_for_reset, False)
+
+    def beginRastering(self, rotating=False, DEBUG_MODE=False):
+
+        def create_measurement_file(file_location):
+            """
+            Creates the measurement directory if needed and returns the full file path for the new CSV.
+            """
+            print("Creating measurement file...")
+            if self.hexapod.status_dict:
+                x_value = round(self.hexapod.status_dict.get("s_mtp_tx", 0), 3)
+                y_value = round(self.hexapod.status_dict.get("s_mtp_ty", 0), 3)
+                subdir = f"x_{x_value}_y_{y_value}"
+                file_location = os.path.join(file_location, subdir)
+            return file_location
+
+        def collect_raster_settings():
+            """
+            Collects the settings for the rastering.
+            """
+            laser_settings = self.laserGUI.laser_settings
+            hexapod_settings = ()  # TODO properly collect these
+
+            return hexapod_settings, laser_settings
+
+        def generate_raster_points(settings):
+            """
+            Generates the points for the rastering.
+            """
+            return []
+
+        def raster(points_to_raster):
+            """
+            Should run an automation cycle at every point specified.
+            """
+            # TODO: Finish Logic
+            # for point in points_to_raster:
+            # Go there
+            # either normally run the laser or run the automation
+            # if DEBUG_MODE:
+            #    print("DEBUG MODE ACTIVATED, NO LASER IN USE")
+            #    just print the movements and measurements you would take.
+            # else:
+            #    actually do the movements and measurements
+            if DEBUG_MODE:
+                print("DEBUG MODE ACTIVATED, NO HARDWARE IN USE")
+                for point in tqdm(points_to_raster):
+                    print(f"Moving to point: {point}")
+                    time.sleep(0.1)
+                    if rotating:
+                        print(f"Now performing rotation automation at point {point}")
+                        time.sleep(1)
+                    else:
+                        print(f"Now performing measurement (no rotation) at point {point}")
+                        time.sleep(1)
+                return False
+            return True
+        if not DEBUG_MODE:
+            # First, we need to load in the laser settings from begin automation
+            self.laserGUI.begin_automation()  # This will load in the laser settings and check if the laser is connected
+            # We also need to make sure that the hexapod is connected
+            if not self.hexapod:
+                # If the hexapod is not passed in, we will try to get it from the main GUI
+                self.hexapod = self.main_gui.hexapodTabObject.hexapod
+                if not self.hexapod:
+                    raise RuntimeError("Hexapod is not connected. Please check the connection.")
+
+            raster_settings = collect_raster_settings()
+            raster_points = generate_raster_points(raster_settings)
+            raster(raster_points)
+        else:
+            raster_points = [np.array([0, 0, 0]), np.array([0, 0, 1]), np.array([0, 1, 0]), np.array([1, 0, 0])]
+            raster(raster_points)
+
+
+if __name__ == "__main__":
+    print("Testing AutomationManager")
+    am = AutomationManager(None, None, None, None, DEBUG_MODE=True)
+    am.beginRastering(rotating=True, DEBUG_MODE=True)
+    am.beginRastering(rotating=False, DEBUG_MODE=True)

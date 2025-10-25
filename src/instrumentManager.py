@@ -257,6 +257,7 @@ class InstrumentInitialize:
             return phase
         else:
             print("No function generator connected")
+            return None
 
     def automatic_measuring(self, settings, filepath, convergence_check, degree = None, plot_code="Default"):
         print("Automation Beginning!")
@@ -265,8 +266,6 @@ class InstrumentInitialize:
         if you have questions. Feel free to reach out to me.
         This function will run the laser through all the frequencies and take measurements. I thought that would be smaller than it is.
         """
-
-
         #print(f"Waiting for convergence? {convergence_check}")
         self.automation_running = True
         self.automation_status = "running"
