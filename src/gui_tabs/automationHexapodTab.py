@@ -180,7 +180,14 @@ class HexapodAutomationTab:
                                                         float(self.manualTranslationZ.get())
                                                     ])))
         self.manualTranslationButton.grid(row=1, column=4, padx=10, pady=5)
-
+        self.manualTranslationButtonReverse = tk.Button(adjustment_frame, text="Actually go back",
+                                                 command=lambda: self.hexapod.translate(
+                                                     np.array([
+                                                         -float(self.manualTranslationX.get()),
+                                                         -float(self.manualTranslationY.get()),
+                                                         -float(self.manualTranslationZ.get())
+                                                     ])))
+        self.manualTranslationButtonReverse.grid(row=1, column=5, padx=10, pady=5)
         self.manualRotationLabel = tk.Label(adjustment_frame, text="Rotation (θ°):")
         self.manualRotationLabel.grid(row=2, column=0, padx=10, pady=5, sticky=tk.E)
         self.manualRotationX = tk.Entry(adjustment_frame, width=5)
