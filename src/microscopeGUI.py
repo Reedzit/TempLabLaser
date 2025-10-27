@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from instrumentManager import InstrumentInitialize
-from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab, sampleMappingTab
+from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab#, sampleMappingTab
 import os
 
 # import pymeasure.instruments.srs.sr830 as lia
@@ -62,7 +62,7 @@ class MicroscopeGUI:
         self.hexapodTabObject = automationHexapodTab.HexapodAutomationTab(hexapodAutomationFrame, self.instruments, self)
         
         #TODO: Implement Sample Mapping Tab
-        self.sampleMappingTabObject = sampleMappingTab.SampleMappingTab(sampleMappingFrame, self.instruments, self.hexapodTabObject)
+        #self.sampleMappingTabObject = sampleMappingTab.SampleMappingTab(sampleMappingFrame, self.instruments, self.hexapodTabObject)
 
         self.automationTabObject = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
