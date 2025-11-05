@@ -91,11 +91,17 @@ class AutomationTab:
         self.offsetFinalInput.insert(-1, "2.5")
         self.offsetFinalInput.grid(row=3, column=2, padx=10, pady=5)
 
-        self.laserDistanceLabel = tk.Label(input_frame, text="Distance between lasers (mm)")
+        self.laserDistanceLabel = tk.Label(input_frame, text="Distance between lasers (um)")
         self.laserDistanceLabel.grid(row=4, column=0, padx=10, pady=10, sticky=tk.E)
         self.distanceInput = tk.Entry(input_frame)
-        self.distanceInput.insert(0, "1.0")
+        self.distanceInput.insert(0, "5.0")
         self.distanceInput.grid(row=4, column=1, padx=10, pady=10)
+
+        self.laserAngleLabel = tk.Label(input_frame, text="Laser Angle (degrees from x)")
+        self.laserAngleLabel.grid(row=4, column=2, padx=10, pady=10, sticky=tk.E)
+        self.angleInput = tk.Entry(input_frame)
+        self.angleInput.insert(0, "0.0")
+        self.angleInput.grid(row=4, column=3, padx=10, pady=10)
 
         # Control section (in control_frame)
         self.startMeasurements = tk.Button(control_frame, text="Start Measurements", state="disabled",
@@ -136,8 +142,16 @@ class AutomationTab:
         self.fileStorageLocation = tk.StringVar(output_frame, "No Location Given")
         self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(output_frame, text="Choose File Location", command=self.select_file_location)
-        self.fileStorageLabel.grid(row=3, column=1, columnspan=2, padx=10, pady=10)
+        self.fileStorageLabel.grid(row=3, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=3, column=0, padx=10, pady=10)
+
+        sample_options = [x["Sample Name"] for x in pd.read_csv(os.path.join("res", "Sample Options.csv")).to_dict(orient="records")]
+        self.sample_selector_var = tk.StringVar(output_frame, sample_options[0])
+        self.sample_selector = tk.OptionMenu(output_frame, self.sample_selector_var, *sample_options)
+        self.sample_selector.grid(row=2, column=3, padx=10, pady=10)
+        
+        self.generate_readme_button = tk.Button(output_frame, text="Generate README", command=self.generate_readme)
+        self.generate_readme_button.grid(row=3, column=1, padx=10, pady=10)
 
         self.automationGraph = tk.Label(output_frame)
         self.automationGraph.grid(row=4, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
@@ -156,9 +170,32 @@ class AutomationTab:
         
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
+    def generate_readme(self):
+        readme_generator = READMEGenerator()
+        readme_generator.extra_info_pop_up(self.parent)
+        readme_generator.generate_readme(self.fileStorageLocation.get())
+
     def begin_automation(self, begin = False):
+        print("Producing Correct File Organization...")
+        def create_directory_structure(base_path, sample_name):
+            if sample_name != "NONE":
+                subdirectory_name = f"{sample_name}Date_{time.strftime('%b-%d-%Y')}"
+            else:
+                return base_path
+            corrected_path = os.path.join(base_path, subdirectory_name)
+            if not os.path.exists(corrected_path):
+                print(f"Creating directory at: {corrected_path}")
+                os.makedirs(corrected_path)
+            measurement_name = f"Measurement_{time.strftime('%H-%M%p')}_BO{self.distanceInput.get()}um_Angle{self.angleInput.get()}deg"
+            full_corrected_path = os.path.join(corrected_path, measurement_name)
+            print(f"Creating measurement directory at: {full_corrected_path}")
+            if not os.path.exists(full_corrected_path):
+                os.makedirs(full_corrected_path)
+            return full_corrected_path
+        self.fileStorageLocation.set(create_directory_structure(self.fileStorageLocation.get(), self.sample_selector_var.get()))
+
         print("Beginning Automation...")
-        print(f"Distance between lasers: {self.distanceInput.get()} mm")
+        print(f"Distance between lasers: {self.distanceInput.get()} um")
         print(f"Wait for convergence: {self.wait_for_convergence.get()}")
         if self.graph:
             self.graph.__del__()
@@ -331,3 +368,88 @@ class AutomationTab:
 
         # Schedule next update
         self.automationTxtBx.after(100, self.schedule_automation_update)
+
+class READMEGenerator:
+    def __init__(self):
+        self.operator = "NA"
+        self.sample_id = "NA"
+        self.sample_vendor = "NA"
+        self.sample_gold_thickness = "NA"
+        self.sample_notes = "NA"
+        self.beam_offset = "NA"
+        self.beam_angle = "NA"
+        self.green_center = "NA"
+        self.red_center = "NA"
+        self.green_power = "NA"
+        self.lowest_freq = "NA"
+        self.highest_freq = "NA"
+        self.freq_mode = "NA"
+        self.lia_time_constant = "NA"
+        self.lia_sensitivity = "NA"
+        self.photodiode_gain = "NA"
+        import datetime
+        self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.save_path = "NA"
+
+    def extra_info_pop_up(self, parent):
+        from tkinter import ttk
+        self.popup = tk.Toplevel(parent)
+        self.popup.title("Enter README Information")
+        ttk.Label(self.popup, text="Operator:").grid(row=0, column=0)
+        self.operator_entry = ttk.Entry(self.popup).grid(row=0, column=1)
+        def end_pop_up(self):
+            self.operator = str(self.operator_entry.get())
+            self.popup.destroy()
+        ttk.Button(self.popup, text="Submit", command=lambda:end_pop_up(self)).grid(row=10, column=0, columnspan=2)
+        parent.wait_window(self.popup)
+
+
+
+    def generate_readme(self, file_location):
+        print("Generating README...")
+        readMe = f"""
+############################################################
+#                    MEASUREMENT README                    #
+############################################################
+
+---------------------------
+GENERAL INFORMATION
+---------------------------
+Operator:                {self.operator}
+Date & Time:             {self.timestamp}
+
+---------------------------
+SAMPLE INFORMATION
+---------------------------
+Sample ID:               {self.sample_id}
+Sample Vendor:           {self.sample_vendor}
+Sample Gold Thickness:   {self.sample_gold_thickness}
+Notes on Sample:         {self.sample_notes}
+
+---------------------------
+LASER INFORMATION
+---------------------------
+Beam Offset:             {self.beam_offset}
+Beam Angle:              {self.beam_angle}
+Green Center:            {self.green_center}
+Red Center:              {self.red_center}
+Green Power:             {self.green_power}
+
+---------------------------
+EQUIPMENT SETTINGS
+---------------------------
+Lowest Freq:             {self.lowest_freq}
+Highest Freq:            {self.highest_freq}
+Log or Linear:           {self.freq_mode}
+LIA Time Constant:       {self.lia_time_constant}
+LIA Sensitivity:         {self.lia_sensitivity}
+PhotoDiode Gain:         {self.photodiode_gain}
+
+############################################################
+#                   END OF MEASUREMENT FILE                #
+############################################################
+""".strip()
+        readme_path = os.path.join(file_location, "README.txt")
+        with open(readme_path, 'w') as f:
+            f.write(readMe)
+        print(f"README generated at {readme_path}")
