@@ -104,7 +104,7 @@ class AutomationTab:
         self.angleInput.grid(row=4, column=3, padx=10, pady=10)
 
         # Control section (in control_frame)
-        self.startMeasurements = tk.Button(control_frame, text="Start Measurements", state="disabled",
+        self.startMeasurements = tk.Button(control_frame, text="Start Measurements", state="normal",
                                            command=lambda: self.begin_automation(begin=True))
         self.startMeasurements.grid(row=0, column=0, padx=10, pady=10)
         self.endMeasurements = tk.Button(control_frame, text="End Measurements", state="disabled",
@@ -118,7 +118,7 @@ class AutomationTab:
 
         self.timePerStep = tk.IntVar(control_frame, 1)
         self.timePerStepLabel = tk.Label(control_frame, text="Time Per Step (s):")
-        self.timePerStepInput = tk.Entry(control_frame, textvariable=self.timePerStep, state='disabled')
+        self.timePerStepInput = tk.Entry(control_frame, textvariable=self.timePerStep, state='normal')
         self.timePerStepInput.grid(row=1, column=0, padx=10, pady=10)
         self.timePerStepLabel.grid(row=0, column=2, padx=10, pady=10)
 
@@ -130,7 +130,7 @@ class AutomationTab:
 
         self.stepCountLabel = tk.Label(output_frame, text="Step Count:")
         self.stepCount = tk.IntVar(output_frame, 1)
-        self.stepCountInput = tk.Entry(output_frame, textvariable=self.stepCount, state='disabled')
+        self.stepCountInput = tk.Entry(output_frame, textvariable=self.stepCount, state='normal')
         self.stepCountInput.grid(row=2, column=1, padx=10, pady=10)
         self.stepCountLabel.grid(row=2, column=0, padx=10, pady=10)
 
@@ -139,7 +139,7 @@ class AutomationTab:
         self.graph_selector = tk.OptionMenu(output_frame, self.graph_selector_var, *graph_selector_options)
         self.graph_selector.grid(row=2, column=2, padx=10, pady=10)
 
-        self.fileStorageLocation = tk.StringVar(output_frame, "No Location Given")
+        self.fileStorageLocation = tk.StringVar(output_frame, "C:\\Users\\templab\\Desktop\\Data")
         self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(output_frame, text="Choose File Location", command=self.select_file_location)
         self.fileStorageLabel.grid(row=3, column=2, columnspan=2, padx=10, pady=10)
@@ -167,13 +167,11 @@ class AutomationTab:
         # Bind mouse wheel to scroll
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
     def generate_readme(self):
         readme_generator = READMEGenerator()
-        readme_generator.extra_info_pop_up(self.parent)
-        readme_generator.generate_readme(self.fileStorageLocation.get())
+        readme_generator.extra_info_pop_up(self)
 
     def begin_automation(self, begin = False):
         print("Producing Correct File Organization...")
@@ -311,9 +309,6 @@ class AutomationTab:
         else:
             self.fileStorageLocation.set(filePath)
             print(self.fileStorageLocation)
-            self.timePerStepInput["state"] = "normal"
-            self.stepCountInput["state"] = "normal"
-            self.startMeasurements["state"] = "normal"
 
     def update_automation_graph(self):
         image = self.graph.plot_output.get_nowait()
@@ -393,19 +388,54 @@ class READMEGenerator:
 
     def extra_info_pop_up(self, parent):
         from tkinter import ttk
-        self.popup = tk.Toplevel(parent)
-        self.popup.title("Enter README Information")
-        ttk.Label(self.popup, text="Operator:").grid(row=0, column=0)
-        self.operator_entry = ttk.Entry(self.popup).grid(row=0, column=1)
+        grandpa = parent.parent # This is crap code but this is the main window
+        def build_UI(self):
+            self.popup = tk.Toplevel(grandpa)
+            self.popup.title("Enter README Information")
+            ttk.Label(self.popup, text="Operator:").grid(row=0, column=0)
+            self.operator_entry = ttk.Entry(self.popup)
+            self.operator_entry.grid(row=0, column=1)
+            self.diode_gain_label = ttk.Label(self.popup, text="Photodiode Gain:")
+            self.diode_gain_label.grid(row=1, column=0)
+            self.diode_gain_entry = ttk.Entry(self.popup)
+            self.diode_gain_entry.insert(0, "10")
+            self.diode_gain_entry.grid(row=1, column=1)
+            ttk.Button(self.popup, text="Submit", command=lambda:end_pop_up(self)).grid(row=10, column=0, columnspan=2)
         def end_pop_up(self):
             self.operator = str(self.operator_entry.get())
+            self.photodiode_gain = str(self.diode_gain_entry.get())
+            if self.operator == "":
+                self.operator = "Someone that doesn't fill boxes in"
+                print("No operator name provided;")
             self.popup.destroy()
-        ttk.Button(self.popup, text="Submit", command=lambda:end_pop_up(self)).grid(row=10, column=0, columnspan=2)
-        parent.wait_window(self.popup)
-
-
+            self.update_info(parent)
+            self.generate_readme(parent.fileStorageLocation.get())
+        build_UI(self)
+        
+    def update_info(self, parent):
+        laser_gui = parent
+        print(laser_gui)
+        sample_record = pd.read_csv(os.path.join("res", "Sample Options.csv"))
+        self.sample_id = laser_gui.sample_selector_var.get()
+        sample_info = sample_record.loc[sample_record["Sample Name"] == self.sample_id]
+        print(sample_info)
+        self.sample_gold_thickness = sample_info["Gold Thickness"].values[0]
+        self.sample_vendor = sample_info["Vendor"].values[0]
+        self.sample_notes = sample_info["Details"].values[0]
+        self.beam_offset = laser_gui.distanceInput.get()
+        self.beam_angle = laser_gui.angleInput.get()
+        self.green_center = "Computer Vision not implemented"
+        self.red_center = "Computer Vision not implemented"
+        self.green_power = "coherent connection not yet connected to GUI"
+        self.lowest_freq = laser_gui.freqInitialInput.get()
+        self.highest_freq = laser_gui.freqFinalInput.get()
+        self.freq_mode = laser_gui.spacing_selector_var.get()
+        self.lia_time_constant = str(laser_gui.instruments.lia.query("OFLT?"))
+        self.lia_sensitivity = str(laser_gui.instruments.lia.query("SENS?"))
+        self.save_path = laser_gui.fileStorageLocation.get()
 
     def generate_readme(self, file_location):
+        print("Collecting information for README...")
         print("Generating README...")
         readMe = f"""
 ############################################################
