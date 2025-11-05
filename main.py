@@ -9,4 +9,4 @@ from src.microscopeGUI import MicroscopeGUI
 
 if __name__ == '__main__':
     manager = multiprocessing.Manager()
-    MicroscopeGUI(manager) 
+    MicroscopeGUI(manager).run.gui

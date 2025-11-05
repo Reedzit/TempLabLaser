@@ -11,7 +11,7 @@ import os
 
 """
 This is a giga script. I am so sorry for this, but I don't want to split it up into multiple files.
-It is a bit of a mess, but it works. I will try to refactor it in the future.
+It is a bit of a mess, but it works.
 """
 
 class InstrumentInitialize:
@@ -372,7 +372,7 @@ class InstrumentInitialize:
             # Save data to CSV
             if not data.empty and filepath:
                 if degree is None:
-                    name = f"measurement_data_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".csv"}"
+                    name = f"measurement_{datetime.datetime.now().strftime("%m-%d_%H-%M")} {spot_distance}um.csv"
                 else:
                     name = f"{round(degree,1)} degrees" + ".csv"
                 full_path = os.path.join(filepath, name)
