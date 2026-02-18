@@ -439,11 +439,11 @@ class RasteringTab:
         if self.x_positions is not None and self.y_positions is not None:
             extent = [self.x_positions[0], self.x_positions[-1],
                       self.y_positions[0], self.y_positions[-1]]
-            im = self.ax.imshow(self.scan_data[:,:][0], extent=extent, origin='lower',
+            im = self.ax.imshow(self.scan_data, extent=extent, origin='lower',
                                aspect='auto', cmap='hot')
             self.ax.set_xlabel('X Position (mm)')
             self.ax.set_ylabel('Y Position (mm)')
-            self.ax.set_title('LIA Magnitude Heatmap')
+            self.ax.set_title('LIA Amplitude Heatmap')
 
         self.canvas_plot.draw()
 
