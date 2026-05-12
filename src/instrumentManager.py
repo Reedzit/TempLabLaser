@@ -372,9 +372,9 @@ class InstrumentInitialize:
             # Save data to CSV
             if not data.empty and filepath:
                 if degree is None:
-                    name = f"measurement_{datetime.datetime.now().strftime("%m-%d_%H-%M")} {spot_distance}um.csv"
+                    name = f"measurement_{datetime.datetime.now().strftime('%m-%d_%H-%M')} {spot_distance}um.csv"
                 else:
-                    name = f"{round(degree,1)} degrees" + ".csv"
+                    name = f"{round(degree,1)} degrees.csv"
                 full_path = os.path.join(filepath, name)
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 data.to_csv(full_path, index=False)
