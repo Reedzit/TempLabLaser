@@ -1,41 +1,45 @@
-# TEMP Lab Microscope 
-This is a GUI that integrates function generators, a hexapod and in the future a lock in camera to automate the workflow for our setup. 
+# TempLab Laser
 
-### Installation Instructions
-1. Download the required modules using pip or conda. Run the following commands in your terminal
-~~~
-# for pip
+Microscope and hardware automation GUI for the TempLab setup. The application coordinates the laser, function generators, hexapod, and measurement logging.
+
+## Repository layout
+
+- `main.py` - application entry point
+- `src/` - GUI tabs, instrument managers, and automation logic
+- `res/` - sample metadata and other shared resources
+- `src/matlab/` - MATLAB analysis helpers and example data
+
+## Run
+
+```bash
+python main.py
+```
+
+## Installation
+
+Install the Python dependencies first:
+
+```bash
 pip install pyvisa pyvisa-py matplotlib numpy tk subprocess paramiko zeroconf psutil pandas fonttools
-~~~
-2.  To install Matlab Engine API you need to have Matlab installed on your machine. If it is installed on your machine run the following commands in your terminal:
-~~~
-# navigate to your matlab directory in the terminal
+```
+
+If you use MATLAB analysis, install the MATLAB Engine API from your MATLAB installation:
+
+```bash
 cd "matlabroot\extern\engines\python"
 python -m pip install .
-# if you run into issues with this there are troubleshooting steps here: https://www.mathworks.com/help/matlab/matlab_external/install-the-matlab-engine-for-python.html
-~~~
-3. To start the program, run "main.py" by pressing the play button if you are using VSCode or if you would like to run it from the terminal:
-~~~
-# navigate to the templablaser directory
-cd "path to templablaser directory"
-# it should say templablaser at the end of the current path like the following
-PS C:\...\templablaser>
-# run this command
-python main.py
-~~~
+```
 
-### Instruments Instructions
-1. If you have run this program before and have a desired configuration saved, you can skip to step 4. Otherwise continue to step 2.
-2. Under "Create Configuration", type in a good name for the function generator configuration you would like to set followed by the corresponding frequency, amplitude, and offset.
-3. Click "Create Configuration".
-4. Click the drop down box and select your desired configuration.
-5. Click "Update Configuration".
+## Measurement workflow
 
-### Hexapod Instructions
-1. Connect to the hexapod
-2. If you are turning on the controller for the first time, run the homing sequence, otherwise skip this step. (When the hexapod is homing you must wait for the stage to move all the way in (-z direction) and back out (+z direction). It will move back to the neutral position when it is finished.)
-3. Turn on control.
-4. Specify the step size (mm) and choose which direction you would like the stage to move.
+1. Configure the instruments.
+2. Connect and home the hexapod if needed.
+3. Select the sample and measurement parameters.
+4. Start automation from the laser tab.
 
-### Lock In Amplifier Instructions
-1. 
+Each measurement run writes its data into a dedicated folder and generates a measurement README alongside the collected files.
+
+## Notes
+
+- Python cache files and local data artifacts are ignored by default.
+- The generated measurement README now mirrors the simpler, structured style used in the sister unified codebase.

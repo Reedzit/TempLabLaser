@@ -14,6 +14,10 @@ import time
 from tkinter import ttk
 
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SAMPLE_OPTIONS_PATH = os.path.join(PROJECT_ROOT, "res", "Sample Options.csv")
+
+
 class AutomationTab:
     def __init__(self, parent, instruments, main_gui):
         self.graph = GraphBox(1,"Default")
@@ -145,7 +149,13 @@ class AutomationTab:
         self.fileStorageLabel.grid(row=3, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=3, column=0, padx=10, pady=10)
 
-        sample_options = [x["Sample Name"] for x in pd.read_csv(os.path.join("res", "Sample Options.csv")).to_dict(orient="records")]
+        try:
+            sample_options_df = pd.read_csv(SAMPLE_OPTIONS_PATH)
+            sample_options = [x["Sample Name"] for x in sample_options_df.to_dict(orient="records")]
+            if not sample_options:
+                sample_options = ["NONE"]
+        except Exception:
+            sample_options = ["NONE"]
         self.sample_selector_var = tk.StringVar(output_frame, sample_options[0])
         self.sample_selector = tk.OptionMenu(output_frame, self.sample_selector_var, *sample_options)
         self.sample_selector.grid(row=2, column=3, padx=10, pady=10)
@@ -172,6 +182,11 @@ class AutomationTab:
     def generate_readme(self):
         readme_generator = READMEGenerator()
         readme_generator.extra_info_pop_up(self)
+
+    def generate_readme_automated(self, file_location):
+        readme_generator = READMEGenerator()
+        readme_generator.update_info(self, operator=os.environ.get("USERNAME", "Automated Operator"), photodiode_gain="10")
+        readme_generator.generate_readme(file_location)
 
     def begin_automation(self, begin = False):
         print("Producing Correct File Organization...")
@@ -237,6 +252,9 @@ class AutomationTab:
         self.automationTxtBx.insert('1.0', f"Starting Automation...\n")
         self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
         self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
+
+        # Write measurement metadata immediately so it lives with the data folder.
+        self.generate_readme_automated(filepath)
         
         if begin == True:
             threading.Thread(target=self.instruments.automatic_measuring, 
@@ -365,6 +383,8 @@ class AutomationTab:
         self.automationTxtBx.after(100, self.schedule_automation_update)
 
 class READMEGenerator:
+    """Collects and writes measurement metadata into a Markdown README file."""
+
     def __init__(self):
         self.operator = "NA"
         self.sample_id = "NA"
@@ -385,6 +405,75 @@ class READMEGenerator:
         import datetime
         self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.save_path = "NA"
+        self.lia_settings = {}
+
+    @staticmethod
+    def _safe_query(instrument, command):
+        if instrument is None:
+            return "Unavailable"
+        try:
+            return str(instrument.query(command)).strip()
+        except Exception:
+            return "Unavailable"
+
+    def _collect_lia_settings(self, lia, instruments):
+        if lia is None:
+            self.lia_settings = {"Connection": "Unavailable"}
+            return
+
+        input_config_map = {
+            "0": "A",
+            "1": "A-B",
+            "2": "I (1 MOhm)",
+            "3": "I (100 MOhm)",
+        }
+        reserve_mode_map = {"0": "High Reserve", "1": "Normal", "2": "Low Noise"}
+        filter_slope_map = {"0": "6 dB/oct", "1": "12 dB/oct", "2": "18 dB/oct", "3": "24 dB/oct"}
+        ref_source_map = {"0": "External", "1": "Internal"}
+        line_notch_map = {"0": "Off", "1": "Line", "2": "2x Line", "3": "Both"}
+        coupling_map = {"0": "AC", "1": "DC"}
+        shield_map = {"0": "Float", "1": "Ground"}
+        sync_map = {"0": "Off", "1": "On"}
+        sample_rate_map = {
+            "0": "62.5 mHz", "1": "125 mHz", "2": "250 mHz", "3": "500 mHz",
+            "4": "1 Hz", "5": "2 Hz", "6": "4 Hz", "7": "8 Hz",
+            "8": "16 Hz", "9": "32 Hz", "10": "64 Hz", "11": "128 Hz",
+            "12": "256 Hz", "13": "512 Hz", "14": "Trigger",
+        }
+
+        sens_code = self._safe_query(lia, "SENS?")
+        tc_code = self._safe_query(lia, "OFLT?")
+
+        sensitivity = "Unavailable"
+        if sens_code.isdigit() and int(sens_code) < len(instruments.sensitivities):
+            sensitivity = instruments.sensitivities[int(sens_code)]
+
+        time_constant = "Unavailable"
+        if tc_code.isdigit() and int(tc_code) < len(instruments.time_constants):
+            time_constant = instruments.time_constants[int(tc_code)]
+
+        self.lia_settings = {
+            "Identification": self._safe_query(lia, "*IDN?"),
+            "Reference Source": ref_source_map.get(self._safe_query(lia, "FMOD?"), self._safe_query(lia, "FMOD?")),
+            "Reference Frequency (Hz)": self._safe_query(lia, "FREQ?"),
+            "Reference Phase (deg)": self._safe_query(lia, "PHAS?"),
+            "Harmonic": self._safe_query(lia, "HARM?"),
+            "Sine Output Level (V)": self._safe_query(lia, "SLVL?"),
+            "Input Configuration": input_config_map.get(self._safe_query(lia, "ISRC?"), self._safe_query(lia, "ISRC?")),
+            "Input Shield": shield_map.get(self._safe_query(lia, "IGND?"), self._safe_query(lia, "IGND?")),
+            "Input Coupling": coupling_map.get(self._safe_query(lia, "ICPL?"), self._safe_query(lia, "ICPL?")),
+            "Line Notch Filters": line_notch_map.get(self._safe_query(lia, "ILIN?"), self._safe_query(lia, "ILIN?")),
+            "Sensitivity": sensitivity,
+            "Reserve Mode": reserve_mode_map.get(self._safe_query(lia, "RMOD?"), self._safe_query(lia, "RMOD?")),
+            "Time Constant": time_constant,
+            "Low Pass Slope": filter_slope_map.get(self._safe_query(lia, "OFSL?"), self._safe_query(lia, "OFSL?")),
+            "Synchronous Filter": sync_map.get(self._safe_query(lia, "SYNC?"), self._safe_query(lia, "SYNC?")),
+            "Sample Rate": sample_rate_map.get(self._safe_query(lia, "SRAT?"), self._safe_query(lia, "SRAT?")),
+            "X Output (V)": self._safe_query(lia, "OUTP? 1"),
+            "Y Output (V)": self._safe_query(lia, "OUTP? 2"),
+            "R Output (V)": self._safe_query(lia, "OUTP? 3"),
+            "Theta Output (deg)": self._safe_query(lia, "OUTP? 4"),
+        }
 
     def extra_info_pop_up(self, parent):
         from tkinter import ttk
@@ -412,16 +501,20 @@ class READMEGenerator:
             self.generate_readme(parent.fileStorageLocation.get())
         build_UI(self)
         
-    def update_info(self, parent):
+    def update_info(self, parent, operator=None, photodiode_gain=None):
         laser_gui = parent
-        print(laser_gui)
-        sample_record = pd.read_csv(os.path.join("res", "Sample Options.csv"))
+        if operator is not None:
+            self.operator = str(operator)
+        if photodiode_gain is not None:
+            self.photodiode_gain = str(photodiode_gain)
+
+        sample_record = pd.read_csv(SAMPLE_OPTIONS_PATH)
         self.sample_id = laser_gui.sample_selector_var.get()
         sample_info = sample_record.loc[sample_record["Sample Name"] == self.sample_id]
-        print(sample_info)
-        self.sample_gold_thickness = sample_info["Gold Thickness"].values[0]
-        self.sample_vendor = sample_info["Vendor"].values[0]
-        self.sample_notes = sample_info["Details"].values[0]
+        if not sample_info.empty:
+            self.sample_gold_thickness = sample_info["Gold Thickness"].values[0]
+            self.sample_vendor = sample_info["Vendor"].values[0]
+            self.sample_notes = sample_info["Details"].values[0]
         self.beam_offset = laser_gui.distanceInput.get()
         self.beam_angle = laser_gui.angleInput.get()
         self.green_center = "Computer Vision not implemented"
@@ -430,56 +523,67 @@ class READMEGenerator:
         self.lowest_freq = laser_gui.freqInitialInput.get()
         self.highest_freq = laser_gui.freqFinalInput.get()
         self.freq_mode = laser_gui.spacing_selector_var.get()
-        self.lia_time_constant = str(laser_gui.instruments.lia.query("OFLT?"))
-        self.lia_sensitivity = str(laser_gui.instruments.lia.query("SENS?"))
+        lia = getattr(laser_gui.instruments, "lia", None)
+        self._collect_lia_settings(lia, laser_gui.instruments)
+        if lia is not None:
+            try:
+                self.lia_time_constant = str(lia.query("OFLT?"))
+                self.lia_sensitivity = str(lia.query("SENS?"))
+            except Exception:
+                self.lia_time_constant = "Unavailable"
+                self.lia_sensitivity = "Unavailable"
+        else:
+            self.lia_time_constant = "Unavailable"
+            self.lia_sensitivity = "Unavailable"
         self.save_path = laser_gui.fileStorageLocation.get()
 
     def generate_readme(self, file_location):
         print("Collecting information for README...")
         print("Generating README...")
+        lia_lines = "\n".join([f"{key}: {value}" for key, value in self.lia_settings.items()])
         readMe = f"""
 ############################################################
 #                    MEASUREMENT README                    #
 ############################################################
 
----------------------------
-GENERAL INFORMATION
----------------------------
-Operator:                {self.operator}
-Date & Time:             {self.timestamp}
+## General Information
 
----------------------------
-SAMPLE INFORMATION
----------------------------
-Sample ID:               {self.sample_id}
-Sample Vendor:           {self.sample_vendor}
-Sample Gold Thickness:   {self.sample_gold_thickness}
-Notes on Sample:         {self.sample_notes}
+- Operator: {self.operator}
+- Date & Time: {self.timestamp}
 
----------------------------
-LASER INFORMATION
----------------------------
-Beam Offset:             {self.beam_offset}
-Beam Angle:              {self.beam_angle}
-Green Center:            {self.green_center}
-Red Center:              {self.red_center}
-Green Power:             {self.green_power}
+## Sample Information
 
----------------------------
-EQUIPMENT SETTINGS
----------------------------
-Lowest Freq:             {self.lowest_freq}
-Highest Freq:            {self.highest_freq}
-Log or Linear:           {self.freq_mode}
-LIA Time Constant:       {self.lia_time_constant}
-LIA Sensitivity:         {self.lia_sensitivity}
-PhotoDiode Gain:         {self.photodiode_gain}
+- Sample ID: {self.sample_id}
+- Sample Vendor: {self.sample_vendor}
+- Sample Gold Thickness: {self.sample_gold_thickness}
+- Notes on Sample: {self.sample_notes}
+
+## Laser Information
+
+- Beam Offset: {self.beam_offset}
+- Beam Angle: {self.beam_angle}
+- Green Center: {self.green_center}
+- Red Center: {self.red_center}
+- Green Power: {self.green_power}
+
+## Equipment Settings
+
+- Lowest Freq: {self.lowest_freq}
+- Highest Freq: {self.highest_freq}
+- Log or Linear: {self.freq_mode}
+- LIA Time Constant: {self.lia_time_constant}
+- LIA Sensitivity: {self.lia_sensitivity}
+- PhotoDiode Gain: {self.photodiode_gain}
+
+## Lock-In Amplifier Snapshot
+
+{lia_lines}
 
 ############################################################
 #                   END OF MEASUREMENT FILE                #
 ############################################################
 """.strip()
-        readme_path = os.path.join(file_location, "README.txt")
+        readme_path = os.path.join(file_location, "README.md")
         with open(readme_path, 'w') as f:
             f.write(readMe)
         print(f"README generated at {readme_path}")
