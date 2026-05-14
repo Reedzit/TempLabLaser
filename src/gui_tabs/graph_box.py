@@ -9,9 +9,9 @@ from PIL import Image
 
 
 SUPPORTED_PLOTS = {
-    "Default",
-    "Candlestick",
     "TrendLive",
+    "Legacy",
+    "Candlestick",
     "TrajectoryLive",
     "DualPanelLive",
 }
@@ -180,7 +180,14 @@ def _render_trend_live_plot(data, spacing_type):
     q3 = grouped.quantile(0.75).reindex(median_phase.index)
 
     ax.plot(median_phase.index, median_phase.values, color="#1f77b4", linewidth=2, label="Median Phase")
-    ax.fill_between(median_phase.index, q1.values, q3.values, color="#1f77b4", alpha=0.2, label="IQR (25-75%)")
+    ax.fill_between(
+        median_phase.index,
+        q1.values,
+        q3.values,
+        color="#d62728",
+        alpha=0.2,
+        label="Interquartile Range (25th-75th Percentile)",
+    )
 
     latest = data.iloc[-1]
     ax.scatter(
@@ -192,6 +199,28 @@ def _render_trend_live_plot(data, spacing_type):
         label="Latest Measurement",
         zorder=3,
     )
+
+    if "RealOut" in data.columns:
+        real_median = data.groupby("FrequencyIn")["RealOut"].median().reindex(median_phase.index)
+        ax.plot(
+            real_median.index,
+            real_median.values,
+            color="#00cfe8",
+            linewidth=1.7,
+            alpha=0.6,
+            label="Median RealOut",
+        )
+
+    if "ImagOut" in data.columns:
+        imag_median = data.groupby("FrequencyIn")["ImagOut"].median().reindex(median_phase.index)
+        ax.plot(
+            imag_median.index,
+            imag_median.values,
+            color="#ff8c00",
+            linewidth=1.7,
+            alpha=0.6,
+            label="Median ImagOut",
+        )
 
     _apply_frequency_scale(ax, spacing_type)
     ax.set_title("Live Phase Trend with IQR Band")
@@ -280,17 +309,17 @@ def _render_dual_panel_live_plot(data, spacing_type):
 
 
 PLOT_RENDERERS = {
-    "Default": _render_default_plot,
-    "Candlestick": _render_candlestick_plot,
     "TrendLive": _render_trend_live_plot,
+    "Legacy": _render_default_plot,
+    "Candlestick": _render_candlestick_plot,
     "TrajectoryLive": _render_trajectory_live_plot,
     "DualPanelLive": _render_dual_panel_live_plot,
 }
 
 
-def plotting_process(data_queue, plot_queue, plot_code="Default"):
+def plotting_process(data_queue, plot_queue, plot_code="TrendLive"):
     print("Starting plotting process")
-    selected_plot = plot_code if plot_code in SUPPORTED_PLOTS else "Default"
+    selected_plot = plot_code if plot_code in SUPPORTED_PLOTS else "TrendLive"
 
     while True:
         try:
@@ -300,7 +329,7 @@ def plotting_process(data_queue, plot_queue, plot_code="Default"):
                 break
 
             data, spacing_type = _prepare_data(payload)
-            renderer = PLOT_RENDERERS.get(selected_plot, _render_default_plot)
+            renderer = PLOT_RENDERERS.get(selected_plot, _render_trend_live_plot)
             fig = renderer(data, spacing_type)
 
             image = _figure_to_image(fig)

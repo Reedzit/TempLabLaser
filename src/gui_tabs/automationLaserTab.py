@@ -18,7 +18,7 @@ SAMPLE_OPTIONS_PATH = os.path.join(PROJECT_ROOT, "res", "Sample Options.csv")
 
 class AutomationTab:
     def __init__(self, parent, instruments, main_gui):
-        self.graph = GraphBox(1,"Default")
+        self.graph = GraphBox(1,"TrendLive")
         self.parent = parent
         self.instruments = instruments
         self.setup_ui()
@@ -136,8 +136,8 @@ class AutomationTab:
         self.stepCountInput.grid(row=2, column=1, padx=10, pady=10)
         self.stepCountLabel.grid(row=2, column=0, padx=10, pady=10)
 
-        graph_selector_options = ["Default", "Candlestick", "TrendLive", "TrajectoryLive", "DualPanelLive"]
-        self.graph_selector_var = tk.StringVar(output_frame, "Default")
+        graph_selector_options = ["TrendLive", "Legacy", "Candlestick", "TrajectoryLive", "DualPanelLive"]
+        self.graph_selector_var = tk.StringVar(output_frame, "TrendLive")
         self.graph_selector = tk.OptionMenu(output_frame, self.graph_selector_var, *graph_selector_options)
         self.graph_selector.grid(row=2, column=2, padx=10, pady=10)
 
@@ -242,11 +242,8 @@ class AutomationTab:
         self.laser_settings = (freq, amp, offset, timeStep, stepCount, spot_distance, spacing)
 
 
-        self.startMeasurements["state"] = "disabled"
-        self.endMeasurements["state"] = "normal"
+        self._set_measurement_controls(running=True)
         self.stepCountInput["state"] = "normal"
-        self.fileStorageButton["state"] = "disabled"
-        self.fileStorageLabel["state"] = "disabled"
         self.automationTxtBx.insert('1.0', f"Starting Automation...\n")
         self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
         self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
@@ -257,6 +254,18 @@ class AutomationTab:
         if begin == True:
             threading.Thread(target=self.instruments.automatic_measuring, 
                              args=(self.laser_settings, filepath, False)).start()
+
+    def _set_measurement_controls(self, running):
+        if running:
+            self.startMeasurements["state"] = "disabled"
+            self.endMeasurements["state"] = "normal"
+            self.fileStorageButton["state"] = "disabled"
+            self.fileStorageLabel["state"] = "disabled"
+        else:
+            self.endMeasurements["state"] = "disabled"
+            self.startMeasurements["state"] = "normal"
+            self.fileStorageButton["state"] = "normal"
+            self.fileStorageLabel["state"] = "normal"
 
 
     def end_automation(self):
@@ -285,10 +294,7 @@ class AutomationTab:
             self.parent.after(100)  # Give time for automation to clean up
 
         # Reset all GUI elements
-        self.endMeasurements["state"] = "disabled"
-        self.startMeasurements["state"] = "normal"
-        self.fileStorageButton["state"] = "normal"
-        self.fileStorageLabel["state"] = "normal"
+        self._set_measurement_controls(running=False)
         self.timePerStepInput["state"] = "normal"
         self.stepCountInput["state"] = "normal"
 
@@ -374,6 +380,10 @@ class AutomationTab:
 """)
 
     def schedule_automation_update(self):
+        if self.instruments.automation_status == "completed" and self.startMeasurements["state"] == "disabled":
+            self._set_measurement_controls(running=False)
+            self.automationTxtBx.insert('1.0', "Automation completed. Ready for new measurement.\n")
+
         if not self.instruments.automationQueue.empty():
             print("Automation queue not empty")
             try:
