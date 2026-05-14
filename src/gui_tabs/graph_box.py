@@ -173,6 +173,7 @@ def _render_candlestick_plot(data, spacing_type):
 def _render_trend_live_plot(data, spacing_type):
     fig = plt.figure(figsize=(8, 8))
     ax = fig.gca()
+    ax_ri = ax.twinx()
 
     grouped = data.groupby("FrequencyIn")["PhaseOut"]
     median_phase = grouped.median().sort_index()
@@ -200,34 +201,47 @@ def _render_trend_live_plot(data, spacing_type):
         zorder=3,
     )
 
+    real_line = None
+    imag_line = None
+
     if "RealOut" in data.columns:
         real_median = data.groupby("FrequencyIn")["RealOut"].median().reindex(median_phase.index)
-        ax.plot(
+        real_line, = ax_ri.plot(
             real_median.index,
             real_median.values,
             color="#00cfe8",
             linewidth=1.7,
             alpha=0.6,
-            label="Median RealOut",
+            label="Median RealOut (right axis)",
         )
 
     if "ImagOut" in data.columns:
         imag_median = data.groupby("FrequencyIn")["ImagOut"].median().reindex(median_phase.index)
-        ax.plot(
+        imag_line, = ax_ri.plot(
             imag_median.index,
             imag_median.values,
             color="#ff8c00",
             linewidth=1.7,
             alpha=0.6,
-            label="Median ImagOut",
+            label="Median ImagOut (right axis)",
         )
 
     _apply_frequency_scale(ax, spacing_type)
+    _apply_frequency_scale(ax_ri, spacing_type)
     ax.set_title("Live Phase Trend with IQR Band")
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Phase (rad)")
+    ax_ri.set_ylabel("Real / Imag (V)")
+    ax_ri.tick_params(axis="y", labelcolor="#444444")
     ax.grid(True, alpha=0.3)
-    ax.legend(loc="upper right")
+    handles, labels = ax.get_legend_handles_labels()
+    if real_line is not None:
+        handles.append(real_line)
+        labels.append("Median RealOut (right axis)")
+    if imag_line is not None:
+        handles.append(imag_line)
+        labels.append("Median ImagOut (right axis)")
+    ax.legend(handles, labels, loc="upper right")
     fig.tight_layout()
     return fig
 
