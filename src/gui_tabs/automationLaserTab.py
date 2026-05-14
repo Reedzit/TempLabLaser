@@ -1,13 +1,11 @@
 import tkinter as tk
 import tkinter.filedialog
 
-import pandas
 import pandas as pd
 from PIL import Image, ImageTk
 import os
 import sys
 import threading
-import multiprocessing
 import queue
 from src.gui_tabs.graph_box import GraphBox
 import time
@@ -215,8 +213,6 @@ class AutomationTab:
         if self.graph:
             self.graph.__del__()
         self.graph = GraphBox(self.distanceInput.get(), self.graph_selector_var.get())
-        # Create a multiprocessing Queue to be able to pass images back and forth
-        self.image_queue = self.manager.Queue()
         # Reset all data structures
         self.graph.amplitude_data = []
         self.graph.phase_data = []
@@ -388,9 +384,7 @@ class AutomationTab:
                 self.update_automation_textbox(dataFrame)
 
                 # Update graph data
-                pickle_loc = self.graph.PICKLE_FILE_LOCATION +"_"+self.spacing_selector_var.get() +".pickle"
-                pd.to_pickle(dataFrame, pickle_loc)
-                self.graph.data_queue.put_nowait(pickle_loc)
+                self.graph.queue_plot_update(dataFrame, self.spacing_selector_var.get())
                 print("Sent new data to plotting process")
 
             except queue.Empty:
