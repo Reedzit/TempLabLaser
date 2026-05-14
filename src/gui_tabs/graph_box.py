@@ -7,6 +7,10 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from PIL import Image
 
+REAL_TRACE_COLOR = "#00cfe8"
+IMAG_TRACE_COLOR = "#ff8c00"
+TRACE_ALPHA = 0.45
+
 
 SUPPORTED_PLOTS = {
     "TrendLive",
@@ -209,9 +213,9 @@ def _render_trend_live_plot(data, spacing_type):
         real_line, = ax_ri.plot(
             real_median.index,
             real_median.values,
-            color="#00cfe8",
+            color=REAL_TRACE_COLOR,
             linewidth=1.7,
-            alpha=0.6,
+            alpha=TRACE_ALPHA,
             label="Median RealOut (right axis)",
         )
 
@@ -220,9 +224,9 @@ def _render_trend_live_plot(data, spacing_type):
         imag_line, = ax_ri.plot(
             imag_median.index,
             imag_median.values,
-            color="#ff8c00",
+            color=IMAG_TRACE_COLOR,
             linewidth=1.7,
-            alpha=0.6,
+            alpha=TRACE_ALPHA,
             label="Median ImagOut (right axis)",
         )
 
