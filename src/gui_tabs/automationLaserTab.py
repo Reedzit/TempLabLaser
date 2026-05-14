@@ -143,7 +143,8 @@ class AutomationTab:
         self.graph_selector = tk.OptionMenu(output_frame, self.graph_selector_var, *graph_selector_options)
         self.graph_selector.grid(row=2, column=2, padx=10, pady=10)
 
-        self.fileStorageLocation = tk.StringVar(output_frame, "C:\\Users\\templab\\Desktop\\Data")
+        self.fileStorageRoot = "C:\\Users\\templab\\Desktop\\Data"
+        self.fileStorageLocation = tk.StringVar(output_frame, self.fileStorageRoot)
         self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageLocation)
         self.fileStorageButton = tk.Button(output_frame, text="Choose File Location", command=self.select_file_location)
         self.fileStorageLabel.grid(row=3, column=2, columnspan=2, padx=10, pady=10)
@@ -205,7 +206,7 @@ class AutomationTab:
             if not os.path.exists(full_corrected_path):
                 os.makedirs(full_corrected_path)
             return full_corrected_path
-        self.fileStorageLocation.set(create_directory_structure(self.fileStorageLocation.get(), self.sample_selector_var.get()))
+        self.fileStorageLocation.set(create_directory_structure(self.fileStorageRoot, self.sample_selector_var.get()))
 
         print("Beginning Automation...")
         print(f"Distance between lasers: {self.distanceInput.get()} um")
@@ -325,6 +326,7 @@ class AutomationTab:
             self.startMeasurements["state"] = "disabled"
             return
         else:
+            self.fileStorageRoot = filePath
             self.fileStorageLocation.set(filePath)
             print(self.fileStorageLocation)
 
