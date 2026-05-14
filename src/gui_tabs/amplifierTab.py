@@ -50,9 +50,9 @@ class AmplifierTab:
 
 
     def measure(self):
-        amplitude, phase = self.instruments.take_measurement()
+        amplitude, phase, real, imag = self.instruments.take_measurement()
         self.lockInTxtBx.insert('1.0',
-                                f"Time: {datetime.datetime.now().time()} Amplitude: {amplitude} Phase: {phase}\n")
+                                f"Time: {datetime.datetime.now().time()} Amplitude: {amplitude} Phase: {phase} Real: {real} Imag: {imag}\n")
 
     def auto_gain(self):
         answer = self.instruments.auto_gain()

@@ -143,8 +143,10 @@ class AutomationTab:
         self.graph_selector = tk.OptionMenu(output_frame, self.graph_selector_var, *graph_selector_options)
         self.graph_selector.grid(row=2, column=2, padx=10, pady=10)
 
-        self.fileStorageLocation = tk.StringVar(output_frame, "C:\\Users\\templab\\Desktop\\Data")
-        self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageLocation)
+        self.fileStorageRoot = "C:\\Users\\templab\\Desktop\\Data"
+        self.fileStorageLocation = tk.StringVar(output_frame, self.fileStorageRoot)
+        self.fileStorageDisplay = tk.StringVar(output_frame, self._truncate_path(self.fileStorageRoot))
+        self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageDisplay)
         self.fileStorageButton = tk.Button(output_frame, text="Choose File Location", command=self.select_file_location)
         self.fileStorageLabel.grid(row=3, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=3, column=0, padx=10, pady=10)
@@ -205,7 +207,7 @@ class AutomationTab:
             if not os.path.exists(full_corrected_path):
                 os.makedirs(full_corrected_path)
             return full_corrected_path
-        self.fileStorageLocation.set(create_directory_structure(self.fileStorageLocation.get(), self.sample_selector_var.get()))
+        self._set_file_storage_location(create_directory_structure(self.fileStorageRoot, self.sample_selector_var.get()))
 
         print("Beginning Automation...")
         print(f"Distance between lasers: {self.distanceInput.get()} um")
@@ -325,8 +327,22 @@ class AutomationTab:
             self.startMeasurements["state"] = "disabled"
             return
         else:
-            self.fileStorageLocation.set(filePath)
+            self.fileStorageRoot = filePath
+            self._set_file_storage_location(filePath)
             print(self.fileStorageLocation)
+
+    @staticmethod
+    def _truncate_path(path, max_len=70):
+        if len(path) <= max_len:
+            return path
+        keep = max_len - 3
+        left = keep // 2
+        right = keep - left
+        return f"{path[:left]}...{path[-right:]}"
+
+    def _set_file_storage_location(self, path):
+        self.fileStorageLocation.set(path)
+        self.fileStorageDisplay.set(self._truncate_path(path))
 
     def update_automation_graph(self):
         image = self.graph.plot_output.get_nowait()
@@ -340,14 +356,25 @@ class AutomationTab:
 
     def update_automation_textbox(self, values):
         self.automationTxtBx.delete(1.0, tk.END)
-        current_time, current_Step, freqIn, amplitude, phase, convergence, Rotation = tuple(values.iloc[-1])
+        latest = values.iloc[-1]
+        current_time = latest.get("Time", "NA")
+        current_Step = latest.get("index", "NA")
+        freqIn = latest.get("FrequencyIn", "NA")
+        amplitude = latest.get("AmplitudeOut", "NA")
+        phase = latest.get("PhaseOut", "NA")
+        real = latest.get("RealOut", "NA")
+        imag = latest.get("ImagOut", "NA")
+        convergence = latest.get("Convergence", "NA")
+        rotation = latest.get("Degrees of Rotation", "NA")
         self.automationTxtBx.insert(tk.END, f"""
             @{current_time} ({current_Step} step(s)/{self.stepCount.get()} step(s)):
             Input:
             Frequency: {freqIn} Hz
             Output:
             Amplitude: {amplitude} V | Phase: {phase} degrees
+            Real: {real} V | Imag: {imag} V
             Convergence: {convergence}
+            Rotation: {rotation}
 """)
 
     def schedule_automation_update(self):

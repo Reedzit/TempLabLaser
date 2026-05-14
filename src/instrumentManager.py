@@ -108,6 +108,8 @@ class InstrumentInitialize:
     def take_measurement(self):
         if self.lia:
             #start_time = time.perf_counter()
+            real = float(self.lia.query("OUTP? 1"))
+            imag = float(self.lia.query("OUTP? 2"))
             amplitude = float(self.lia.query("OUTP? 3"))
             #query1_time = time.perf_counter() - start_time
 
@@ -117,7 +119,7 @@ class InstrumentInitialize:
 
             #print(f"Query 1 took: {query1_time * 1000:.2f}ms")
             #print(f"Query 2 took: {query2_time * 1000:.2f}ms")
-            return amplitude, phase
+            return amplitude, phase, real, imag
 
         else:
             #print("No lock in amplifier connected")
@@ -125,7 +127,11 @@ class InstrumentInitialize:
             time_since_last_measurement = datetime.datetime.now() - self.time_at_last_measurement
             if self.freq_for_spoofing == None:
                 return False
-            return 4.8, spoof_laser_data(self.freq_for_spoofing, time_since_last_measurement.total_seconds())
+            amplitude = 4.8
+            phase = spoof_laser_data(self.freq_for_spoofing, time_since_last_measurement.total_seconds())
+            real = amplitude * np.cos(np.deg2rad(phase))
+            imag = amplitude * np.sin(np.deg2rad(phase))
+            return amplitude, phase, real, imag
 
     def auto_gain(self):
         if self.lia:
@@ -275,7 +281,7 @@ class InstrumentInitialize:
         convergence = False
 
         # Initialize DataFrame
-        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeOut", "PhaseOut", "Convergence", "Degrees of Rotation"])
+        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeOut", "PhaseOut", "RealOut", "ImagOut", "Convergence", "Degrees of Rotation"])
         
         current_Step = 1
         try:
@@ -298,6 +304,7 @@ class InstrumentInitialize:
             print(f"Number of steps planned: {step_count}")
             print(f"Frequency range: {freqRange}")
             idx = 0
+            printed_measurement_sanity = False
             self.update_configuration(
                 freq=freqRange[idx],
                 amp=ampRange[idx],
@@ -315,10 +322,13 @@ class InstrumentInitialize:
                 delta = current_time - self.time_at_last_measurement
 
                 try:
-                    amplitude, phase = self.take_measurement()
+                    amplitude, phase, real, imag = self.take_measurement()
                 except Exception as e:
                     print(f"Error during measurement: {str(e)}")
                     continue
+                if not printed_measurement_sanity:
+                    print(f"Measurement sanity check -> amp: {amplitude}, phase: {phase}, real: {real}, imag: {imag}")
+                    printed_measurement_sanity = True
                 #print(f"Measurement {idx}: freq={freqRange[idx]}, amplitude={amplitude}, phase={phase}")
 
                 # "Time","index", "FrequencyIn", "AmplitudeOut", "PhaseOut", "Convergence", "Degrees of Rotation"
@@ -330,6 +340,8 @@ class InstrumentInitialize:
                     freqRange[idx],
                     amplitude,
                     phase,
+                    real,
+                    imag,
                     convergence,
                     degree if degree is not None else 0  # Degrees of rotation, defaults to 0
                     ]
