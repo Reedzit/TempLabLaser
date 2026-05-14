@@ -136,7 +136,7 @@ class AutomationTab:
         self.stepCountInput.grid(row=2, column=1, padx=10, pady=10)
         self.stepCountLabel.grid(row=2, column=0, padx=10, pady=10)
 
-        graph_selector_options = ["Default", "Candlestick"]
+        graph_selector_options = ["Default", "Candlestick", "TrendLive", "TrajectoryLive", "DualPanelLive"]
         self.graph_selector_var = tk.StringVar(output_frame, "Default")
         self.graph_selector = tk.OptionMenu(output_frame, self.graph_selector_var, *graph_selector_options)
         self.graph_selector.grid(row=2, column=2, padx=10, pady=10)

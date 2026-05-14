@@ -8,7 +8,13 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 
-SUPPORTED_PLOTS = {"Default", "Candlestick"}
+SUPPORTED_PLOTS = {
+    "Default",
+    "Candlestick",
+    "TrendLive",
+    "TrajectoryLive",
+    "DualPanelLive",
+}
 
 
 def _prepare_data(payload):
@@ -34,6 +40,11 @@ def _figure_to_image(fig):
     image = Image.open(buf).copy()
     buf.close()
     return image
+
+
+def _apply_frequency_scale(ax, spacing_type):
+    if spacing_type == "logspace":
+        ax.set_xscale("log")
 
 
 def _render_default_plot(data, spacing_type):
@@ -70,8 +81,7 @@ def _render_default_plot(data, spacing_type):
     ax1.set_ylabel("Phase (rad)", color="blue")
     ax2.set_ylabel("Diffusivity", color="green")
 
-    if spacing_type == "logspace":
-        ax1.set_xscale("log")
+    _apply_frequency_scale(ax1, spacing_type)
 
     ax1.set_title("Phase and Diffusivity vs Frequency")
     ax1.grid(True)
@@ -118,8 +128,8 @@ def _render_candlestick_plot(data, spacing_type):
     else:
         candle_width = max(abs(frequencies[0]) * 0.05, 1.0)
 
-    up_color = "#2ca02c"
-    down_color = "#d62728"
+    candle_line = "#1f3a5f"
+    candle_fill = "#7ea3cc"
 
     for freq in frequencies:
         open_val = float(opens.loc[freq])
@@ -127,9 +137,7 @@ def _render_candlestick_plot(data, spacing_type):
         high_val = float(highs.loc[freq])
         low_val = float(lows.loc[freq])
 
-        color = up_color if close_val >= open_val else down_color
-
-        ax.vlines(freq, low_val, high_val, color=color, linewidth=1.5, zorder=1)
+        ax.vlines(freq, low_val, high_val, color=candle_line, linewidth=1.5, zorder=1)
 
         body_bottom = min(open_val, close_val)
         body_height = abs(close_val - open_val)
@@ -140,23 +148,18 @@ def _render_candlestick_plot(data, spacing_type):
             (freq - candle_width / 2, body_bottom),
             candle_width,
             body_height,
-            facecolor=color,
-            edgecolor=color,
+            facecolor=candle_fill,
+            edgecolor=candle_line,
             alpha=0.7,
             zorder=2,
         )
         ax.add_patch(rect)
 
-    up_proxy = plt.Line2D([0], [0], color=up_color, lw=6)
-    down_proxy = plt.Line2D([0], [0], color=down_color, lw=6)
-    ax.legend(
-        [up_proxy, down_proxy],
-        ["Green: Close >= Open", "Red: Close < Open"],
-        loc="upper right",
-    )
+    wick_proxy = plt.Line2D([0], [0], color=candle_line, lw=2)
+    body_proxy = plt.Rectangle((0, 0), 1, 1, facecolor=candle_fill, edgecolor=candle_line, alpha=0.7)
+    ax.legend([wick_proxy, body_proxy], ["Wick: Low to High", "Body: Open to Close"], loc="upper right")
 
-    if spacing_type == "logspace":
-        ax.set_xscale("log")
+    _apply_frequency_scale(ax, spacing_type)
 
     ax.set_title("Candlestick Phase vs Frequency")
     ax.set_xlabel("Frequency (Hz)")
@@ -165,6 +168,124 @@ def _render_candlestick_plot(data, spacing_type):
     fig.tight_layout()
 
     return fig
+
+
+def _render_trend_live_plot(data, spacing_type):
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.gca()
+
+    grouped = data.groupby("FrequencyIn")["PhaseOut"]
+    median_phase = grouped.median().sort_index()
+    q1 = grouped.quantile(0.25).reindex(median_phase.index)
+    q3 = grouped.quantile(0.75).reindex(median_phase.index)
+
+    ax.plot(median_phase.index, median_phase.values, color="#1f77b4", linewidth=2, label="Median Phase")
+    ax.fill_between(median_phase.index, q1.values, q3.values, color="#1f77b4", alpha=0.2, label="IQR (25-75%)")
+
+    latest = data.iloc[-1]
+    ax.scatter(
+        [latest["FrequencyIn"]],
+        [latest["PhaseOut"]],
+        color="#d62728",
+        s=80,
+        marker="o",
+        label="Latest Measurement",
+        zorder=3,
+    )
+
+    _apply_frequency_scale(ax, spacing_type)
+    ax.set_title("Live Phase Trend with IQR Band")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Phase (rad)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="upper right")
+    fig.tight_layout()
+    return fig
+
+
+def _render_trajectory_live_plot(data, spacing_type):
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.gca()
+
+    points = data[["FrequencyIn", "PhaseOut"]].to_numpy()
+    count = len(points)
+    if count == 1:
+        ax.scatter(points[:, 0], points[:, 1], color="#ff7f0e", s=90)
+    else:
+        for idx in range(count - 1):
+            alpha = 0.15 + 0.75 * ((idx + 1) / (count - 1))
+            ax.plot(
+                points[idx:idx + 2, 0],
+                points[idx:idx + 2, 1],
+                color="#ff7f0e",
+                linewidth=2,
+                alpha=alpha,
+            )
+        ax.scatter(points[:-1, 0], points[:-1, 1], color="#ffbe7d", s=20, alpha=0.35, label="Older Measurements")
+        ax.scatter(points[-1, 0], points[-1, 1], color="#d62728", s=90, label="Latest Measurement", zorder=3)
+
+    _apply_frequency_scale(ax, spacing_type)
+    ax.set_title("Live Measurement Trajectory")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Phase (rad)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="upper right")
+    fig.tight_layout()
+    return fig
+
+
+def _render_dual_panel_live_plot(data, spacing_type):
+    fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(8, 9), sharex=False)
+
+    grouped = data.groupby("FrequencyIn")["PhaseOut"]
+    mean_phase = grouped.mean().sort_index()
+    std_phase = grouped.std().fillna(0).reindex(mean_phase.index)
+
+    ax_top.plot(mean_phase.index, mean_phase.values, color="#1f77b4", linewidth=2, label="Mean Phase")
+    ax_top.fill_between(
+        mean_phase.index,
+        (mean_phase - std_phase).values,
+        (mean_phase + std_phase).values,
+        color="#1f77b4",
+        alpha=0.2,
+        label="±1 Std",
+    )
+    _apply_frequency_scale(ax_top, spacing_type)
+    ax_top.set_title("Frequency Response")
+    ax_top.set_xlabel("Frequency (Hz)")
+    ax_top.set_ylabel("Phase (rad)")
+    ax_top.grid(True, alpha=0.3)
+    ax_top.legend(loc="upper right")
+
+    recent_count = min(40, len(data))
+    recent_data = data.tail(recent_count).copy()
+    recent_data["Time"] = pd.to_datetime(recent_data["Time"], errors="coerce")
+    if recent_data["Time"].notna().all():
+        x_vals = recent_data["Time"]
+        ax_bottom.set_xlabel("Time")
+    else:
+        x_vals = np.arange(recent_count)
+        ax_bottom.set_xlabel("Recent Sample Index")
+
+    ax_bottom.plot(x_vals, recent_data["PhaseOut"], color="#ff7f0e", linewidth=1.8, label="Recent Phase")
+    ax_bottom.scatter(x_vals.iloc[-1] if hasattr(x_vals, "iloc") else x_vals[-1], recent_data["PhaseOut"].iloc[-1],
+                      color="#d62728", s=70, label="Latest")
+    ax_bottom.set_title("Recent Drift / Settling")
+    ax_bottom.set_ylabel("Phase (rad)")
+    ax_bottom.grid(True, alpha=0.3)
+    ax_bottom.legend(loc="upper right")
+
+    fig.tight_layout()
+    return fig
+
+
+PLOT_RENDERERS = {
+    "Default": _render_default_plot,
+    "Candlestick": _render_candlestick_plot,
+    "TrendLive": _render_trend_live_plot,
+    "TrajectoryLive": _render_trajectory_live_plot,
+    "DualPanelLive": _render_dual_panel_live_plot,
+}
 
 
 def plotting_process(data_queue, plot_queue, plot_code="Default"):
@@ -179,10 +300,8 @@ def plotting_process(data_queue, plot_queue, plot_code="Default"):
                 break
 
             data, spacing_type = _prepare_data(payload)
-            if selected_plot == "Candlestick":
-                fig = _render_candlestick_plot(data, spacing_type)
-            else:
-                fig = _render_default_plot(data, spacing_type)
+            renderer = PLOT_RENDERERS.get(selected_plot, _render_default_plot)
+            fig = renderer(data, spacing_type)
 
             image = _figure_to_image(fig)
             plot_queue.put_nowait(image)
