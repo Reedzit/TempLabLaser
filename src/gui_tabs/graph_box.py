@@ -191,7 +191,7 @@ def _render_trend_live_plot(data, spacing_type):
         q3.values,
         color="#d62728",
         alpha=0.2,
-        label="Interquartile Range (25th-75th Percentile)",
+        label="Interquartile Range",
     )
 
     latest = data.iloc[-1]
