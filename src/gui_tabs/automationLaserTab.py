@@ -145,7 +145,8 @@ class AutomationTab:
 
         self.fileStorageRoot = "C:\\Users\\templab\\Desktop\\Data"
         self.fileStorageLocation = tk.StringVar(output_frame, self.fileStorageRoot)
-        self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageLocation)
+        self.fileStorageDisplay = tk.StringVar(output_frame, self._truncate_path(self.fileStorageRoot))
+        self.fileStorageLabel = tk.Label(output_frame, textvariable=self.fileStorageDisplay)
         self.fileStorageButton = tk.Button(output_frame, text="Choose File Location", command=self.select_file_location)
         self.fileStorageLabel.grid(row=3, column=2, columnspan=2, padx=10, pady=10)
         self.fileStorageButton.grid(row=3, column=0, padx=10, pady=10)
@@ -206,7 +207,7 @@ class AutomationTab:
             if not os.path.exists(full_corrected_path):
                 os.makedirs(full_corrected_path)
             return full_corrected_path
-        self.fileStorageLocation.set(create_directory_structure(self.fileStorageRoot, self.sample_selector_var.get()))
+        self._set_file_storage_location(create_directory_structure(self.fileStorageRoot, self.sample_selector_var.get()))
 
         print("Beginning Automation...")
         print(f"Distance between lasers: {self.distanceInput.get()} um")
@@ -327,8 +328,21 @@ class AutomationTab:
             return
         else:
             self.fileStorageRoot = filePath
-            self.fileStorageLocation.set(filePath)
+            self._set_file_storage_location(filePath)
             print(self.fileStorageLocation)
+
+    @staticmethod
+    def _truncate_path(path, max_len=70):
+        if len(path) <= max_len:
+            return path
+        keep = max_len - 3
+        left = keep // 2
+        right = keep - left
+        return f"{path[:left]}...{path[-right:]}"
+
+    def _set_file_storage_location(self, path):
+        self.fileStorageLocation.set(path)
+        self.fileStorageDisplay.set(self._truncate_path(path))
 
     def update_automation_graph(self):
         image = self.graph.plot_output.get_nowait()
