@@ -340,14 +340,25 @@ class AutomationTab:
 
     def update_automation_textbox(self, values):
         self.automationTxtBx.delete(1.0, tk.END)
-        current_time, current_Step, freqIn, amplitude, phase, convergence, Rotation = tuple(values.iloc[-1])
+        latest = values.iloc[-1]
+        current_time = latest.get("Time", "NA")
+        current_Step = latest.get("index", "NA")
+        freqIn = latest.get("FrequencyIn", "NA")
+        amplitude = latest.get("AmplitudeOut", "NA")
+        phase = latest.get("PhaseOut", "NA")
+        real = latest.get("RealOut", "NA")
+        imag = latest.get("ImagOut", "NA")
+        convergence = latest.get("Convergence", "NA")
+        rotation = latest.get("Degrees of Rotation", "NA")
         self.automationTxtBx.insert(tk.END, f"""
             @{current_time} ({current_Step} step(s)/{self.stepCount.get()} step(s)):
             Input:
             Frequency: {freqIn} Hz
             Output:
             Amplitude: {amplitude} V | Phase: {phase} degrees
+            Real: {real} V | Imag: {imag} V
             Convergence: {convergence}
+            Rotation: {rotation}
 """)
 
     def schedule_automation_update(self):
