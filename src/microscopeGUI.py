@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from instrumentManager import InstrumentInitialize
-from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab, rasteringTab#, sampleMappingTab
+from src.gui_tabs import amplifierTab, hexapodTab, automationLaserTab, instrumentsTab, automationHexapodTab, automationManagementTab, rasteringTab, cameraControlTab#, sampleMappingTab
 import os
 
 # import pymeasure.instruments.srs.sr830 as lia
@@ -49,6 +49,7 @@ class MicroscopeGUI:
         sampleMappingFrame = ttk.Frame(notebook)
         generalAutomationFrame = ttk.Frame(notebook)
         rasteringFrame = ttk.Frame(notebook)
+        cameraControlFrame = ttk.Frame(notebook)
 
         # Add frames to notebook
         notebook.add(laserAutomationFrame, text='Laser Automation')
@@ -56,6 +57,7 @@ class MicroscopeGUI:
         notebook.add(sampleMappingFrame, text='Sample Mapping')
         notebook.add(generalAutomationFrame, text='Automation Finalization')
         notebook.add(rasteringFrame, text='Rastering')
+        notebook.add(cameraControlFrame, text='Camera Control')
 
         # Create tab objects
         self.laserTabObject = automationLaserTab.AutomationTab(laserAutomationFrame, self.instruments, self)
@@ -69,6 +71,8 @@ class MicroscopeGUI:
         self.automationTabObject = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
         self.rasteringTabObject = rasteringTab.RasteringTab(rasteringFrame, self.instruments, self)
+
+        self.cameraControlTabObject = cameraControlTab.CameraControlTab(cameraControlFrame, self.instruments, self)
 
         window.after(100, self.laserTabObject.schedule_automation_update)
 

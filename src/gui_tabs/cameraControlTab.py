@@ -1,0 +1,258 @@
+import threading
+import time
+import tkinter as tk
+import tkinter.filedialog
+from tkinter import ttk
+
+import cv2
+from PIL import Image, ImageTk
+
+from src.cameraManager import CameraManager
+from src.laserDetector import detect_red_green_lasers
+
+
+class CameraControlTab:
+    def __init__(self, parent, instruments, main_gui):
+        self.parent = parent
+        self.instruments = instruments
+        self.main_gui = main_gui
+        self.camera_manager = CameraManager()
+        self.stream_running = False
+        self.stream_thread = None
+        self.last_detection = None
+        self.setup_ui()
+        self.parent.after(100, self.update_live_view)
+
+    def setup_ui(self):
+        main_frame = tk.Frame(self.parent)
+        main_frame.pack(fill=tk.BOTH, expand=1)
+
+        canvas = tk.Canvas(main_frame)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
+
+        scrollbar = tk.Scrollbar(main_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        inner_frame = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=inner_frame, anchor='nw')
+
+        connection_frame = ttk.LabelFrame(inner_frame, text="Camera Connection")
+        connection_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+
+        capture_frame = ttk.LabelFrame(inner_frame, text="Capture Controls")
+        capture_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+
+        image_frame = ttk.LabelFrame(inner_frame, text="Camera View")
+        image_frame.grid(row=2, column=0, padx=10, pady=5, sticky='nsew')
+
+        analysis_frame = ttk.LabelFrame(inner_frame, text="Laser Detection")
+        analysis_frame.grid(row=2, column=1, padx=10, pady=5, sticky='nsew')
+
+        self.status_text = tk.StringVar(value=self.camera_manager.status)
+        self.status_label = tk.Label(connection_frame, textvariable=self.status_text)
+        self.status_label.grid(row=0, column=0, columnspan=4, padx=10, pady=5, sticky=tk.W)
+
+        self.connect_button = tk.Button(connection_frame, text="Connect Camera", command=self.connect_camera)
+        self.connect_button.grid(row=1, column=0, padx=10, pady=5)
+
+        self.disconnect_button = tk.Button(connection_frame, text="Disconnect", command=self.disconnect_camera)
+        self.disconnect_button.grid(row=1, column=1, padx=10, pady=5)
+
+        self.load_test_button = tk.Button(connection_frame, text="Load Test Image", command=self.load_test_image)
+        self.load_test_button.grid(row=1, column=2, padx=10, pady=5)
+
+        self.capture_button = tk.Button(capture_frame, text="Capture Frame", command=self.capture_frame)
+        self.capture_button.grid(row=0, column=0, padx=10, pady=5)
+
+        self.start_stream_button = tk.Button(capture_frame, text="Start Live View", command=self.start_stream)
+        self.start_stream_button.grid(row=0, column=1, padx=10, pady=5)
+
+        self.stop_stream_button = tk.Button(capture_frame, text="Stop Live View", command=self.stop_stream, state="disabled")
+        self.stop_stream_button.grid(row=0, column=2, padx=10, pady=5)
+
+        self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
+        self.save_image_button.grid(row=0, column=3, padx=10, pady=5)
+
+        self.image_label = tk.Label(image_frame, text="No image loaded", width=80, height=30)
+        self.image_label.grid(row=0, column=0, padx=10, pady=10)
+
+        self.s_min = tk.IntVar(value=50)
+        self.v_min = tk.IntVar(value=50)
+        self.contour_selection = tk.IntVar(value=0)
+
+        tk.Label(analysis_frame, text="Saturation Min").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(analysis_frame, textvariable=self.s_min, width=8).grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(analysis_frame, text="Value Min").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(analysis_frame, textvariable=self.v_min, width=8).grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(analysis_frame, text="Contour Index").grid(row=2, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(analysis_frame, textvariable=self.contour_selection, width=8).grid(row=2, column=1, padx=5, pady=5)
+
+        self.detect_lasers_button = tk.Button(analysis_frame, text="Detect Red/Green Lasers", command=self.detect_lasers)
+        self.detect_lasers_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
+
+        self.results_text = tk.Text(analysis_frame, height=18, width=45, font=('Arial', 10))
+        self.results_text.grid(row=4, column=0, columnspan=2, padx=10, pady=10)
+        self.results_text.insert('1.0', "Load or capture an image, then run detection.\n")
+
+        def _on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        inner_frame.bind('<Configure>', _on_frame_configure)
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+    def connect_camera(self):
+        connected = self.camera_manager.connect_camera()
+        self.update_status()
+        if connected:
+            self.capture_frame()
+
+    def disconnect_camera(self):
+        self.stop_stream()
+        self.camera_manager.disconnect()
+        self.update_status()
+
+    def load_test_image(self):
+        image_path = tk.filedialog.askopenfilename(
+            title="Select Test Image",
+            filetypes=[("Image files", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff"), ("All files", "*.*")]
+        )
+        if self.camera_manager.load_test_image(image_path):
+            self.display_frame(self.camera_manager.get_latest_frame())
+        self.update_status()
+
+    def capture_frame(self):
+        frame = self.camera_manager.capture_frame()
+        if frame is not None:
+            self.display_frame(frame)
+        self.update_status()
+
+    def start_stream(self):
+        if self.stream_running:
+            return
+        self.stream_running = True
+        self.start_stream_button['state'] = 'disabled'
+        self.stop_stream_button['state'] = 'normal'
+        self.stream_thread = threading.Thread(target=self._stream_loop, daemon=True)
+        self.stream_thread.start()
+
+    def stop_stream(self):
+        self.stream_running = False
+        self.start_stream_button['state'] = 'normal'
+        self.stop_stream_button['state'] = 'disabled'
+
+    def _stream_loop(self):
+        while self.stream_running:
+            self.camera_manager.capture_frame()
+            time.sleep(0.05)
+
+    def update_live_view(self):
+        if self.stream_running:
+            frame = self.camera_manager.get_latest_frame()
+            if frame is not None:
+                self.display_frame(frame)
+            self.update_status()
+        self.parent.after(100, self.update_live_view)
+
+    def detect_lasers(self):
+        frame = self.camera_manager.get_latest_frame()
+        if frame is None:
+            self.write_results("No image available. Capture a frame or load a test image first.\n")
+            return
+
+        try:
+            result = detect_red_green_lasers(
+                frame,
+                contour_selection=int(self.contour_selection.get()),
+                s_min=int(self.s_min.get()),
+                v_min=int(self.v_min.get()),
+            )
+        except Exception as exc:
+            self.write_results(f"Detection failed: {exc}\n")
+            return
+
+        self.last_detection = result
+        if result.get("annotated_image") is not None:
+            self.display_frame(result["annotated_image"])
+        self.write_results(self.format_detection_results(result))
+
+    def save_current_image(self):
+        frame = self.camera_manager.get_latest_frame()
+        if frame is None:
+            self.update_status("No image to save")
+            return
+
+        file_path = tk.filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg"), ("All files", "*.*")],
+            title="Save Current Image",
+        )
+        if file_path:
+            cv2.imwrite(file_path, frame)
+            self.update_status(f"Saved image: {file_path}")
+
+    def display_frame(self, frame):
+        if frame is None:
+            return
+
+        if frame.ndim == 2:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        else:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        image = Image.fromarray(rgb_frame)
+        image.thumbnail((760, 560), Image.Resampling.LANCZOS)
+        photo = ImageTk.PhotoImage(image)
+        self.image_label.configure(image=photo, text="")
+        self.image_label.image = photo
+
+    def update_status(self, override=None):
+        if override is not None:
+            self.status_text.set(override)
+            return
+
+        status = self.camera_manager.status
+        if self.camera_manager.error:
+            status = f"{status}: {self.camera_manager.error}"
+        self.status_text.set(status)
+
+    def write_results(self, text):
+        self.results_text.delete('1.0', tk.END)
+        self.results_text.insert('1.0', text)
+
+    def format_detection_results(self, result):
+        lines = ["Laser Detection Results", ""]
+        lines.extend(self._format_single_laser("Red", result.get("red")))
+        lines.append("")
+        lines.extend(self._format_single_laser("Green", result.get("green")))
+        lines.append("")
+
+        distance_px = result.get("distance_px")
+        if distance_px is None:
+            lines.append("Distance: unavailable")
+        else:
+            lines.append(f"Distance: {distance_px:.2f} px")
+
+        return "\n".join(lines) + "\n"
+
+    def _format_single_laser(self, name, data):
+        if not data or not data.get("found"):
+            message = data.get("message") if data else "No result"
+            return [f"{name}: not found", f"Reason: {message}"]
+
+        center = data["center"]
+        axes = data["axes"]
+        angle = data["angle"]
+        return [
+            f"{name}: found",
+            f"Center: ({center[0]:.1f}, {center[1]:.1f}) px",
+            f"Axes: ({axes[0]:.1f}, {axes[1]:.1f}) px",
+            f"Angle: {angle:.1f} deg",
+            f"Contours: {data.get('contour_count', 0)}",
+        ]
