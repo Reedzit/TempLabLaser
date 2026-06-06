@@ -35,7 +35,17 @@ class LaserDetector:
         return cv2.inRange(hsv_image, lower1, upper1) | cv2.inRange(hsv_image, lower2, upper2)
 
     def detect(self, image, contour_selection=0, s_min=50, v_min=50):
-        mask = self.mask(image, s_min=s_min, v_min=v_min)
+        if image is None:
+            return None
+
+        if image.ndim == 2:
+            image_bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        elif image.ndim == 3 and image.shape[2] == 4:
+            image_bgr = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+        else:
+            image_bgr = image
+
+        mask = self.mask(image_bgr, s_min=s_min, v_min=v_min)
         if mask is None:
             return None
 
@@ -48,12 +58,12 @@ class LaserDetector:
                 "found": False,
                 "message": "No suitable contours found",
                 "mask": mask,
-                "annotated_image": image.copy(),
+                "annotated_image": image_bgr.copy(),
             }
 
         contour = contours[contour_selection]
         ellipse = cv2.fitEllipse(contour)
-        annotated = image.copy()
+        annotated = image_bgr.copy()
         cv2.drawContours(annotated, contours, -1, (255, 0, 0), 1)
         cv2.ellipse(annotated, ellipse, (0, 255, 0), 2)
 
