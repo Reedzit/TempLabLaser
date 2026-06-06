@@ -62,6 +62,12 @@ class CameraManager:
             self.error = None
             return True
         except Exception as exc:
+            try:
+                if self.camera is not None:
+                    self.camera.stream_off()
+                    self.camera.close_device()
+            except Exception:
+                pass
             self.camera = None
             self.status = "Camera connection failed"
             self.error = str(exc)
@@ -70,6 +76,7 @@ class CameraManager:
     def load_test_image(self, image_path):
         if not image_path:
             self.status = "No test image selected"
+            self.error = None
             return False
 
         image = cv2.imread(image_path)
@@ -115,8 +122,8 @@ class CameraManager:
             frame = self.test_image
         else:
             self.status = "No camera or test image"
+            self.error = "Connect a camera or load a test image"
             return None
-
         if frame is not None:
             with self._lock:
                 self.latest_frame = frame
