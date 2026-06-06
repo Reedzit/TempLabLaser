@@ -1,5 +1,6 @@
-import threading
-import time
+import importlib.util
+import subprocess
+import sys
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import ttk
@@ -18,12 +19,12 @@ class CameraControlTab:
         self.main_gui = main_gui
         self.camera_manager = CameraManager()
         self.stream_running = False
-        self.stream_thread = None
+        self.pyside_process = None
         self.last_detection = None
         self.detached_window = None
         self.detached_image_label = None
         self.setup_ui()
-        self.parent.after(100, self.update_live_view)
+        self.parent.after(33, self.update_live_view)
 
     def setup_ui(self):
         main_frame = tk.Frame(self.parent)
@@ -87,6 +88,13 @@ class CameraControlTab:
         self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
         self.save_image_button.grid(row=0, column=4, padx=10, pady=5)
 
+        self.pyside_viewer_button = tk.Button(
+            capture_frame,
+            text="Open PySide6 Camera Controller",
+            command=self.launch_pyside_viewer,
+        )
+        self.pyside_viewer_button.grid(row=0, column=5, padx=10, pady=5)
+
         self.exposure_time = tk.DoubleVar(value=10000.0)
         self.gain = tk.DoubleVar(value=0.0)
         self.gamma = tk.DoubleVar(value=1.0)
@@ -102,6 +110,11 @@ class CameraControlTab:
         tk.Label(settings_frame, text="Camera Gamma").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E)
         tk.Entry(settings_frame, textvariable=self.gamma, width=12).grid(row=1, column=1, padx=5, pady=5)
         tk.Button(settings_frame, text="Apply Gamma", command=self.apply_gamma).grid(row=1, column=2, padx=10, pady=5)
+
+        self.diagnostics_text = tk.StringVar(value="Diagnostics: no frame")
+        tk.Label(settings_frame, textvariable=self.diagnostics_text).grid(
+            row=2, column=0, columnspan=6, padx=5, pady=5, sticky=tk.W
+        )
 
         self.image_label = tk.Label(image_frame, text="No image loaded", bg="black", fg="white")
         self.image_label.grid(row=0, column=0, padx=10, pady=10)
@@ -167,22 +180,19 @@ class CameraControlTab:
             return
         if self.unattached_feed.get():
             self.open_detached_window()
+        if not self.camera_manager.start_capture():
+            self.update_status()
+            return
         self.stream_running = True
         self.start_stream_button['state'] = 'disabled'
         self.stop_stream_button['state'] = 'normal'
-        self.stream_thread = threading.Thread(target=self._stream_loop, daemon=True)
-        self.stream_thread.start()
 
     def stop_stream(self):
         self.stream_running = False
+        self.camera_manager.stop_capture()
         self.start_stream_button['state'] = 'normal'
         self.stop_stream_button['state'] = 'disabled'
         self.close_detached_window()
-
-    def _stream_loop(self):
-        while self.stream_running:
-            self.camera_manager.capture_frame()
-            time.sleep(0.05)
 
     def update_live_view(self):
         if self.stream_running:
@@ -192,8 +202,10 @@ class CameraControlTab:
                     self.display_frame(frame, label=self.detached_image_label, max_size=self.detached_view_size())
                 else:
                     self.display_frame(frame)
+                self.camera_manager.mark_frame_displayed()
             self.update_status()
-        self.parent.after(100, self.update_live_view)
+        self.update_diagnostics()
+        self.parent.after(33, self.update_live_view)
 
     def open_detached_window(self):
         if self.detached_window is not None:
@@ -220,6 +232,19 @@ class CameraControlTab:
         screen_width = self.parent.winfo_screenwidth()
         screen_height = self.parent.winfo_screenheight()
         return min(1400, screen_width - 100), min(1000, screen_height - 140)
+
+    def launch_pyside_viewer(self):
+        if importlib.util.find_spec("PySide6") is None:
+            self.update_status("PySide6 is not installed. Install it with: pip install PySide6")
+            return
+        if self.pyside_process is not None and self.pyside_process.poll() is None:
+            self.update_status("PySide6 camera controller is already running")
+            return
+
+        self.stop_stream()
+        self.camera_manager.disconnect()
+        self.pyside_process = subprocess.Popen([sys.executable, "-m", "src.pyside_camera_viewer"])
+        self.update_status("Opened PySide6 camera controller")
 
     def detect_lasers(self):
         frame = self.camera_manager.get_latest_frame()
@@ -323,11 +348,20 @@ class CameraControlTab:
         else:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+        rgb_frame = self.resize_for_display(rgb_frame, max_size)
         image = Image.fromarray(rgb_frame)
-        image.thumbnail(max_size, Image.Resampling.LANCZOS)
         photo = ImageTk.PhotoImage(image)
         label.configure(image=photo, text="")
         label.image = photo
+
+    def resize_for_display(self, frame, max_size):
+        max_width, max_height = max_size
+        height, width = frame.shape[:2]
+        scale = min(max_width / width, max_height / height, 1.0)
+        if scale == 1.0:
+            return frame
+        new_size = (int(width * scale), int(height * scale))
+        return cv2.resize(frame, new_size, interpolation=cv2.INTER_AREA)
 
     def update_status(self, override=None):
         if override is not None:
@@ -338,6 +372,21 @@ class CameraControlTab:
         if self.camera_manager.error:
             status = f"{status}: {self.camera_manager.error}"
         self.status_text.set(status)
+
+    def update_diagnostics(self):
+        diagnostics = self.camera_manager.get_diagnostics()
+        frame_age = diagnostics["frame_age_ms"]
+        if frame_age is None:
+            frame_age_text = "n/a"
+        else:
+            frame_age_text = f"{frame_age:.0f} ms"
+        self.diagnostics_text.set(
+            "Diagnostics: "
+            f"capture {diagnostics['capture_fps']:.1f} FPS | "
+            f"display {diagnostics['display_fps']:.1f} FPS | "
+            f"frame age {frame_age_text} | "
+            f"frame {diagnostics['dimensions']}"
+        )
 
     def write_results(self, text):
         self.results_text.delete('1.0', tk.END)
