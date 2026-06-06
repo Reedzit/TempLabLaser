@@ -21,6 +21,8 @@ class CameraControlTab:
         self.stream_running = False
         self.autofocus_running = False
         self.autofocus_thread = None
+        self.focus_laser_running = False
+        self.focus_laser_thread = None
         self.last_detection = None
         self.detached_window = None
         self.detached_image_label = None
@@ -137,8 +139,11 @@ class CameraControlTab:
         self.autofocus_button = tk.Button(autofocus_frame, text="Autofocus", command=self.start_autofocus)
         self.autofocus_button.grid(row=0, column=6, padx=10, pady=5)
 
+        self.focus_laser_button = tk.Button(autofocus_frame, text="Focus Laser", command=self.start_focus_laser)
+        self.focus_laser_button.grid(row=0, column=7, padx=10, pady=5)
+
         tk.Label(autofocus_frame, textvariable=self.autofocus_status).grid(
-            row=1, column=0, columnspan=7, padx=5, pady=5, sticky=tk.W
+            row=1, column=0, columnspan=8, padx=5, pady=5, sticky=tk.W
         )
 
         self.image_label = tk.Label(image_frame, text="No image loaded", bg="black", fg="white")
@@ -281,7 +286,7 @@ class CameraControlTab:
         self.write_results(self.format_detection_results(result))
 
     def start_autofocus(self):
-        if self.autofocus_running:
+        if self.autofocus_running or self.focus_laser_running:
             return
 
         try:
@@ -302,7 +307,7 @@ class CameraControlTab:
             return
 
         self.autofocus_running = True
-        self.autofocus_button['state'] = 'disabled'
+        self.set_focus_buttons_enabled(False)
         self.update_autofocus_status("Autofocus running...")
         self.autofocus_thread = threading.Thread(
             target=self.run_autofocus,
@@ -362,6 +367,104 @@ class CameraControlTab:
         finally:
             self.parent.after(0, self.finish_autofocus)
 
+    def start_focus_laser(self):
+        if self.autofocus_running or self.focus_laser_running:
+            return
+
+        try:
+            scan_range = float(self.autofocus_range.get())
+            step_size = float(self.autofocus_step.get())
+            settle_time = float(self.autofocus_settle.get())
+        except (tk.TclError, ValueError):
+            self.update_autofocus_status("Focus laser settings must be numeric.")
+            return
+
+        if scan_range <= 0 or step_size <= 0 or settle_time < 0:
+            self.update_autofocus_status("Use positive range/step and non-negative settle time.")
+            return
+
+        hexapod = self.get_connected_hexapod()
+        if hexapod is None:
+            self.update_autofocus_status("Connect the hexapod before focusing the laser.")
+            return
+
+        self.focus_laser_running = True
+        self.set_focus_buttons_enabled(False)
+        self.update_autofocus_status("Focus laser scan running...")
+        self.focus_laser_thread = threading.Thread(
+            target=self.run_focus_laser,
+            args=(hexapod, scan_range, step_size, settle_time),
+            daemon=True,
+        )
+        self.focus_laser_thread.start()
+
+    def run_focus_laser(self, hexapod, scan_range, step_size, settle_time):
+        positions = self.build_autofocus_positions(scan_range, step_size)
+        current_position = 0.0
+        best_position = None
+        best_beam_size = None
+        measurements = []
+
+        try:
+            self.move_hexapod_z(hexapod, positions[0] - current_position)
+            current_position = positions[0]
+
+            for position in positions:
+                move_amount = position - current_position
+                if move_amount != 0:
+                    self.move_hexapod_z(hexapod, move_amount)
+                    current_position = position
+
+                time.sleep(settle_time)
+                frame = self.camera_manager.capture_frame()
+                if frame is None:
+                    raise RuntimeError("No image available during laser focus scan.")
+
+                measurement = self.calculate_laser_blob_metric(frame)
+                measurement["position"] = position
+                measurements.append(measurement)
+
+                if measurement["found"]:
+                    beam_size = measurement["beam_size_px"]
+                    if best_beam_size is None or beam_size < best_beam_size:
+                        best_position = position
+                        best_beam_size = beam_size
+                    self.parent.after(
+                        0,
+                        self.update_autofocus_status,
+                        f"Focus laser: z={position:.4f} mm, beam size={beam_size:.2f} px",
+                    )
+                    self.parent.after(0, self.display_frame, measurement["annotated_image"])
+                else:
+                    self.parent.after(
+                        0,
+                        self.update_autofocus_status,
+                        f"Focus laser: z={position:.4f} mm, beam not detected",
+                    )
+
+            if best_position is None:
+                raise RuntimeError("Laser beam was not detected at any scan position.")
+
+            self.move_hexapod_z(hexapod, best_position - current_position)
+            best_frame = self.camera_manager.capture_frame()
+            best_measurement = self.calculate_laser_blob_metric(best_frame) if best_frame is not None else None
+
+            if best_measurement and best_measurement["found"]:
+                self.parent.after(0, self.display_frame, best_measurement["annotated_image"])
+            elif best_frame is not None:
+                self.parent.after(0, self.display_frame, best_frame)
+
+            self.parent.after(0, self.write_results, self.format_focus_laser_results(measurements, best_position, best_beam_size))
+            self.parent.after(
+                0,
+                self.update_autofocus_status,
+                f"Focus laser complete: best z={best_position:.4f} mm, beam size={best_beam_size:.2f} px",
+            )
+        except Exception as exc:
+            self.parent.after(0, self.update_autofocus_status, f"Focus laser failed: {exc}")
+        finally:
+            self.parent.after(0, self.finish_focus_laser)
+
     def build_autofocus_positions(self, scan_range, step_size):
         positions = []
         position = -scan_range
@@ -378,6 +481,75 @@ class CameraControlTab:
         else:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    def calculate_laser_blob_metric(self, frame):
+        if frame is None:
+            return {"found": False, "reason": "No frame", "annotated_image": None}
+
+        if frame.ndim == 2:
+            gray = frame
+            annotated = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        else:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            annotated = frame.copy()
+
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        max_intensity = int(np.max(blurred))
+        if max_intensity <= 0:
+            return {
+                "found": False,
+                "reason": "Frame has no signal",
+                "annotated_image": annotated,
+            }
+
+        otsu_threshold, _ = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        threshold_value = int(max(otsu_threshold, max_intensity * 0.35))
+        _, mask = cv2.threshold(blurred, threshold_value, 255, cv2.THRESH_BINARY)
+
+        kernel = np.ones((3, 3), dtype=np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return {
+                "found": False,
+                "reason": "No blob found",
+                "annotated_image": annotated,
+            }
+
+        contour = max(contours, key=cv2.contourArea)
+        contour_area = float(cv2.contourArea(contour))
+        if contour_area < 5.0:
+            return {
+                "found": False,
+                "reason": "Blob too small",
+                "annotated_image": annotated,
+            }
+
+        cv2.drawContours(annotated, [contour], -1, (255, 0, 0), 1)
+        if len(contour) >= 5:
+            ellipse = cv2.fitEllipse(contour)
+            center, axes, _ = ellipse
+            beam_size = float(np.sqrt(max(axes[0], 1e-6) * max(axes[1], 1e-6)))
+            cv2.ellipse(annotated, ellipse, (0, 255, 0), 2)
+            cv2.circle(annotated, (int(center[0]), int(center[1])), 3, (0, 255, 255), -1)
+        else:
+            x, y, w, h = cv2.boundingRect(contour)
+            center = (x + w / 2.0, y + h / 2.0)
+            axes = (float(w), float(h))
+            beam_size = float(np.sqrt(max(w, 1) * max(h, 1)))
+            cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.circle(annotated, (int(center[0]), int(center[1])), 3, (0, 255, 255), -1)
+
+        return {
+            "found": True,
+            "beam_size_px": beam_size,
+            "center": center,
+            "axes": axes,
+            "contour_area_px": contour_area,
+            "annotated_image": annotated,
+        }
 
     def get_connected_hexapod(self):
         hexapod_tab = getattr(self.main_gui, "hexapodTabObject", None)
@@ -399,10 +571,21 @@ class CameraControlTab:
 
     def finish_autofocus(self):
         self.autofocus_running = False
-        self.autofocus_button['state'] = 'normal'
+        if not self.focus_laser_running:
+            self.set_focus_buttons_enabled(True)
+
+    def finish_focus_laser(self):
+        self.focus_laser_running = False
+        if not self.autofocus_running:
+            self.set_focus_buttons_enabled(True)
 
     def update_autofocus_status(self, text):
         self.autofocus_status.set(text)
+
+    def set_focus_buttons_enabled(self, enabled):
+        state = 'normal' if enabled else 'disabled'
+        self.autofocus_button['state'] = state
+        self.focus_laser_button['state'] = state
 
     def apply_exposure_time(self):
         value = self.get_ranged_setting(self.exposure_time, "Exposure time", 12, 100000)
@@ -584,6 +767,20 @@ class CameraControlTab:
         lines.append("")
         lines.append(f"Best focus: z={best_position:.4f} mm")
         lines.append(f"Sharpness: {best_score:.2f}")
+        return "\n".join(lines) + "\n"
+
+    def format_focus_laser_results(self, measurements, best_position, best_beam_size):
+        lines = ["Focus Laser Results", "", "Beam metric uses blob size (smaller is better).", ""]
+        for measurement in measurements:
+            position = measurement["position"]
+            if measurement["found"]:
+                marker = "*" if position == best_position else " "
+                lines.append(f"{marker} z={position:.4f} mm: beam size={measurement['beam_size_px']:.2f} px")
+            else:
+                lines.append(f"  z={position:.4f} mm: no beam ({measurement.get('reason', 'unknown')})")
+        lines.append("")
+        lines.append(f"Best laser focus: z={best_position:.4f} mm")
+        lines.append(f"Beam size: {best_beam_size:.2f} px")
         return "\n".join(lines) + "\n"
 
     def _format_single_laser(self, name, data):
