@@ -19,12 +19,15 @@ class CameraControlTab:
         self.main_gui = main_gui
         self.camera_manager = CameraManager()
         self.stream_running = False
-        self.stream_thread = None
         self.autofocus_running = False
         self.autofocus_thread = None
         self.last_detection = None
+        self.detached_window = None
+        self.detached_image_label = None
+        self.last_status_update = 0.0
+        self.last_diagnostics_update = 0.0
         self.setup_ui()
-        self.parent.after(100, self.update_live_view)
+        self.parent.after(33, self.update_live_view)
 
     def setup_ui(self):
         main_frame = tk.Frame(self.parent)
@@ -46,14 +49,17 @@ class CameraControlTab:
         capture_frame = ttk.LabelFrame(inner_frame, text="Capture Controls")
         capture_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
+        settings_frame = ttk.LabelFrame(inner_frame, text="Camera Settings")
+        settings_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+
         image_frame = ttk.LabelFrame(inner_frame, text="Camera View")
-        image_frame.grid(row=2, column=0, padx=10, pady=5, sticky='nsew')
+        image_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         analysis_frame = ttk.LabelFrame(inner_frame, text="Laser Detection")
-        analysis_frame.grid(row=2, column=1, padx=10, pady=5, sticky='nsew')
+        analysis_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         autofocus_frame = ttk.LabelFrame(inner_frame, text="Autofocus")
-        autofocus_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+        autofocus_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         self.status_text = tk.StringVar(value=self.camera_manager.status)
         self.status_label = tk.Label(connection_frame, textvariable=self.status_text)
@@ -74,16 +80,50 @@ class CameraControlTab:
         self.start_stream_button = tk.Button(capture_frame, text="Start Live View", command=self.start_stream)
         self.start_stream_button.grid(row=0, column=1, padx=10, pady=5)
 
+        self.unattached_feed = tk.BooleanVar(value=False)
+        self.unattached_feed_check = tk.Checkbutton(
+            capture_frame,
+            text="Unattached feed",
+            variable=self.unattached_feed,
+        )
+        self.unattached_feed_check.grid(row=0, column=2, padx=10, pady=5)
+
         self.stop_stream_button = tk.Button(capture_frame, text="Stop Live View", command=self.stop_stream, state="disabled")
-        self.stop_stream_button.grid(row=0, column=2, padx=10, pady=5)
+        self.stop_stream_button.grid(row=0, column=3, padx=10, pady=5)
 
         self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
-        self.save_image_button.grid(row=0, column=3, padx=10, pady=5)
+        self.save_image_button.grid(row=0, column=4, padx=10, pady=5)
 
         self.autofocus_range = tk.DoubleVar(value=0.5)
         self.autofocus_step = tk.DoubleVar(value=0.05)
         self.autofocus_settle = tk.DoubleVar(value=0.2)
         self.autofocus_status = tk.StringVar(value="Ready")
+
+        self.exposure_time = tk.DoubleVar(value=100000.0)
+        self.gain = tk.DoubleVar(value=0.0)
+        self.gamma = tk.DoubleVar(value=1.0)
+        self.target_capture_fps = tk.DoubleVar(value=self.camera_manager.target_capture_fps)
+
+        tk.Label(settings_frame, text="Exposure Time (us, 12-100000)").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.exposure_time, width=12).grid(row=0, column=1, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply Exposure", command=self.apply_exposure_time).grid(row=0, column=2, padx=10, pady=5)
+
+        tk.Label(settings_frame, text="Gain (0-24)").grid(row=0, column=3, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.gain, width=12).grid(row=0, column=4, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply Gain", command=self.apply_gain).grid(row=0, column=5, padx=10, pady=5)
+
+        tk.Label(settings_frame, text="Camera Gamma (0-4)").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.gamma, width=12).grid(row=1, column=1, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply Gamma", command=self.apply_gamma).grid(row=1, column=2, padx=10, pady=5)
+
+        tk.Label(settings_frame, text="Preview FPS").grid(row=1, column=3, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.target_capture_fps, width=12).grid(row=1, column=4, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply FPS", command=self.apply_target_capture_fps).grid(row=1, column=5, padx=10, pady=5)
+
+        self.diagnostics_text = tk.StringVar(value=self.empty_diagnostics_text())
+        tk.Label(settings_frame, textvariable=self.diagnostics_text, font=("Courier", 10), width=120, anchor=tk.W).grid(
+            row=2, column=0, columnspan=6, padx=5, pady=5, sticky=tk.W
+        )
 
         tk.Label(autofocus_frame, text="Z Range (+/- mm)").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
         tk.Entry(autofocus_frame, textvariable=self.autofocus_range, width=8).grid(row=0, column=1, padx=5, pady=5)
@@ -101,7 +141,7 @@ class CameraControlTab:
             row=1, column=0, columnspan=7, padx=5, pady=5, sticky=tk.W
         )
 
-        self.image_label = tk.Label(image_frame, text="No image loaded", width=80, height=30)
+        self.image_label = tk.Label(image_frame, text="No image loaded", bg="black", fg="white")
         self.image_label.grid(row=0, column=0, padx=10, pady=10)
 
         self.s_min = tk.IntVar(value=50)
@@ -163,29 +203,60 @@ class CameraControlTab:
     def start_stream(self):
         if self.stream_running:
             return
+        if self.unattached_feed.get():
+            self.open_detached_window()
+        if not self.camera_manager.start_capture():
+            self.update_status()
+            return
         self.stream_running = True
         self.start_stream_button['state'] = 'disabled'
         self.stop_stream_button['state'] = 'normal'
-        self.stream_thread = threading.Thread(target=self._stream_loop, daemon=True)
-        self.stream_thread.start()
 
     def stop_stream(self):
         self.stream_running = False
+        self.camera_manager.stop_capture()
         self.start_stream_button['state'] = 'normal'
         self.stop_stream_button['state'] = 'disabled'
-
-    def _stream_loop(self):
-        while self.stream_running:
-            self.camera_manager.capture_frame()
-            time.sleep(0.05)
+        self.close_detached_window()
 
     def update_live_view(self):
         if self.stream_running:
             frame = self.camera_manager.get_latest_frame()
             if frame is not None:
-                self.display_frame(frame)
-            self.update_status()
-        self.parent.after(100, self.update_live_view)
+                if self.detached_window is not None and self.detached_image_label is not None:
+                    self.display_frame(frame, label=self.detached_image_label, max_size=self.detached_view_size())
+                else:
+                    self.display_frame(frame)
+                self.camera_manager.mark_frame_displayed()
+            self.update_status_throttled()
+        self.update_diagnostics()
+        self.parent.after(33, self.update_live_view)
+
+    def open_detached_window(self):
+        if self.detached_window is not None:
+            self.detached_window.lift()
+            return
+
+        self.detached_window = tk.Toplevel(self.parent)
+        self.detached_window.title("Camera Live Feed")
+        self.detached_window.configure(bg="black")
+        self.detached_image_label = tk.Label(self.detached_window, text="Waiting for camera frame...", bg="black", fg="white")
+        self.detached_image_label.pack(fill=tk.BOTH, expand=True)
+        self.detached_window.protocol("WM_DELETE_WINDOW", self.stop_stream)
+
+    def close_detached_window(self):
+        if self.detached_window is not None:
+            try:
+                self.detached_window.destroy()
+            except tk.TclError:
+                pass
+        self.detached_window = None
+        self.detached_image_label = None
+
+    def detached_view_size(self):
+        screen_width = self.parent.winfo_screenwidth()
+        screen_height = self.parent.winfo_screenheight()
+        return min(1400, screen_width - 100), min(1000, screen_height - 140)
 
     def detect_lasers(self):
         frame = self.camera_manager.get_latest_frame()
@@ -333,6 +404,78 @@ class CameraControlTab:
     def update_autofocus_status(self, text):
         self.autofocus_status.set(text)
 
+    def apply_exposure_time(self):
+        value = self.get_ranged_setting(self.exposure_time, "Exposure time", 12, 100000)
+        if value is None:
+            return
+        self.apply_camera_setting(self.camera_manager.set_exposure_time, value)
+
+    def apply_gain(self):
+        value = self.get_ranged_setting(self.gain, "Gain", 0, 24)
+        if value is None:
+            return
+        self.apply_camera_setting(self.camera_manager.set_gain, value)
+
+    def apply_gamma(self):
+        value = self.get_ranged_setting(self.gamma, "Camera gamma", 0, 4)
+        if value is None:
+            return
+        self.apply_camera_setting(self.camera_manager.set_gamma, value)
+
+    def apply_target_capture_fps(self):
+        value = self.get_positive_setting(self.target_capture_fps, "Preview FPS")
+        if value is None:
+            return
+        success, message = self.camera_manager.set_target_capture_fps(value)
+        self.update_status(message)
+        if not success:
+            self.write_results(f"Camera setting error: {message}\n")
+
+    def apply_camera_setting(self, setter, value):
+        try:
+            success, message = setter(value)
+        except Exception as exc:
+            success = False
+            message = str(exc)
+
+        self.update_status(message)
+        if not success:
+            self.write_results(f"Camera setting error: {message}\n")
+
+    def get_positive_setting(self, variable, name):
+        value = self.get_numeric_setting(variable, name)
+        if value is None:
+            return None
+        if value <= 0:
+            self.update_status(f"{name} must be greater than 0")
+            return None
+        return value
+
+    def get_non_negative_setting(self, variable, name):
+        value = self.get_numeric_setting(variable, name)
+        if value is None:
+            return None
+        if value < 0:
+            self.update_status(f"{name} cannot be negative")
+            return None
+        return value
+
+    def get_ranged_setting(self, variable, name, minimum, maximum):
+        value = self.get_numeric_setting(variable, name)
+        if value is None:
+            return None
+        if value < minimum or value > maximum:
+            self.update_status(f"{name} must be between {minimum} and {maximum}")
+            return None
+        return value
+
+    def get_numeric_setting(self, variable, name):
+        try:
+            return float(variable.get())
+        except (tk.TclError, ValueError):
+            self.update_status(f"{name} must be numeric")
+            return None
+
     def save_current_image(self):
         frame = self.camera_manager.get_latest_frame()
         if frame is None:
@@ -348,20 +491,30 @@ class CameraControlTab:
             cv2.imwrite(file_path, frame)
             self.update_status(f"Saved image: {file_path}")
 
-    def display_frame(self, frame):
+    def display_frame(self, frame, label=None, max_size=(960, 700)):
         if frame is None:
             return
+        if label is None:
+            label = self.image_label
 
-        if frame.ndim == 2:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        preview_frame = self.resize_for_display(frame, max_size)
+        if preview_frame.ndim == 2:
+            rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_GRAY2RGB)
         else:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
+            rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
         image = Image.fromarray(rgb_frame)
-        image.thumbnail((760, 560), Image.Resampling.LANCZOS)
         photo = ImageTk.PhotoImage(image)
-        self.image_label.configure(image=photo, text="")
-        self.image_label.image = photo
+        label.configure(image=photo, text="")
+        label.image = photo
+
+    def resize_for_display(self, frame, max_size):
+        max_width, max_height = max_size
+        height, width = frame.shape[:2]
+        scale = min(max_width / width, max_height / height, 1.0)
+        if scale == 1.0:
+            return frame
+        new_size = (int(width * scale), int(height * scale))
+        return cv2.resize(frame, new_size, interpolation=cv2.INTER_AREA)
 
     def update_status(self, override=None):
         if override is not None:
@@ -372,6 +525,37 @@ class CameraControlTab:
         if self.camera_manager.error:
             status = f"{status}: {self.camera_manager.error}"
         self.status_text.set(status)
+
+    def update_status_throttled(self):
+        now = time.perf_counter()
+        if now - self.last_status_update >= 0.5:
+            self.update_status()
+            self.last_status_update = now
+
+    def update_diagnostics(self):
+        now = time.perf_counter()
+        if now - self.last_diagnostics_update < 0.25:
+            return
+        self.last_diagnostics_update = now
+        diagnostics = self.camera_manager.get_diagnostics()
+        frame_age = diagnostics["frame_age_ms"]
+        if frame_age is None:
+            frame_age_text = "n/a"
+        else:
+            frame_age_text = f"{frame_age:6.0f} ms"
+        self.diagnostics_text.set(
+            f"Diagnostics: capture {diagnostics['capture_fps']:5.1f} FPS | "
+            f"display {diagnostics['display_fps']:5.1f} FPS | "
+            f"frame age {frame_age_text:>9} | "
+            f"frame {diagnostics['dimensions']:<16} | "
+            f"capture total {diagnostics['capture_timing_ms']['total']:6.1f} ms"
+        )
+
+    def empty_diagnostics_text(self):
+        return (
+            "Diagnostics: capture   0.0 FPS | display   0.0 FPS | "
+            "frame age       n/a | frame No frame         | capture total    0.0 ms"
+        )
 
     def write_results(self, text):
         self.results_text.delete('1.0', tk.END)
