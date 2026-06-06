@@ -179,6 +179,7 @@ class CameraControlTab:
             self.open_detached_window()
         if not self.camera_manager.start_capture():
             self.update_status()
+            self.close_detached_window()
             return
         self.stream_running = True
         self.start_stream_button['state'] = 'disabled'
