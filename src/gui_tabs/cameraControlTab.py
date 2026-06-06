@@ -20,6 +20,8 @@ class CameraControlTab:
         self.stream_running = False
         self.stream_thread = None
         self.last_detection = None
+        self.detached_window = None
+        self.detached_image_label = None
         self.setup_ui()
         self.parent.after(100, self.update_live_view)
 
@@ -44,10 +46,10 @@ class CameraControlTab:
         capture_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         image_frame = ttk.LabelFrame(inner_frame, text="Camera View")
-        image_frame.grid(row=2, column=0, padx=10, pady=5, sticky='nsew')
+        image_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         analysis_frame = ttk.LabelFrame(inner_frame, text="Laser Detection")
-        analysis_frame.grid(row=2, column=1, padx=10, pady=5, sticky='nsew')
+        analysis_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         self.status_text = tk.StringVar(value=self.camera_manager.status)
         self.status_label = tk.Label(connection_frame, textvariable=self.status_text)
@@ -68,13 +70,21 @@ class CameraControlTab:
         self.start_stream_button = tk.Button(capture_frame, text="Start Live View", command=self.start_stream)
         self.start_stream_button.grid(row=0, column=1, padx=10, pady=5)
 
+        self.unattached_feed = tk.BooleanVar(value=False)
+        self.unattached_feed_check = tk.Checkbutton(
+            capture_frame,
+            text="Unattached feed",
+            variable=self.unattached_feed,
+        )
+        self.unattached_feed_check.grid(row=0, column=2, padx=10, pady=5)
+
         self.stop_stream_button = tk.Button(capture_frame, text="Stop Live View", command=self.stop_stream, state="disabled")
-        self.stop_stream_button.grid(row=0, column=2, padx=10, pady=5)
+        self.stop_stream_button.grid(row=0, column=3, padx=10, pady=5)
 
         self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
-        self.save_image_button.grid(row=0, column=3, padx=10, pady=5)
+        self.save_image_button.grid(row=0, column=4, padx=10, pady=5)
 
-        self.image_label = tk.Label(image_frame, text="No image loaded", width=80, height=30)
+        self.image_label = tk.Label(image_frame, text="No image loaded", bg="black", fg="white")
         self.image_label.grid(row=0, column=0, padx=10, pady=10)
 
         self.s_min = tk.IntVar(value=50)
@@ -136,6 +146,8 @@ class CameraControlTab:
     def start_stream(self):
         if self.stream_running:
             return
+        if self.unattached_feed.get():
+            self.open_detached_window()
         self.stream_running = True
         self.start_stream_button['state'] = 'disabled'
         self.stop_stream_button['state'] = 'normal'
@@ -146,6 +158,7 @@ class CameraControlTab:
         self.stream_running = False
         self.start_stream_button['state'] = 'normal'
         self.stop_stream_button['state'] = 'disabled'
+        self.close_detached_window()
 
     def _stream_loop(self):
         while self.stream_running:
@@ -156,9 +169,38 @@ class CameraControlTab:
         if self.stream_running:
             frame = self.camera_manager.get_latest_frame()
             if frame is not None:
-                self.display_frame(frame)
+                if self.detached_window is not None and self.detached_image_label is not None:
+                    self.display_frame(frame, label=self.detached_image_label, max_size=self.detached_view_size())
+                else:
+                    self.display_frame(frame)
             self.update_status()
         self.parent.after(100, self.update_live_view)
+
+    def open_detached_window(self):
+        if self.detached_window is not None:
+            self.detached_window.lift()
+            return
+
+        self.detached_window = tk.Toplevel(self.parent)
+        self.detached_window.title("Camera Live Feed")
+        self.detached_window.configure(bg="black")
+        self.detached_image_label = tk.Label(self.detached_window, text="Waiting for camera frame...", bg="black", fg="white")
+        self.detached_image_label.pack(fill=tk.BOTH, expand=True)
+        self.detached_window.protocol("WM_DELETE_WINDOW", self.stop_stream)
+
+    def close_detached_window(self):
+        if self.detached_window is not None:
+            try:
+                self.detached_window.destroy()
+            except tk.TclError:
+                pass
+        self.detached_window = None
+        self.detached_image_label = None
+
+    def detached_view_size(self):
+        screen_width = self.parent.winfo_screenwidth()
+        screen_height = self.parent.winfo_screenheight()
+        return min(1400, screen_width - 100), min(1000, screen_height - 140)
 
     def detect_lasers(self):
         frame = self.camera_manager.get_latest_frame()
@@ -197,9 +239,11 @@ class CameraControlTab:
             cv2.imwrite(file_path, frame)
             self.update_status(f"Saved image: {file_path}")
 
-    def display_frame(self, frame):
+    def display_frame(self, frame, label=None, max_size=(960, 700)):
         if frame is None:
             return
+        if label is None:
+            label = self.image_label
 
         if frame.ndim == 2:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
@@ -207,10 +251,10 @@ class CameraControlTab:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         image = Image.fromarray(rgb_frame)
-        image.thumbnail((760, 560), Image.Resampling.LANCZOS)
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
         photo = ImageTk.PhotoImage(image)
-        self.image_label.configure(image=photo, text="")
-        self.image_label.image = photo
+        label.configure(image=photo, text="")
+        label.image = photo
 
     def update_status(self, override=None):
         if override is not None:
