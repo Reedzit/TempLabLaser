@@ -82,14 +82,22 @@ class LaserDetector:
 
 
 def detect_red_green_lasers(image, contour_selection=0, s_min=50, v_min=50):
+    if image is None:
+        image_bgr = None
+    elif image.ndim == 2:
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    elif image.ndim == 3 and image.shape[2] == 4:
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+    else:
+        image_bgr = image
+
     red_detector = LaserDetector((0, 0, 255))
     green_detector = LaserDetector((0, 255, 0))
-    red = red_detector.detect(image, contour_selection=contour_selection, s_min=s_min, v_min=v_min)
-    green = green_detector.detect(image, contour_selection=contour_selection, s_min=s_min, v_min=v_min)
+    red = red_detector.detect(image_bgr, contour_selection=contour_selection, s_min=s_min, v_min=v_min)
+    green = green_detector.detect(image_bgr, contour_selection=contour_selection, s_min=s_min, v_min=v_min)
 
     distance_px = None
-    annotated = image.copy() if image is not None else None
-
+    annotated = image_bgr.copy() if image_bgr is not None else None
     if red and red.get("found"):
         annotated = red["annotated_image"]
     if green and green.get("found") and annotated is not None:
