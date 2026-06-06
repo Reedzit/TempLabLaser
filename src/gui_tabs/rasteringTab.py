@@ -391,7 +391,7 @@ class RasteringTab:
                     measurement = self.instruments.take_measurement()
 
                     if measurement:
-                        amplitude, phase = measurement
+                        amplitude, phase, _, _ = measurement
                         self.scan_data[j, i] = amplitude   # Amplitude for heatmap display
                         self.phase_data[j, i] = phase      # Phase stored separately
                     else:
@@ -703,4 +703,3 @@ class RasteringTab:
 
             except Exception as e:
                 self.progressText.set(f"Error saving: {e}")
-
