@@ -1,6 +1,4 @@
-import importlib.util
-import subprocess
-import sys
+import time
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import ttk
@@ -19,10 +17,11 @@ class CameraControlTab:
         self.main_gui = main_gui
         self.camera_manager = CameraManager()
         self.stream_running = False
-        self.pyside_process = None
         self.last_detection = None
         self.detached_window = None
         self.detached_image_label = None
+        self.last_status_update = 0.0
+        self.last_diagnostics_update = 0.0
         self.setup_ui()
         self.parent.after(33, self.update_live_view)
 
@@ -88,16 +87,10 @@ class CameraControlTab:
         self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
         self.save_image_button.grid(row=0, column=4, padx=10, pady=5)
 
-        self.pyside_viewer_button = tk.Button(
-            capture_frame,
-            text="Open PySide6 Camera Controller",
-            command=self.launch_pyside_viewer,
-        )
-        self.pyside_viewer_button.grid(row=0, column=5, padx=10, pady=5)
-
         self.exposure_time = tk.DoubleVar(value=10000.0)
         self.gain = tk.DoubleVar(value=0.0)
         self.gamma = tk.DoubleVar(value=1.0)
+        self.target_capture_fps = tk.DoubleVar(value=self.camera_manager.target_capture_fps)
 
         tk.Label(settings_frame, text="Exposure Time (us)").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
         tk.Entry(settings_frame, textvariable=self.exposure_time, width=12).grid(row=0, column=1, padx=5, pady=5)
@@ -110,6 +103,10 @@ class CameraControlTab:
         tk.Label(settings_frame, text="Camera Gamma").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E)
         tk.Entry(settings_frame, textvariable=self.gamma, width=12).grid(row=1, column=1, padx=5, pady=5)
         tk.Button(settings_frame, text="Apply Gamma", command=self.apply_gamma).grid(row=1, column=2, padx=10, pady=5)
+
+        tk.Label(settings_frame, text="Preview FPS").grid(row=1, column=3, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.target_capture_fps, width=12).grid(row=1, column=4, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply FPS", command=self.apply_target_capture_fps).grid(row=1, column=5, padx=10, pady=5)
 
         self.diagnostics_text = tk.StringVar(value="Diagnostics: no frame")
         tk.Label(settings_frame, textvariable=self.diagnostics_text).grid(
@@ -203,7 +200,7 @@ class CameraControlTab:
                 else:
                     self.display_frame(frame)
                 self.camera_manager.mark_frame_displayed()
-            self.update_status()
+            self.update_status_throttled()
         self.update_diagnostics()
         self.parent.after(33, self.update_live_view)
 
@@ -232,19 +229,6 @@ class CameraControlTab:
         screen_width = self.parent.winfo_screenwidth()
         screen_height = self.parent.winfo_screenheight()
         return min(1400, screen_width - 100), min(1000, screen_height - 140)
-
-    def launch_pyside_viewer(self):
-        if importlib.util.find_spec("PySide6") is None:
-            self.update_status("PySide6 is not installed. Install it with: pip install PySide6")
-            return
-        if self.pyside_process is not None and self.pyside_process.poll() is None:
-            self.update_status("PySide6 camera controller is already running")
-            return
-
-        self.stop_stream()
-        self.camera_manager.disconnect()
-        self.pyside_process = subprocess.Popen([sys.executable, "-m", "src.pyside_camera_viewer"])
-        self.update_status("Opened PySide6 camera controller")
 
     def detect_lasers(self):
         frame = self.camera_manager.get_latest_frame()
@@ -285,6 +269,15 @@ class CameraControlTab:
         if value is None:
             return
         self.apply_camera_setting(self.camera_manager.set_gamma, value)
+
+    def apply_target_capture_fps(self):
+        value = self.get_positive_setting(self.target_capture_fps, "Preview FPS")
+        if value is None:
+            return
+        success, message = self.camera_manager.set_target_capture_fps(value)
+        self.update_status(message)
+        if not success:
+            self.write_results(f"Camera setting error: {message}\n")
 
     def apply_camera_setting(self, setter, value):
         try:
@@ -343,12 +336,11 @@ class CameraControlTab:
         if label is None:
             label = self.image_label
 
-        if frame.ndim == 2:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        preview_frame = self.resize_for_display(frame, max_size)
+        if preview_frame.ndim == 2:
+            rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_GRAY2RGB)
         else:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        rgb_frame = self.resize_for_display(rgb_frame, max_size)
+            rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
         image = Image.fromarray(rgb_frame)
         photo = ImageTk.PhotoImage(image)
         label.configure(image=photo, text="")
@@ -373,7 +365,17 @@ class CameraControlTab:
             status = f"{status}: {self.camera_manager.error}"
         self.status_text.set(status)
 
+    def update_status_throttled(self):
+        now = time.perf_counter()
+        if now - self.last_status_update >= 0.5:
+            self.update_status()
+            self.last_status_update = now
+
     def update_diagnostics(self):
+        now = time.perf_counter()
+        if now - self.last_diagnostics_update < 0.25:
+            return
+        self.last_diagnostics_update = now
         diagnostics = self.camera_manager.get_diagnostics()
         frame_age = diagnostics["frame_age_ms"]
         if frame_age is None:
@@ -385,7 +387,8 @@ class CameraControlTab:
             f"capture {diagnostics['capture_fps']:.1f} FPS | "
             f"display {diagnostics['display_fps']:.1f} FPS | "
             f"frame age {frame_age_text} | "
-            f"frame {diagnostics['dimensions']}"
+            f"frame {diagnostics['dimensions']} | "
+            f"capture total {diagnostics['capture_timing_ms']['total']:.1f} ms"
         )
 
     def write_results(self, text):

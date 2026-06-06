@@ -25,10 +25,18 @@ class CameraManager:
         self.low_latency_notes = []
         self.capture_running = False
         self.capture_thread = None
+        self.target_capture_fps = 30.0
         self.capture_fps = 0.0
         self.display_fps = 0.0
         self.frame_count = 0
         self.display_count = 0
+        self.capture_timing_ms = {
+            "total": 0.0,
+            "get_image": 0.0,
+            "convert": 0.0,
+            "numpy": 0.0,
+            "color": 0.0,
+        }
         self._capture_fps_window_start = time.perf_counter()
         self._display_fps_window_start = time.perf_counter()
         self._lock = threading.Lock()
@@ -73,7 +81,7 @@ class CameraManager:
         with self._lock:
             self.test_image_path = image_path
             self.test_image = image
-            self.latest_frame = image.copy()
+            self.latest_frame = image
             self.latest_frame_time = time.perf_counter()
 
         self.status = f"Loaded test image: {os.path.basename(image_path)}"
@@ -100,14 +108,14 @@ class CameraManager:
         if self.camera is not None:
             frame = self._capture_camera_frame()
         elif self.test_image is not None:
-            frame = self.test_image.copy()
+            frame = self.test_image
         else:
             self.status = "No camera or test image"
             return None
 
         if frame is not None:
             with self._lock:
-                self.latest_frame = frame.copy()
+                self.latest_frame = frame
                 self.latest_frame_time = time.perf_counter()
                 self._record_capture_locked()
         return frame
@@ -116,7 +124,13 @@ class CameraManager:
         with self._lock:
             if self.latest_frame is None:
                 return None
-            return self.latest_frame.copy()
+            return self.latest_frame
+
+    def set_target_capture_fps(self, fps):
+        if fps <= 0:
+            return False, "Capture FPS must be greater than 0"
+        self.target_capture_fps = float(fps)
+        return True, f"Set target capture FPS to {self.target_capture_fps:.1f}"
 
     def mark_frame_displayed(self):
         with self._lock:
@@ -150,6 +164,7 @@ class CameraManager:
                 "status": self.status,
                 "error": self.error,
                 "low_latency_notes": list(self.low_latency_notes),
+                "capture_timing_ms": dict(self.capture_timing_ms),
             }
 
     def set_exposure_time(self, exposure_time):
@@ -198,21 +213,38 @@ class CameraManager:
 
     def _capture_camera_frame(self):
         try:
+            total_start = time.perf_counter()
+            get_image_start = total_start
             raw_image = self.camera.data_stream[0].get_image()
+            get_image_end = time.perf_counter()
             if raw_image is None:
                 self.status = "No camera image received"
                 return None
 
+            convert_start = time.perf_counter()
             if hasattr(raw_image, "convert"):
                 raw_image = raw_image.convert("RGB")
+            convert_end = time.perf_counter()
 
+            numpy_start = time.perf_counter()
             frame = raw_image.get_numpy_array()
+            numpy_end = time.perf_counter()
             if frame is None:
                 self.status = "Empty camera image"
                 return None
 
+            color_start = time.perf_counter()
             if frame.ndim == 3 and frame.shape[2] == 3:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            color_end = time.perf_counter()
+
+            self.capture_timing_ms = {
+                "total": (color_end - total_start) * 1000,
+                "get_image": (get_image_end - get_image_start) * 1000,
+                "convert": (convert_end - convert_start) * 1000,
+                "numpy": (numpy_end - numpy_start) * 1000,
+                "color": (color_end - color_start) * 1000,
+            }
 
             self.status = "Streaming"
             self.error = None
@@ -224,11 +256,17 @@ class CameraManager:
 
     def _capture_loop(self):
         while self.capture_running:
+            loop_start = time.perf_counter()
             frame = self.capture_frame()
             if frame is None:
                 time.sleep(0.02)
-            elif self.test_image is not None and self.camera is None:
-                time.sleep(0.03)
+                continue
+
+            target_interval = 1.0 / self.target_capture_fps
+            elapsed = time.perf_counter() - loop_start
+            sleep_time = target_interval - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
     def _set_camera_feature(self, feature_names, value, display_name, require_camera=True):
         if self.camera is None:

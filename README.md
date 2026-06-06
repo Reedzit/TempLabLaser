@@ -7,9 +7,9 @@ This is a GUI that integrates function generators, a hexapod and in the future a
 # for pip
 pip install pyvisa pyvisa-py matplotlib numpy tk subprocess paramiko zeroconf psutil pandas fonttools
 ~~~
-For the camera tab and optional standalone camera controller, install the camera display dependencies:
+For the camera tab, install the camera display dependencies:
 ~~~
-pip install opencv-python pillow PySide6
+pip install opencv-python pillow
 ~~~
 2.  To install Matlab Engine API you need to have Matlab installed on your machine. If it is installed on your machine run the following commands in your terminal:
 ~~~
