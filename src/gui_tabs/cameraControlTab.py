@@ -193,6 +193,7 @@ class CameraControlTab:
         self.close_detached_window()
 
     def update_live_view(self):
+        delay_ms = 250
         if self.stream_running:
             frame = self.camera_manager.get_latest_frame()
             if frame is not None:
@@ -202,8 +203,9 @@ class CameraControlTab:
                     self.display_frame(frame)
                 self.camera_manager.mark_frame_displayed()
             self.update_status_throttled()
+            delay_ms = 33
         self.update_diagnostics()
-        self.parent.after(33, self.update_live_view)
+        self.parent.after(delay_ms, self.update_live_view)
 
     def open_detached_window(self):
         if self.detached_window is not None:
