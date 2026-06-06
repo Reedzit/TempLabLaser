@@ -103,6 +103,10 @@ class CameraManager:
 
     def stop_capture(self):
         self.capture_running = False
+        thread = self.capture_thread
+        if thread is not None and thread.is_alive() and threading.current_thread() is not thread:
+            thread.join(timeout=1.0)
+        self.capture_thread = None
 
     def capture_frame(self):
         if self.camera is not None:
