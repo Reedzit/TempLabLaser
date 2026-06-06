@@ -87,6 +87,23 @@ class CameraManager:
                 return None
             return self.latest_frame.copy()
 
+    def set_exposure_time(self, exposure_time):
+        return self._set_camera_feature(("ExposureTime", "ExposureTimeRaw"), exposure_time, "exposure time")
+
+    def set_gain(self, gain):
+        return self._set_camera_feature(("Gain", "GainRaw"), gain, "gain")
+
+    def set_gamma(self, gamma):
+        result = self._set_camera_feature(("Gamma",), gamma, "gamma")
+        if result[0]:
+            return result
+
+        # Some Daheng cameras require GammaEnable before Gamma is writable.
+        enabled = self._set_camera_feature(("GammaEnable",), True, "gamma enable")
+        if not enabled[0]:
+            return result
+        return self._set_camera_feature(("Gamma",), gamma, "gamma")
+
     def disconnect(self):
         try:
             if self.camera is not None:
@@ -123,6 +140,42 @@ class CameraManager:
             self.status = "Camera capture failed"
             self.error = str(exc)
             return None
+
+    def _set_camera_feature(self, feature_names, value, display_name):
+        if self.camera is None:
+            self.status = f"Cannot set {display_name}"
+            self.error = "No camera is connected"
+            return False, self.error
+
+        last_error = None
+        for feature_name in feature_names:
+            try:
+                feature = getattr(self.camera, feature_name)
+            except AttributeError as exc:
+                last_error = str(exc)
+                continue
+
+            try:
+                if hasattr(feature, "set"):
+                    feature.set(value)
+                elif hasattr(feature, "set_value"):
+                    feature.set_value(value)
+                elif callable(feature):
+                    feature(value)
+                else:
+                    setattr(self.camera, feature_name, value)
+                self.status = f"Set {display_name} to {value}"
+                self.error = None
+                return True, self.status
+            except Exception as exc:
+                last_error = str(exc)
+
+        message = f"Camera does not support setting {display_name}"
+        if last_error:
+            message = f"{message}: {last_error}"
+        self.status = f"Failed to set {display_name}"
+        self.error = message
+        return False, message
 
     def __del__(self):
         self.disconnect()

@@ -45,11 +45,14 @@ class CameraControlTab:
         capture_frame = ttk.LabelFrame(inner_frame, text="Capture Controls")
         capture_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
+        settings_frame = ttk.LabelFrame(inner_frame, text="Camera Settings")
+        settings_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+
         image_frame = ttk.LabelFrame(inner_frame, text="Camera View")
-        image_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+        image_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         analysis_frame = ttk.LabelFrame(inner_frame, text="Laser Detection")
-        analysis_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+        analysis_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         self.status_text = tk.StringVar(value=self.camera_manager.status)
         self.status_label = tk.Label(connection_frame, textvariable=self.status_text)
@@ -83,6 +86,22 @@ class CameraControlTab:
 
         self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
         self.save_image_button.grid(row=0, column=4, padx=10, pady=5)
+
+        self.exposure_time = tk.DoubleVar(value=10000.0)
+        self.gain = tk.DoubleVar(value=0.0)
+        self.gamma = tk.DoubleVar(value=1.0)
+
+        tk.Label(settings_frame, text="Exposure Time (us)").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.exposure_time, width=12).grid(row=0, column=1, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply Exposure", command=self.apply_exposure_time).grid(row=0, column=2, padx=10, pady=5)
+
+        tk.Label(settings_frame, text="Gain").grid(row=0, column=3, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.gain, width=12).grid(row=0, column=4, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply Gain", command=self.apply_gain).grid(row=0, column=5, padx=10, pady=5)
+
+        tk.Label(settings_frame, text="Camera Gamma").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(settings_frame, textvariable=self.gamma, width=12).grid(row=1, column=1, padx=5, pady=5)
+        tk.Button(settings_frame, text="Apply Gamma", command=self.apply_gamma).grid(row=1, column=2, padx=10, pady=5)
 
         self.image_label = tk.Label(image_frame, text="No image loaded", bg="black", fg="white")
         self.image_label.grid(row=0, column=0, padx=10, pady=10)
@@ -223,6 +242,60 @@ class CameraControlTab:
         if result.get("annotated_image") is not None:
             self.display_frame(result["annotated_image"])
         self.write_results(self.format_detection_results(result))
+
+    def apply_exposure_time(self):
+        value = self.get_positive_setting(self.exposure_time, "Exposure time")
+        if value is None:
+            return
+        self.apply_camera_setting(self.camera_manager.set_exposure_time, value)
+
+    def apply_gain(self):
+        value = self.get_non_negative_setting(self.gain, "Gain")
+        if value is None:
+            return
+        self.apply_camera_setting(self.camera_manager.set_gain, value)
+
+    def apply_gamma(self):
+        value = self.get_positive_setting(self.gamma, "Camera gamma")
+        if value is None:
+            return
+        self.apply_camera_setting(self.camera_manager.set_gamma, value)
+
+    def apply_camera_setting(self, setter, value):
+        try:
+            success, message = setter(value)
+        except Exception as exc:
+            success = False
+            message = str(exc)
+
+        self.update_status(message)
+        if not success:
+            self.write_results(f"Camera setting error: {message}\n")
+
+    def get_positive_setting(self, variable, name):
+        value = self.get_numeric_setting(variable, name)
+        if value is None:
+            return None
+        if value <= 0:
+            self.update_status(f"{name} must be greater than 0")
+            return None
+        return value
+
+    def get_non_negative_setting(self, variable, name):
+        value = self.get_numeric_setting(variable, name)
+        if value is None:
+            return None
+        if value < 0:
+            self.update_status(f"{name} cannot be negative")
+            return None
+        return value
+
+    def get_numeric_setting(self, variable, name):
+        try:
+            return float(variable.get())
+        except (tk.TclError, ValueError):
+            self.update_status(f"{name} must be numeric")
+            return None
 
     def save_current_image(self):
         frame = self.camera_manager.get_latest_frame()
