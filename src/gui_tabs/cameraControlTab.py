@@ -402,7 +402,7 @@ class CameraControlTab:
         positions = self.build_autofocus_positions(scan_range, step_size)
         current_position = 0.0
         best_position = None
-        best_beam_size = None
+        best_focus_score = None
         measurements = []
 
         try:
@@ -426,13 +426,18 @@ class CameraControlTab:
 
                 if measurement["found"]:
                     beam_size = measurement["beam_size_px"]
-                    if best_beam_size is None or beam_size < best_beam_size:
+                    axis_difference = measurement["axis_difference_px"]
+                    focus_score = measurement["focus_score"]
+                    if best_focus_score is None or focus_score < best_focus_score:
                         best_position = position
-                        best_beam_size = beam_size
+                        best_focus_score = focus_score
                     self.parent.after(
                         0,
                         self.update_autofocus_status,
-                        f"Focus laser: z={position:.4f} mm, beam size={beam_size:.2f} px",
+                        (
+                            f"Focus laser: z={position:.4f} mm, beam={beam_size:.2f} px, "
+                            f"axis diff={axis_difference:.2f} px, score={focus_score:.2f}"
+                        ),
                     )
                     self.parent.after(0, self.display_frame, measurement["annotated_image"])
                 else:
@@ -454,11 +459,11 @@ class CameraControlTab:
             elif best_frame is not None:
                 self.parent.after(0, self.display_frame, best_frame)
 
-            self.parent.after(0, self.write_results, self.format_focus_laser_results(measurements, best_position, best_beam_size))
+            self.parent.after(0, self.write_results, self.format_focus_laser_results(measurements, best_position, best_focus_score))
             self.parent.after(
                 0,
                 self.update_autofocus_status,
-                f"Focus laser complete: best z={best_position:.4f} mm, beam size={best_beam_size:.2f} px",
+                f"Focus laser complete: best z={best_position:.4f} mm, score={best_focus_score:.2f}",
             )
         except Exception as exc:
             self.parent.after(0, self.update_autofocus_status, f"Focus laser failed: {exc}")
@@ -532,6 +537,7 @@ class CameraControlTab:
             ellipse = cv2.fitEllipse(contour)
             center, axes, _ = ellipse
             beam_size = float(np.sqrt(max(axes[0], 1e-6) * max(axes[1], 1e-6)))
+            axis_difference = float(abs(axes[0] - axes[1]))
             cv2.ellipse(annotated, ellipse, (0, 255, 0), 2)
             cv2.circle(annotated, (int(center[0]), int(center[1])), 3, (0, 255, 255), -1)
         else:
@@ -539,12 +545,17 @@ class CameraControlTab:
             center = (x + w / 2.0, y + h / 2.0)
             axes = (float(w), float(h))
             beam_size = float(np.sqrt(max(w, 1) * max(h, 1)))
+            axis_difference = float(abs(w - h))
             cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.circle(annotated, (int(center[0]), int(center[1])), 3, (0, 255, 255), -1)
+
+        focus_score = 0.5 * beam_size + 0.5 * axis_difference
 
         return {
             "found": True,
             "beam_size_px": beam_size,
+            "axis_difference_px": axis_difference,
+            "focus_score": focus_score,
             "center": center,
             "axes": axes,
             "contour_area_px": contour_area,
@@ -769,18 +780,28 @@ class CameraControlTab:
         lines.append(f"Sharpness: {best_score:.2f}")
         return "\n".join(lines) + "\n"
 
-    def format_focus_laser_results(self, measurements, best_position, best_beam_size):
-        lines = ["Focus Laser Results", "", "Beam metric uses blob size (smaller is better).", ""]
+    def format_focus_laser_results(self, measurements, best_position, best_focus_score):
+        lines = [
+            "Focus Laser Results",
+            "",
+            "Score = 0.5*beam size + 0.5*axis difference (smaller is better).",
+            "",
+        ]
         for measurement in measurements:
             position = measurement["position"]
             if measurement["found"]:
                 marker = "*" if position == best_position else " "
-                lines.append(f"{marker} z={position:.4f} mm: beam size={measurement['beam_size_px']:.2f} px")
+                lines.append(
+                    f"{marker} z={position:.4f} mm: "
+                    f"beam={measurement['beam_size_px']:.2f} px, "
+                    f"axis diff={measurement['axis_difference_px']:.2f} px, "
+                    f"score={measurement['focus_score']:.2f}"
+                )
             else:
                 lines.append(f"  z={position:.4f} mm: no beam ({measurement.get('reason', 'unknown')})")
         lines.append("")
         lines.append(f"Best laser focus: z={best_position:.4f} mm")
-        lines.append(f"Beam size: {best_beam_size:.2f} px")
+        lines.append(f"Focus score: {best_focus_score:.2f}")
         return "\n".join(lines) + "\n"
 
     def _format_single_laser(self, name, data):
