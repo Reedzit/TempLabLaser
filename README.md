@@ -23,6 +23,12 @@ Install the Python dependencies first:
 pip install pyvisa pyvisa-py matplotlib numpy tk subprocess paramiko zeroconf psutil pandas fonttools
 ```
 
+For the camera tab, install the camera display dependencies:
+
+```bash
+pip install opencv-python pillow
+```
+
 If you use MATLAB analysis, install the MATLAB Engine API from your MATLAB installation:
 
 ```bash
