@@ -20,10 +20,10 @@ class CameraControlTab:
         self.stream_running = False
         self.stream_thread = None
         self.last_detection = None
-        self.detached_window = None
-        self.detached_image_label = None
+        self.detached_feed_active = False
+        self.detached_window_name = "Camera Live Feed"
         self.setup_ui()
-        self.parent.after(100, self.update_live_view)
+        self.parent.after(33, self.update_live_view)
 
     def setup_ui(self):
         main_frame = tk.Frame(self.parent)
@@ -165,7 +165,8 @@ class CameraControlTab:
     def start_stream(self):
         if self.stream_running:
             return
-        if self.unattached_feed.get():
+        self.detached_feed_active = self.unattached_feed.get()
+        if self.detached_feed_active:
             self.open_detached_window()
         self.stream_running = True
         self.start_stream_button['state'] = 'disabled'
@@ -175,51 +176,50 @@ class CameraControlTab:
 
     def stop_stream(self):
         self.stream_running = False
+        self.finish_stream()
+
+    def finish_stream(self):
         self.start_stream_button['state'] = 'normal'
         self.stop_stream_button['state'] = 'disabled'
         self.close_detached_window()
+        self.detached_feed_active = False
 
     def _stream_loop(self):
         while self.stream_running:
-            self.camera_manager.capture_frame()
-            time.sleep(0.05)
+            frame = self.camera_manager.capture_frame()
+            if self.detached_feed_active and frame is not None:
+                cv2.imshow(self.detached_window_name, frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key in (27, ord('q')) or self.detached_window_closed():
+                    self.stream_running = False
+                    self.parent.after(0, self.finish_stream)
+                    break
+            elif not self.detached_feed_active:
+                time.sleep(0.01)
 
     def update_live_view(self):
-        if self.stream_running:
+        if self.stream_running and not self.detached_feed_active:
             frame = self.camera_manager.get_latest_frame()
             if frame is not None:
-                if self.detached_window is not None and self.detached_image_label is not None:
-                    self.display_frame(frame, label=self.detached_image_label, max_size=self.detached_view_size())
-                else:
-                    self.display_frame(frame)
+                self.display_frame(frame)
             self.update_status()
-        self.parent.after(100, self.update_live_view)
+        self.parent.after(33, self.update_live_view)
 
     def open_detached_window(self):
-        if self.detached_window is not None:
-            self.detached_window.lift()
-            return
-
-        self.detached_window = tk.Toplevel(self.parent)
-        self.detached_window.title("Camera Live Feed")
-        self.detached_window.configure(bg="black")
-        self.detached_image_label = tk.Label(self.detached_window, text="Waiting for camera frame...", bg="black", fg="white")
-        self.detached_image_label.pack(fill=tk.BOTH, expand=True)
-        self.detached_window.protocol("WM_DELETE_WINDOW", self.stop_stream)
+        cv2.namedWindow(self.detached_window_name, cv2.WINDOW_NORMAL)
 
     def close_detached_window(self):
-        if self.detached_window is not None:
-            try:
-                self.detached_window.destroy()
-            except tk.TclError:
-                pass
-        self.detached_window = None
-        self.detached_image_label = None
+        try:
+            cv2.destroyWindow(self.detached_window_name)
+            cv2.waitKey(1)
+        except cv2.error:
+            pass
 
-    def detached_view_size(self):
-        screen_width = self.parent.winfo_screenwidth()
-        screen_height = self.parent.winfo_screenheight()
-        return min(1400, screen_width - 100), min(1000, screen_height - 140)
+    def detached_window_closed(self):
+        try:
+            return cv2.getWindowProperty(self.detached_window_name, cv2.WND_PROP_VISIBLE) < 1
+        except cv2.error:
+            return True
 
     def detect_lasers(self):
         frame = self.camera_manager.get_latest_frame()
