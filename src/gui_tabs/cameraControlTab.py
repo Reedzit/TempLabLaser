@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from src.cameraManager import CameraManager
+from src.compositingManager import CompositingManager
 from src.laserDetector import detect_red_green_lasers
 
 
@@ -18,11 +19,15 @@ class CameraControlTab:
         self.instruments = instruments
         self.main_gui = main_gui
         self.camera_manager = CameraManager()
+        self.compositing_manager = CompositingManager()
         self.stream_running = False
         self.autofocus_running = False
         self.autofocus_thread = None
         self.focus_laser_running = False
         self.focus_laser_thread = None
+        self.composite_running = False
+        self.composite_thread = None
+        self.composite_interval_seconds = 0.30
         self.last_detection = None
         self.detached_window = None
         self.detached_image_label = None
@@ -62,6 +67,9 @@ class CameraControlTab:
 
         autofocus_frame = ttk.LabelFrame(inner_frame, text="Autofocus")
         autofocus_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
+
+        compositing_frame = ttk.LabelFrame(inner_frame, text="Image Compositing")
+        compositing_frame.grid(row=6, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
         self.status_text = tk.StringVar(value=self.camera_manager.status)
         self.status_label = tk.Label(connection_frame, textvariable=self.status_text)
@@ -169,6 +177,40 @@ class CameraControlTab:
         self.results_text.grid(row=4, column=0, columnspan=2, padx=10, pady=10)
         self.results_text.insert('1.0', "Load or capture an image, then run detection.\n")
 
+        self.composite_interval = tk.DoubleVar(value=0.30)
+        self.min_registration_response = tk.DoubleVar(value=self.compositing_manager.min_registration_response)
+
+        tk.Label(compositing_frame, text="Capture Interval (s)").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(compositing_frame, textvariable=self.composite_interval, width=8).grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(compositing_frame, text="Min Reg. Response").grid(row=0, column=2, padx=5, pady=5, sticky=tk.E)
+        tk.Entry(compositing_frame, textvariable=self.min_registration_response, width=8).grid(row=0, column=3, padx=5, pady=5)
+
+        self.add_current_tile_button = tk.Button(compositing_frame, text="Add Current Frame", command=self.add_current_frame_to_mosaic)
+        self.add_current_tile_button.grid(row=1, column=0, padx=10, pady=5)
+
+        self.capture_tile_button = tk.Button(compositing_frame, text="Capture + Add Tile", command=self.capture_and_add_tile)
+        self.capture_tile_button.grid(row=1, column=1, padx=10, pady=5)
+
+        self.start_composite_button = tk.Button(compositing_frame, text="Start Live Composite", command=self.start_live_composite)
+        self.start_composite_button.grid(row=1, column=2, padx=10, pady=5)
+
+        self.stop_composite_button = tk.Button(compositing_frame, text="Stop Composite", command=self.stop_live_composite, state="disabled")
+        self.stop_composite_button.grid(row=1, column=3, padx=10, pady=5)
+
+        self.reset_mosaic_button = tk.Button(compositing_frame, text="Reset Mosaic", command=self.reset_mosaic)
+        self.reset_mosaic_button.grid(row=1, column=4, padx=10, pady=5)
+
+        self.save_mosaic_button = tk.Button(compositing_frame, text="Save Mosaic", command=self.save_mosaic)
+        self.save_mosaic_button.grid(row=1, column=5, padx=10, pady=5)
+
+        self.mosaic_label = tk.Label(compositing_frame, text="No mosaic", width=80, height=26)
+        self.mosaic_label.grid(row=2, column=0, columnspan=4, padx=10, pady=10)
+
+        self.compositing_status = tk.Text(compositing_frame, height=8, width=45, font=('Arial', 10))
+        self.compositing_status.grid(row=2, column=4, columnspan=2, padx=10, pady=10, sticky='nsew')
+        self.write_compositing_status("Ready. Add frames to build an image-derived mosaic.\n")
+
         def _on_frame_configure(event):
             canvas.configure(scrollregion=canvas.bbox("all"))
 
@@ -186,6 +228,7 @@ class CameraControlTab:
             self.capture_frame()
 
     def disconnect_camera(self):
+        self.stop_live_composite()
         self.stop_stream()
         self.camera_manager.disconnect()
         self.update_status()
@@ -221,8 +264,10 @@ class CameraControlTab:
     def stop_stream(self):
         self.stream_running = False
         self.camera_manager.stop_capture()
-        self.start_stream_button['state'] = 'normal'
-        self.stop_stream_button['state'] = 'disabled'
+        if hasattr(self, 'start_stream_button'):
+            self.start_stream_button['state'] = 'normal'
+        if hasattr(self, 'stop_stream_button'):
+            self.stop_stream_button['state'] = 'disabled'
         self.close_detached_window()
 
     def update_live_view(self):
@@ -238,6 +283,7 @@ class CameraControlTab:
             self.update_status_throttled()
             delay_ms = 33
         self.update_diagnostics()
+        self.update_mosaic_preview()
         self.parent.after(delay_ms, self.update_live_view)
 
     def open_detached_window(self):
@@ -265,6 +311,95 @@ class CameraControlTab:
         screen_width = self.parent.winfo_screenwidth()
         screen_height = self.parent.winfo_screenheight()
         return min(1400, screen_width - 100), min(1000, screen_height - 140)
+
+    def add_current_frame_to_mosaic(self):
+        frame = self.camera_manager.get_latest_frame()
+        if frame is None:
+            self.write_compositing_status("No current frame available. Capture or load an image first.\n")
+            return
+        self.add_frame_to_mosaic(frame, {"source": "current_frame"})
+        self.update_mosaic_preview()
+
+    def capture_and_add_tile(self):
+        frame = self.camera_manager.capture_frame()
+        self.update_status()
+        if frame is None:
+            self.write_compositing_status("No frame available from camera source.\n")
+            return
+        self.display_frame(frame)
+        self.add_frame_to_mosaic(frame, {"source": "camera_capture"})
+        self.update_mosaic_preview()
+
+    def add_frame_to_mosaic(self, frame, metadata=None):
+        self.update_compositing_settings()
+        accepted = self._add_frame_to_mosaic(frame, metadata)
+        self.write_compositing_status(self.format_compositing_status(self.compositing_manager.get_status()))
+        return accepted
+
+    def _add_frame_to_mosaic(self, frame, metadata=None):
+        try:
+            return self.compositing_manager.add_frame(frame, metadata)
+        except Exception as exc:
+            self.compositing_manager.status = "Failed to add tile"
+            self.compositing_manager.error = str(exc)
+            return False
+
+    def update_compositing_settings(self):
+        self.composite_interval_seconds = max(0.05, float(self.composite_interval.get()))
+        self.compositing_manager.min_registration_response = float(self.min_registration_response.get())
+
+    def start_live_composite(self):
+        if self.composite_running:
+            return
+        self.update_compositing_settings()
+        self.composite_running = True
+        self.start_composite_button['state'] = 'disabled'
+        self.stop_composite_button['state'] = 'normal'
+        self.composite_thread = threading.Thread(target=self._composite_loop, daemon=True)
+        self.composite_thread.start()
+
+    def stop_live_composite(self):
+        self.composite_running = False
+        if hasattr(self, 'start_composite_button'):
+            self.start_composite_button['state'] = 'normal'
+        if hasattr(self, 'stop_composite_button'):
+            self.stop_composite_button['state'] = 'disabled'
+
+    def _composite_loop(self):
+        while self.composite_running:
+            if self.stream_running:
+                frame = self.camera_manager.get_latest_frame()
+            else:
+                frame = self.camera_manager.capture_frame()
+            if frame is not None:
+                self._add_frame_to_mosaic(frame, {"source": "live_composite"})
+            time.sleep(self.composite_interval_seconds)
+
+    def reset_mosaic(self):
+        self.compositing_manager.reset_session()
+        self.mosaic_label.configure(image="", text="No mosaic")
+        self.mosaic_label.image = None
+        self.write_compositing_status("Mosaic reset.\n")
+
+    def save_mosaic(self):
+        file_path = tk.filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png"), ("TIFF files", "*.tif"), ("All files", "*.*")],
+            title="Save Mosaic",
+        )
+        if not file_path:
+            return
+        if self.compositing_manager.save_mosaic(file_path):
+            self.write_compositing_status(f"Saved mosaic to {file_path}\n")
+        else:
+            self.write_compositing_status(self.format_compositing_status(self.compositing_manager.get_status()))
+
+    def update_mosaic_preview(self):
+        mosaic = self.compositing_manager.get_mosaic_preview(max_size=(760, 420))
+        if mosaic is not None:
+            self.display_image_in_label(self.mosaic_label, mosaic)
+        if self.composite_running:
+            self.write_compositing_status(self.format_compositing_status(self.compositing_manager.get_status()))
 
     def detect_lasers(self):
         frame = self.camera_manager.get_latest_frame()
@@ -688,6 +823,11 @@ class CameraControlTab:
             cv2.imwrite(file_path, frame)
             self.update_status(f"Saved image: {file_path}")
 
+    def display_image_in_label(self, label, frame):
+        if frame is None:
+            return
+        self.display_frame(frame, label=label, max_size=(760, 420))
+
     def display_frame(self, frame, label=None, max_size=(960, 700)):
         if frame is None:
             return
@@ -757,6 +897,28 @@ class CameraControlTab:
     def write_results(self, text):
         self.results_text.delete('1.0', tk.END)
         self.results_text.insert('1.0', text)
+
+    def write_compositing_status(self, text):
+        self.compositing_status.delete('1.0', tk.END)
+        self.compositing_status.insert('1.0', text)
+
+    def format_compositing_status(self, status):
+        lines = [
+            f"Status: {status['status']}",
+            f"Tiles: {status['tile_count']}",
+        ]
+        if status.get("mosaic_shape") is not None:
+            shape = status["mosaic_shape"]
+            lines.append(f"Mosaic: {shape[1]} x {shape[0]} px")
+        if status.get("registration") is not None:
+            registration = status["registration"]
+            lines.extend([
+                f"Last shift: ({registration['shift_x_px']:.2f}, {registration['shift_y_px']:.2f}) px",
+                f"Response: {registration['response']:.3f}",
+            ])
+        if status.get("error"):
+            lines.append(f"Error: {status['error']}")
+        return "\n".join(lines) + "\n"
 
     def format_detection_results(self, result):
         lines = ["Laser Detection Results", ""]
