@@ -87,20 +87,20 @@ class CameraControlTab:
         self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
         self.save_image_button.grid(row=0, column=4, padx=10, pady=5)
 
-        self.exposure_time = tk.DoubleVar(value=10000.0)
+        self.exposure_time = tk.DoubleVar(value=100000.0)
         self.gain = tk.DoubleVar(value=0.0)
         self.gamma = tk.DoubleVar(value=1.0)
         self.target_capture_fps = tk.DoubleVar(value=self.camera_manager.target_capture_fps)
 
-        tk.Label(settings_frame, text="Exposure Time (us)").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Label(settings_frame, text="Exposure Time (us, 12-100000)").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E)
         tk.Entry(settings_frame, textvariable=self.exposure_time, width=12).grid(row=0, column=1, padx=5, pady=5)
         tk.Button(settings_frame, text="Apply Exposure", command=self.apply_exposure_time).grid(row=0, column=2, padx=10, pady=5)
 
-        tk.Label(settings_frame, text="Gain").grid(row=0, column=3, padx=5, pady=5, sticky=tk.E)
+        tk.Label(settings_frame, text="Gain (0-24)").grid(row=0, column=3, padx=5, pady=5, sticky=tk.E)
         tk.Entry(settings_frame, textvariable=self.gain, width=12).grid(row=0, column=4, padx=5, pady=5)
         tk.Button(settings_frame, text="Apply Gain", command=self.apply_gain).grid(row=0, column=5, padx=10, pady=5)
 
-        tk.Label(settings_frame, text="Camera Gamma").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E)
+        tk.Label(settings_frame, text="Camera Gamma (0-4)").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E)
         tk.Entry(settings_frame, textvariable=self.gamma, width=12).grid(row=1, column=1, padx=5, pady=5)
         tk.Button(settings_frame, text="Apply Gamma", command=self.apply_gamma).grid(row=1, column=2, padx=10, pady=5)
 
@@ -108,8 +108,8 @@ class CameraControlTab:
         tk.Entry(settings_frame, textvariable=self.target_capture_fps, width=12).grid(row=1, column=4, padx=5, pady=5)
         tk.Button(settings_frame, text="Apply FPS", command=self.apply_target_capture_fps).grid(row=1, column=5, padx=10, pady=5)
 
-        self.diagnostics_text = tk.StringVar(value="Diagnostics: no frame")
-        tk.Label(settings_frame, textvariable=self.diagnostics_text).grid(
+        self.diagnostics_text = tk.StringVar(value=self.empty_diagnostics_text())
+        tk.Label(settings_frame, textvariable=self.diagnostics_text, font=("Courier", 10), width=120, anchor=tk.W).grid(
             row=2, column=0, columnspan=6, padx=5, pady=5, sticky=tk.W
         )
 
@@ -253,19 +253,19 @@ class CameraControlTab:
         self.write_results(self.format_detection_results(result))
 
     def apply_exposure_time(self):
-        value = self.get_positive_setting(self.exposure_time, "Exposure time")
+        value = self.get_ranged_setting(self.exposure_time, "Exposure time", 12, 100000)
         if value is None:
             return
         self.apply_camera_setting(self.camera_manager.set_exposure_time, value)
 
     def apply_gain(self):
-        value = self.get_non_negative_setting(self.gain, "Gain")
+        value = self.get_ranged_setting(self.gain, "Gain", 0, 24)
         if value is None:
             return
         self.apply_camera_setting(self.camera_manager.set_gain, value)
 
     def apply_gamma(self):
-        value = self.get_positive_setting(self.gamma, "Camera gamma")
+        value = self.get_ranged_setting(self.gamma, "Camera gamma", 0, 4)
         if value is None:
             return
         self.apply_camera_setting(self.camera_manager.set_gamma, value)
@@ -305,6 +305,15 @@ class CameraControlTab:
             return None
         if value < 0:
             self.update_status(f"{name} cannot be negative")
+            return None
+        return value
+
+    def get_ranged_setting(self, variable, name, minimum, maximum):
+        value = self.get_numeric_setting(variable, name)
+        if value is None:
+            return None
+        if value < minimum or value > maximum:
+            self.update_status(f"{name} must be between {minimum} and {maximum}")
             return None
         return value
 
@@ -381,14 +390,19 @@ class CameraControlTab:
         if frame_age is None:
             frame_age_text = "n/a"
         else:
-            frame_age_text = f"{frame_age:.0f} ms"
+            frame_age_text = f"{frame_age:6.0f} ms"
         self.diagnostics_text.set(
-            "Diagnostics: "
-            f"capture {diagnostics['capture_fps']:.1f} FPS | "
-            f"display {diagnostics['display_fps']:.1f} FPS | "
-            f"frame age {frame_age_text} | "
-            f"frame {diagnostics['dimensions']} | "
-            f"capture total {diagnostics['capture_timing_ms']['total']:.1f} ms"
+            f"Diagnostics: capture {diagnostics['capture_fps']:5.1f} FPS | "
+            f"display {diagnostics['display_fps']:5.1f} FPS | "
+            f"frame age {frame_age_text:>9} | "
+            f"frame {diagnostics['dimensions']:<16} | "
+            f"capture total {diagnostics['capture_timing_ms']['total']:6.1f} ms"
+        )
+
+    def empty_diagnostics_text(self):
+        return (
+            "Diagnostics: capture   0.0 FPS | display   0.0 FPS | "
+            "frame age       n/a | frame No frame         | capture total    0.0 ms"
         )
 
     def write_results(self, text):

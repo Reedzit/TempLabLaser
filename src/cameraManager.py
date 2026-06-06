@@ -25,7 +25,7 @@ class CameraManager:
         self.low_latency_notes = []
         self.capture_running = False
         self.capture_thread = None
-        self.target_capture_fps = 30.0
+        self.target_capture_fps = 10.0
         self.capture_fps = 0.0
         self.display_fps = 0.0
         self.frame_count = 0
