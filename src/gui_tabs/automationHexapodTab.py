@@ -97,15 +97,15 @@ class HexapodAutomationTab:
         self.connectHexapodButton.grid(row=1, column=0, padx=10, pady=5)
 
         self.homeHexapodButton = tk.Button(status_frame, text="Home Hexapod",
-                                            command=lambda: self.hexapod.home())
+                                            command=lambda: self.run_hexapod_command("home"))
         self.homeHexapodButton.grid(row=1, column=1, padx=10, pady=5)
 
         self.controlOnHexapodButton = tk.Button(status_frame, text="Turn on Control (Press this after homing)",
-                                                command=lambda: self.hexapod.controlOn())
+                                                command=lambda: self.run_hexapod_command("controlOn"))
         self.controlOnHexapodButton.grid(row=1, column=2, padx=10, pady=5)
 
         self.controlOffHexapodButton = tk.Button(status_frame, text="Turn off Control",
-                                                 command=lambda: self.hexapod.controlOff())
+                                                 command=lambda: self.run_hexapod_command("controlOff"))
         self.controlOffHexapodButton.grid(row=1, column=3, padx=10, pady=5)
 
         # Movement Parameters Section
@@ -173,7 +173,7 @@ class HexapodAutomationTab:
 
 
         self.manualTranslationButton = tk.Button(adjustment_frame, text="Translate",
-                                                command=lambda: self.hexapod.translate(
+                                                command=lambda: self.run_hexapod_command("translate",
                                                     np.array([
                                                         float(self.manualTranslationX.get()),
                                                         float(self.manualTranslationY.get()),
@@ -181,7 +181,7 @@ class HexapodAutomationTab:
                                                     ])))
         self.manualTranslationButton.grid(row=1, column=4, padx=10, pady=5)
         self.manualTranslationButtonReverse = tk.Button(adjustment_frame, text="Actually go back",
-                                                 command=lambda: self.hexapod.translate(
+                                                 command=lambda: self.run_hexapod_command("translate",
                                                      np.array([
                                                          -float(self.manualTranslationX.get()),
                                                          -float(self.manualTranslationY.get()),
@@ -200,7 +200,7 @@ class HexapodAutomationTab:
         self.manualRotationZ.grid(row=2, column=3, padx=5, pady=5)
 
         self.manualRotationButton = tk.Button(adjustment_frame, text="Rotate",
-                                                command=lambda: self.hexapod.rotate(
+                                                command=lambda: self.run_hexapod_command("rotate",
                                                     np.array([
                                                         float(self.manualRotationY.get()),
                                                         float(self.manualRotationX.get()),
@@ -242,6 +242,21 @@ class HexapodAutomationTab:
             amountused=(pos_amount + neg_amount) / total_range * 100,
             sublabel=f"+{pos_amount:.1f}/-{neg_amount:.1f}"
         )
+
+    def run_hexapod_command(self, command_name, *args):
+        if self.hexapod is None:
+            print("Hexapod is not connected.")
+            return None
+
+        try:
+            command = getattr(self.hexapod, command_name)
+            response = command(*args)
+            if response:
+                print(response)
+            return response
+        except Exception as error:
+            print(error)
+            return None
 
     def print_hexapod_state(self):
         def actually_print():

@@ -7,14 +7,63 @@ from matplotlib.figure import Figure
 import numpy as np
 import re
 
+
+class HexapodAPIError(RuntimeError):
+    def __init__(self, code, message, command=None):
+        self.code = code
+        self.command = command
+        command_text = f" during {command}" if command else ""
+        super().__init__(f"Hexapod API error{command_text}: {code} - {message}")
+
+
 class HexapodControl():
 
     def __init__(self):
         self.ssh_API = None
         self.status_dict = None
         self.ready_for_commands = True
+        self.last_error = None
         self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
         self.connectHexapod()
+
+    def _decode_command_answer(self, answer, command=None):
+        try:
+            code = int(str(answer).strip())
+        except (TypeError, ValueError) as exc:
+            raise HexapodAPIError(answer, "Unparseable API response", command) from exc
+
+        if code == 0:
+            return self.ssh_API.CommandReturns.get(code, "Success.")
+
+        if code in self.ssh_API.CommandReturns:
+            raise HexapodAPIError(code, self.ssh_API.CommandReturns[code], command)
+
+        if code in self.ssh_API.ErrorCodes:
+            raise HexapodAPIError(code, self.ssh_API.ErrorCodes[code], command)
+
+        raise HexapodAPIError(code, "Unknown API response code", command)
+
+    def _send_command(self, command, arguments=None, wait_for_motion=False):
+        arguments = arguments or []
+
+        while not self.ready_for_commands:
+            sleep(0.05)
+
+        if self.last_error:
+            error = self.last_error
+            self.last_error = None
+            raise error
+
+        answer = self.ssh_API.SendCommand(command, arguments)
+        message = self._decode_command_answer(answer, command)
+
+        if wait_for_motion:
+            self.ready_for_commands = False
+            self.waitForCommandResolution()
+        else:
+            self.ready_for_commands = True
+
+        return message
 
     def getState(self):
         if self.ssh_API.waiting_for_reply:
@@ -104,22 +153,22 @@ class HexapodControl():
                     val, label = match.groups()
                     result[label.strip()] = bool(int(val))
             return result
-        answer = self.ssh_API.STATE()
-        self.status_dict = parse_symetrie_state(answer)
-        print(self.status_dict)
-        self.ssh_API.waiting_for_reply = False
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
+        try:
+            answer = self.ssh_API.STATE()
+            self.status_dict = parse_symetrie_state(answer)
+            print(self.status_dict)
+        finally:
+            self.ssh_API.waiting_for_reply = False
+
+        error_number = self.status_dict.get("s_err_nr", 0)
+        if error_number:
+            message = self.ssh_API.ErrorCodes.get(error_number, "Unknown controller error")
+            raise HexapodAPIError(error_number, message, "STATE")
+
         return answer
 
     def stop(self):
-        answer = self.ssh_API.SendCommand("C_STOP")
-        answer = int(answer.strip())
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        return answer
+        return self._send_command("STOP")
 
     def checkStatus(self):
         self.getState()
@@ -143,14 +192,19 @@ class HexapodControl():
         """
         print("Waiting for hexapod to finish executing the current command...")
         def loop():
-            while not self.checkStatus():
-                print("Hexapod is still busy, waiting for it to finish...", end='\r')
-                self.getState()
-                sleep(0.25)
-            print("Hexapod is now ready for new commands.")
-            self.ready_for_commands = True
-            self.commandResolutionThread = None  # Reset thread reference
-            return
+            try:
+                while not self.checkStatus():
+                    print("Hexapod is still busy, waiting for it to finish...", end='\r')
+                    self.getState()
+                    sleep(0.25)
+                print("Hexapod is now ready for new commands.")
+                self.ready_for_commands = True
+            except HexapodAPIError as error:
+                self.last_error = error
+                print(error)
+                self.ready_for_commands = True
+            finally:
+                self.commandResolutionThread = None  # Reset thread reference
         if not self.commandResolutionThread or not self.commandResolutionThread.is_alive():
             self.commandResolutionThread = threading.Thread(target=loop, daemon=True)
             self.commandResolutionThread.start()
@@ -182,54 +236,29 @@ class HexapodControl():
 
     def home(self):
         print("Homing the hexapod, this may take a while...")
-
-        answer = int(self.ssh_API.SendCommand("HOME").strip())
-        print(f"This is the code for the home command: {self.ssh_API.CommandReturns[answer]}")
-
-        # Homing takes forever, so we need to wait for it to finish before we can send any more commands.
-        self.ready_for_commands = False
-        self.waitForCommandResolution()
+        answer = self._send_command("HOME", wait_for_motion=True)
         print("Hexapod is now homed and ready for commands.", end='\r')
-        return True
+        return answer
 
     # API Documentation seems to have gone entirely missing, so I'm not entirely sure what this command does,
     # but some trial and error suggests it might be used to turn the hexapod on and off.
 
     def controlOn(self):
-        answer = int(self.ssh_API.SendCommand("CONTROL ON").strip())
-        print(f"This is the code for the control on command: {self.ssh_API.CommandReturns[answer]}")
+        return self._send_command("CONTROL ON", wait_for_motion=True)
 
     def controlOff(self):
-        answer = int(self.ssh_API.SendCommand("CONTROL OFF").strip())
-        print(f"This is the code for the control off command: {self.ssh_API.CommandReturns[answer]}")
+        return self._send_command("CONTROL OFF", wait_for_motion=True)
 
     def translate(self, movement_vector=np.array([0.0, 0.0, 0.0]), magnitude=None):
-        self.ready_for_commands = False
         x, y, z = movement_vector
         if magnitude:
             normalizedMovementVector = (movement_vector / np.linalg.norm(movement_vector)) * magnitude
             x, y, z = normalizedMovementVector
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, x, y, z, 0.0, 0.0, 0.0])
-        answer = int(answer.strip())
-        self.waitForCommandResolution()
-
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
-        return answer
+        return self._send_command("MOVE_PTP", [2.0, x, y, z, 0.0, 0.0, 0.0], wait_for_motion=True)
 
     def rotate(self, rotation_vector=np.array([0.0, 0.0, 0.0])):
-        self.ready_for_commands = False
         alpha, beta, tau = rotation_vector # naming conventions come from
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, 0.0, 0.0, 0.0, alpha, beta, tau])
-        answer = int(answer.strip())
-        self.waitForCommandResolution()        
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
-        return answer
+        return self._send_command("MOVE_PTP", [2.0, 0.0, 0.0, 0.0, alpha, beta, tau], wait_for_motion=True)
 
     def compoundMove(self, movement_vector=np.array([0.0, 0.0, 0.0]), rotation_vector=np.array([0.0, 0.0, 0.0]), magnitude=None):
         x, y, z = movement_vector
@@ -237,29 +266,11 @@ class HexapodControl():
         if magnitude:
             normalizedMovementVector = (movement_vector / np.linalg.norm(movement_vector)) * magnitude
             x, y, z = normalizedMovementVector
-        answer = self.ssh_API.SendCommand("MOVE_PTP", [2.0, x, y, z, alpha, beta, tau])
-        answer = int(answer.strip())
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
-        return answer
+        return self._send_command("MOVE_PTP", [2.0, x, y, z, alpha, beta, tau], wait_for_motion=True)
 
     # Shout out to Reed Zittler for this code too
     def setSpeed(self, speed):
-        answer = self.ssh_API.SendCommand("CFG_SPEED", [0.0, float(speed)]) #arguments: translationSpeed angularSpeed
-        answer = int(answer.strip())
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
-        return answer
+        return self._send_command("CFG_SPEED", [0.0, float(speed)]) #arguments: translationSpeed angularSpeed
 
     def resetPosition(self):
-        answer = self.ssh_API.SendCommand("MOVE_SPECIFICPOS", [3.0])
-        answer = int(answer.strip())
-        if answer in self.ssh_API.CommandReturns.keys():
-            answer = self.ssh_API.CommandReturns[answer]
-        elif answer in self.ssh_API.ErrorCodes.keys():
-            answer = self.ssh_API.ErrorCodes[answer]
-        return answer
+        return self._send_command("MOVE_SPECIFICPOS", [3.0], wait_for_motion=True)

@@ -333,35 +333,41 @@ class AutomationManager:
             AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS, hexapodCenter, pumpLaser = (20, 10,
                                                                                      [np.array([0, 0, 0])],
                                                                                      [np.array([0, 0, 0])])
-        hexapod_rotation_stepList = np.linspace(0, AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS)
-        # Offset the rotation by half the total distance so that we can keep moving in 1 direction the whole time
-        self.hexapod.rotate(np.array([0, 0, -AUTOMATION_ROTATION_ANGLE / 2]))
-        pumpLaser.append(rotate_point(pumpLaser[-1], np.array(
-            [0, 0, -AUTOMATION_ROTATION_ANGLE / 2])))  # this is so that we can keep track of the laser position
+        try:
+            hexapod_rotation_stepList = np.linspace(0, AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS)
+            # Offset the rotation by half the total distance so that we can keep moving in 1 direction the whole time
+            self.hexapod.rotate(np.array([0, 0, -AUTOMATION_ROTATION_ANGLE / 2]))
+            pumpLaser.append(rotate_point(pumpLaser[-1], np.array(
+                [0, 0, -AUTOMATION_ROTATION_ANGLE / 2])))  # this is so that we can keep track of the laser position
 
-        # Everything below here should be the main loop
-        for i in range(len(hexapod_rotation_stepList)):
-            self.parent.automation_progress_bar = (i / len(hexapod_rotation_stepList)) * 100  # Update the progress bar
-            theta = hexapod_rotation_stepList[i] - hexapod_rotation_stepList[i - 1]
-            rotation_vector = np.array([0, 0, theta])
-            self.hexapod.rotate(rotation_vector)
-            pumpLaser.append(rotate_point(pumpLaser[-1], rotation_vector))
+            # Everything below here should be the main loop
+            for i in range(len(hexapod_rotation_stepList)):
+                self.parent.automation_progress_bar = (i / len(hexapod_rotation_stepList)) * 100  # Update the progress bar
+                theta = hexapod_rotation_stepList[i] - hexapod_rotation_stepList[i - 1]
+                rotation_vector = np.array([0, 0, theta])
+                self.hexapod.rotate(rotation_vector)
+                pumpLaser.append(rotate_point(pumpLaser[-1], rotation_vector))
 
-            adjustment_vector = pumpLaser[-2] - pumpLaser[-1]
-            self.hexapod.translate(adjustment_vector)
-            pumpLaser.append(pumpLaser[-1] + adjustment_vector)
+                adjustment_vector = pumpLaser[-2] - pumpLaser[-1]
+                self.hexapod.translate(adjustment_vector)
+                pumpLaser.append(pumpLaser[-1] + adjustment_vector)
 
-            if not DEBUG_MODE:
-                runLaser(degree=hexapod_rotation_stepList[i])
-            else:
-                print("DEBUG MODE ACTIVATED, NO LASER IN USE")
+                if not DEBUG_MODE:
+                    runLaser(degree=hexapod_rotation_stepList[i])
+                else:
+                    print("DEBUG MODE ACTIVATED, NO LASER IN USE")
 
-        #hexapod_settings, laser_settings, collection_settings = collectAutomationValues()  # We need to collect the values here as well
-        #cleanUpFiles(collection_settings)
+            #hexapod_settings, laser_settings, collection_settings = collectAutomationValues()  # We need to collect the values here as well
+            #cleanUpFiles(collection_settings)
 
-        # Reset Rotation and transformation
-        self.hexapod.rotate([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])
-        pumpLaser.append(rotate_point(pumpLaser[-1], np.array([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])))
+            # Reset Rotation and transformation
+            self.hexapod.rotate([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])
+            pumpLaser.append(rotate_point(pumpLaser[-1], np.array([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])))
 
-        vector_for_reset = hexapodCenter[0] - hexapodCenter[-1]
-        self.hexapod.translate(vector_for_reset, False)
+            vector_for_reset = hexapodCenter[0] - hexapodCenter[-1]
+            self.hexapod.translate(vector_for_reset, False)
+        except Exception as error:
+            message = f"Automation stopped because a hexapod command failed: {error}"
+            print(message)
+            self.instruments.automation_status = f"error: {error}"
+            return

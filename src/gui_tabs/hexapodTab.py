@@ -62,65 +62,40 @@ class HexapodTab:
         except Exception as e:
             self.hexapodTextbox.insert(tk.END, "Unable to connect to hexapod.\n Error: " + str(e) + "\n")
 
-    def home_hexapod(self):
+    def run_hexapod_command(self, command, success_label):
         if self.hexapod is None or not self.hexapod.ssh_API:
             print("Not connected to hexapod")
-        else:
-            response = self.hexapod.home()
-            self.hexapodTextbox.insert(tk.END, f"Home: {response}\n")
+            return
+
+        try:
+            response = command()
+            self.hexapodTextbox.insert(tk.END, f"{success_label}: {response}\n")
+        except Exception as error:
+            self.hexapodTextbox.insert(tk.END, f"{success_label} failed: {error}\n")
+
+    def home_hexapod(self):
+        self.run_hexapod_command(lambda: self.hexapod.home(), "Home")
 
     def control_on_hexapod(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Not connected to hexapod")
-        else:
-            response = self.hexapod.controlOn()
-            self.hexapodTextbox.insert(tk.END, f"Control on: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.controlOn(), "Control on")
 
     def move_up(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Not connected to hexapod")
-        else:
-            response = self.hexapod.moveUp(self.stepInput.get())
-            self.hexapodTextbox.insert(tk.END, f"Move up: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.moveUp(self.stepInput.get()), "Move up")
 
     def move_down(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Move Down")
-        else:
-            response = self.hexapod.moveDown(self.stepInput.get())
-            self.hexapodTextbox.insert(tk.END, f"Move down: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.moveDown(self.stepInput.get()), "Move down")
 
     def move_left(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Move Left")
-        else:
-            response = self.hexapod.moveLeft(self.stepInput.get())
-            self.hexapodTextbox.insert(tk.END, f"Move left: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.moveLeft(self.stepInput.get()), "Move left")
 
     def move_right(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Move Right")
-        else:
-            response = self.hexapod.moveRight(self.stepInput.get())
-            self.hexapodTextbox.insert(tk.END, f"Move right: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.moveRight(self.stepInput.get()), "Move right")
 
     def move_in(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Move In")
-        else:
-            response = self.hexapod.moveIn(self.stepInput.get())
-            self.hexapodTextbox.insert(tk.END, f"Move in: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.moveIn(self.stepInput.get()), "Move in")
 
     def move_out(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Move Out")
-        else:
-            response = self.hexapod.moveOut(self.stepInput.get())
-            self.hexapodTextbox.insert(tk.END, f"Move out: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.moveOut(self.stepInput.get()), "Move out")
 
     def reset_position(self):
-        if self.hexapod is None or not self.hexapod.ssh_API:
-            print("Reset Position")
-        else:
-            response = self.hexapod.resetPosition()
-            self.hexapodTextbox.insert(tk.END, f"Reset Position: {response}\n")
+        self.run_hexapod_command(lambda: self.hexapod.resetPosition(), "Reset Position")
