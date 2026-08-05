@@ -5,6 +5,7 @@ import ttkbootstrap as ttk
 import numpy as np
 import threading
 from src.hexapod.hexapodControl2 import HexapodControl
+from src.utilities.hexapodCenterFinder.centerFinderGUI import launch_center_finder_popup
 import regex as re
 
 
@@ -107,6 +108,11 @@ class HexapodAutomationTab:
         self.controlOffHexapodButton = tk.Button(status_frame, text="Turn off Control",
                                                  command=lambda: self.hexapod.controlOff())
         self.controlOffHexapodButton.grid(row=1, column=3, padx=10, pady=5)
+
+        self.centerFinderButton = tk.Button(
+            status_frame, text="Find Laser Center", command=self.open_center_finder
+        )
+        self.centerFinderButton.grid(row=1, column=4, padx=10, pady=5)
 
         # Movement Parameters Section
         self.degreesSweepLabel = tk.Label(movement_frame, text="Degrees of Sweep")
@@ -267,9 +273,11 @@ class HexapodAutomationTab:
     def connect_hexapod(self):
         try:
             self.hexapod = HexapodControl()
-            self.hexapod.connectHexapod()
         except Exception as e:
             print(f"Error connecting to Hexapod: {e}")
+
+    def open_center_finder(self):
+        launch_center_finder_popup(self.parent.winfo_toplevel(), self.hexapod)
 
     def update_hexapod_status(self):
         if self.hexapod is None:

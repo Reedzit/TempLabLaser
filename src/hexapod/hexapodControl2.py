@@ -12,6 +12,7 @@ class HexapodControl():
     def __init__(self):
         self.ssh_API = None
         self.status_dict = None
+        self.laser_position = None
         self.ready_for_commands = True
         self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
         self.connectHexapod()
