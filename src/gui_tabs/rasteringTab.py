@@ -143,7 +143,7 @@ class RasteringTab:
 
         # === Control Section ===
         self.startScanButton = tk.Button(control_frame, text="Start Raster Scan",
-                                         command=self.start_raster_scan)
+                                         command=self.start_raster_scan, state="disabled")
         self.startScanButton.grid(row=0, column=0, padx=10, pady=10)
 
         self.stopScanButton = tk.Button(control_frame, text="Stop Scan",
@@ -159,7 +159,7 @@ class RasteringTab:
         self.saveDataButton.grid(row=0, column=3, padx=10, pady=10)
 
         self.returnOriginButton = tk.Button(control_frame, text="Return to Origin",
-                                            command=self.return_to_origin)
+                                            command=self.return_to_origin, state="disabled")
         self.returnOriginButton.grid(row=0, column=4, padx=10, pady=10)
 
         # Progress bar
@@ -285,6 +285,11 @@ class RasteringTab:
             if hasattr(self.main_gui, 'hexapodTabObject') and self.main_gui.hexapodTabObject.hexapod:
                 self.hexapod = self.main_gui.hexapodTabObject.hexapod
         return self.hexapod
+
+    def update_hexapod_command_controls(self, ready):
+        command_state = tk.NORMAL if ready and not self.scan_running else tk.DISABLED
+        self.startScanButton.configure(state=command_state)
+        self.returnOriginButton.configure(state=command_state)
 
     def start_raster_scan(self):
         """Start the raster scan in a background thread."""
@@ -450,7 +455,10 @@ class RasteringTab:
     def _scan_complete(self):
         """Called when scan is complete."""
         self.scan_running = False
-        self.startScanButton['state'] = 'normal'
+        hexapod = self.get_hexapod()
+        ready = hexapod is not None and getattr(hexapod, "ready_for_commands", False)
+        self.startScanButton['state'] = 'normal' if ready else 'disabled'
+        self.returnOriginButton['state'] = 'normal' if ready else 'disabled'
         self.stopScanButton['state'] = 'disabled'
         self.detectFiducialButton['state'] = 'normal'
         self.saveDataButton['state'] = 'normal'

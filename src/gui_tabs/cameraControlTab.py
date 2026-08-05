@@ -136,10 +136,14 @@ class CameraControlTab:
         tk.Label(autofocus_frame, text="Settle Time (s)").grid(row=0, column=4, padx=5, pady=5, sticky=tk.E)
         tk.Entry(autofocus_frame, textvariable=self.autofocus_settle, width=8).grid(row=0, column=5, padx=5, pady=5)
 
-        self.autofocus_button = tk.Button(autofocus_frame, text="Autofocus", command=self.start_autofocus)
+        self.autofocus_button = tk.Button(
+            autofocus_frame, text="Autofocus", command=self.start_autofocus, state="disabled"
+        )
         self.autofocus_button.grid(row=0, column=6, padx=10, pady=5)
 
-        self.focus_laser_button = tk.Button(autofocus_frame, text="Focus Laser", command=self.start_focus_laser)
+        self.focus_laser_button = tk.Button(
+            autofocus_frame, text="Focus Laser", command=self.start_focus_laser, state="disabled"
+        )
         self.focus_laser_button.grid(row=0, column=7, padx=10, pady=5)
 
         tk.Label(autofocus_frame, textvariable=self.autofocus_status).grid(
@@ -572,6 +576,10 @@ class CameraControlTab:
             return None
         return hexapod
 
+    def update_hexapod_command_controls(self, ready):
+        enabled = ready and not self.autofocus_running and not self.focus_laser_running
+        self.set_focus_buttons_enabled(enabled)
+
     def move_hexapod_z(self, hexapod, z_distance):
         hexapod.translate(np.array([0.0, 0.0, float(z_distance)]))
         self.wait_for_hexapod(hexapod)
@@ -586,12 +594,18 @@ class CameraControlTab:
     def finish_autofocus(self):
         self.autofocus_running = False
         if not self.focus_laser_running:
-            self.set_focus_buttons_enabled(True)
+            hexapod = self.get_connected_hexapod()
+            self.set_focus_buttons_enabled(
+                hexapod is not None and getattr(hexapod, "ready_for_commands", False)
+            )
 
     def finish_focus_laser(self):
         self.focus_laser_running = False
         if not self.autofocus_running:
-            self.set_focus_buttons_enabled(True)
+            hexapod = self.get_connected_hexapod()
+            self.set_focus_buttons_enabled(
+                hexapod is not None and getattr(hexapod, "ready_for_commands", False)
+            )
 
     def update_autofocus_status(self, text):
         self.autofocus_status.set(text)

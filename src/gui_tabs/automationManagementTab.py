@@ -8,7 +8,6 @@ class AutomationManagerTab:
         self.parent = parent
         self.main_gui = main_gui
         self.instruments = instruments
-        self.setup_ui()
         self.manager = automationManager.AutomationManager(self, instruments, None, main_gui)
         self.setup_ui()
         self.automation_progress = 0
@@ -26,7 +25,7 @@ class AutomationManagerTab:
         laser_frame.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='nsew')
 
         self.startAutomationButton = tk.Button(laser_frame, text="Start Automation", 
-                                            command=self.start_automation)
+                                            command=self.start_automation, state=tk.DISABLED)
         self.startAutomationButton.grid(row=0, column=0, padx=5, pady=5)
 
         self.stopAutomationButton = tk.Button(laser_frame, text="Stop Automation", 
@@ -37,7 +36,7 @@ class AutomationManagerTab:
         focusing_frame.grid(row=0, column=2, columnspan=2, padx=5, pady=5, sticky='nsew')
 
         self.startFocussingButton = tk.Button(focusing_frame, text="Start Focussing", 
-                                            command=self.runFocussingCycle)
+                                            command=self.runFocussingCycle, state=tk.DISABLED)
         self.startFocussingButton.grid(row=0, column=0, padx=5, pady=5)
 
         self.stopFocussingButton = tk.Button(focusing_frame, text="Stop Focussing", 
@@ -111,6 +110,11 @@ class AutomationManagerTab:
     def start_automation(self):
         self.manager.beginAutomation()
         self.start_progress_updates()
+
+    def update_hexapod_command_controls(self, ready):
+        state = tk.NORMAL if ready else tk.DISABLED
+        self.startAutomationButton.configure(state=state)
+        self.startFocussingButton.configure(state=state)
 
     def stop_automation(self):
         self.manager.endAutomation()
