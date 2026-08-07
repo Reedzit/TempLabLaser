@@ -46,7 +46,6 @@ class MicroscopeGUI:
         # Create frames for each tab
         laserAutomationFrame = ttk.Frame(notebook)
         hexapodAutomationFrame = ttk.Frame(notebook)
-        sampleMappingFrame = ttk.Frame(notebook)
         generalAutomationFrame = ttk.Frame(notebook)
         rasteringFrame = ttk.Frame(notebook)
         cameraControlFrame = ttk.Frame(notebook)
@@ -54,7 +53,6 @@ class MicroscopeGUI:
         # Add frames to notebook
         notebook.add(laserAutomationFrame, text='Laser Automation')
         notebook.add(hexapodAutomationFrame, text='Hexapod Automation')
-        notebook.add(sampleMappingFrame, text='Sample Mapping')
         notebook.add(generalAutomationFrame, text='Automation Finalization')
         notebook.add(rasteringFrame, text='Rastering')
         notebook.add(cameraControlFrame, text='Camera Control')
@@ -65,9 +63,6 @@ class MicroscopeGUI:
 
         self.hexapodTabObject = automationHexapodTab.HexapodAutomationTab(hexapodAutomationFrame, self.instruments, self)
         
-        #TODO: Implement Sample Mapping Tab
-        #self.sampleMappingTabObject = sampleMappingTab.SampleMappingTab(sampleMappingFrame, self.instruments, self.hexapodTabObject)
-
         self.automationTabObject = automationManagementTab.AutomationManagerTab(generalAutomationFrame, self.instruments, self)
 
         self.rasteringTabObject = rasteringTab.RasteringTab(rasteringFrame, self.instruments, self)
