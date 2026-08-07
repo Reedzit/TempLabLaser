@@ -44,52 +44,6 @@ class HexapodAutomationTab:
         debugging_frame = ttk.LabelFrame(hexapod_automation_tab, text="Debugging Stuff")
         debugging_frame.grid(row=4, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
 
-        # Add new constraints frame
-        constraints_frame = ttk.LabelFrame(hexapod_automation_tab, text="Movement Constraints")
-        constraints_frame.grid(row=3, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
-
-        # Create a subframe for the meters to control their size and layout
-        meters_frame = ttk.Frame(constraints_frame)
-        meters_frame.grid(row=0, column=0, columnspan=6, padx=5, pady=5)
-
-        # Define coordinate systems with their ranges
-        coordinates = {
-            'X': {'name': 'X Position', 'range': (-30, 30)},  # ±50mm
-            'Y': {'name': 'Y Position', 'range': (-30, 30)},  # ±50mm
-            'Z': {'name': 'Z Position', 'range': (-20, 20)},  # ±25mm
-            'Roll (Rx)': {'name': 'Roll', 'range': (-11, 11)},     # ±20°
-            'Pitch (Ry)': {'name': 'Pitch', 'range': (-11, 11)},   # ±20°
-            'Yaw (Rz)': {'name': 'Yaw', 'range': (-20, 20)}        # ±20°
-        }
-
-        self.constraint_meters = {}
-
-        for i, (coord, info) in enumerate(coordinates.items()):
-            # Create frame for each meter
-            meter_frame = ttk.LabelFrame(meters_frame, text=info['name'])
-            meter_frame.grid(row=i//3, column=i%3, padx=5, pady=5)
-
-            # Create meter with small size
-            meter = ttk.Meter(
-                meter_frame,
-                metersize=150,
-                padding=5,
-                amountused=50,  # Start at middle position
-                metertype="full",  # Full circle display
-                subtext=f"Range: {info['range'][0]} to {info['range'][1]}",
-                interactive=False,
-                stripethickness=10
-            )
-            meter.pack(padx=5, pady=5)
-
-            # Store meter reference
-            self.constraint_meters[coord] = {
-                'meter': meter,
-                'range': info['range']
-            }
-
-        # Method to update meter values
-
         # Status and Control Section
         self.hexapodStatusLabel = tk.Label(status_frame, text="Hexapod Status: Not Connected")
         self.hexapodStatusLabel.grid(row=0, column=0, columnspan=4, padx=10, pady=5)
@@ -131,17 +85,11 @@ class HexapodAutomationTab:
         self.degreesSweepInput = tk.Entry(movement_frame, textvariable=self.degrees_of_sweep)
         self.degreesSweepInput.grid(row=0, column=1, padx=10, pady=5)
 
-        self.pumpLaserDistanceLabel = tk.Label(movement_frame, text="Distance between lasers (mm)")
-        self.pumpLaserDistanceLabel.grid(row=1, column=0, padx=10, pady=5, sticky=tk.E)
-        self.pumpLaserDistanceInput = tk.Entry(movement_frame)
-        self.pumpLaserDistanceInput.insert(0, "1.0")
-        self.pumpLaserDistanceInput.grid(row=1, column=1, padx=10, pady=5)
-
         self.stepCountLabel = tk.Label(movement_frame, text="Step Count:")
         self.stepCount = tk.IntVar(movement_frame, 1)
         self.stepCountInput = tk.Entry(movement_frame, textvariable=self.stepCount, state='normal')
-        self.stepCountLabel.grid(row=2, column=0, padx=10, pady=5, sticky=tk.E)
-        self.stepCountInput.grid(row=2, column=1, padx=10, pady=5)
+        self.stepCountLabel.grid(row=1, column=0, padx=10, pady=5, sticky=tk.E)
+        self.stepCountInput.grid(row=1, column=1, padx=10, pady=5)
 
         # Output and Data Section
         file_frame = ttk.Frame(output_frame)
@@ -236,29 +184,6 @@ class HexapodAutomationTab:
         # Configure grid weights
         for frame in (status_frame, movement_frame, output_frame):
             frame.grid_columnconfigure(1, weight=1)
-
-    def update_meter_value(self, coordinate, pos_constraint, neg_constraint):
-        """
-        Update meter to show constraints in both positive and negative directions
-
-        Args:
-            coordinate: The coordinate to update ('X', 'Y', etc.)
-            pos_constraint: Constraint in positive direction (0-100%)
-            neg_constraint: Constraint in negative direction (0-100%)
-        """
-        meter = self.constraint_meters[coordinate]['meter']
-        total_range = abs(self.constraint_meters[coordinate]['range'][1] -
-                          self.constraint_meters[coordinate]['range'][0])
-
-        # Calculate the amount used based on constraints
-        pos_amount = (100 - pos_constraint) * (total_range / 2) / 100
-        neg_amount = (100 - neg_constraint) * (total_range / 2) / 100
-
-        # Update meter display
-        meter.configure(
-            amountused=(pos_amount + neg_amount) / total_range * 100,
-            sublabel=f"+{pos_amount:.1f}/-{neg_amount:.1f}"
-        )
 
     def print_hexapod_state(self):
         def actually_print():
