@@ -29,6 +29,14 @@ class FakeCommandTab:
         self.ready = ready
 
 
+class FakeLabel:
+    def __init__(self):
+        self.text = None
+
+    def config(self, **options):
+        self.text = options.get("text", self.text)
+
+
 class HexapodCommandControlTests(unittest.TestCase):
     def test_main_controls_and_other_tabs_follow_ready_state(self):
         tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
@@ -110,6 +118,19 @@ class HexapodCommandControlTests(unittest.TestCase):
 
         self.assertFalse(controller.checkStatus())
         self.assertFalse(controller.ready_for_commands)
+
+    def test_position_display_shows_all_six_axes(self):
+        tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
+        tab.hexapod = SimpleNamespace(position=(1, -2.5, 3.125, 4, 5.5, -6))
+        tab.hexapodPositionLabel = FakeLabel()
+
+        tab.update_position_display()
+
+        self.assertEqual(
+            "Position (mm): X 1.000, Y -2.500, Z 3.125\n"
+            "Rotation (deg): Rx 4.000, Ry 5.500, Rz -6.000",
+            tab.hexapodPositionLabel.text,
+        )
 
 
 if __name__ == "__main__":

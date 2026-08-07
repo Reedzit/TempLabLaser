@@ -94,6 +94,13 @@ class HexapodAutomationTab:
         self.hexapodStatusLabel = tk.Label(status_frame, text="Hexapod Status: Not Connected")
         self.hexapodStatusLabel.grid(row=0, column=0, columnspan=4, padx=10, pady=5)
 
+        self.hexapodPositionLabel = tk.Label(
+            status_frame,
+            text="Position: unavailable",
+            font=("TkDefaultFont", 10, "bold")
+        )
+        self.hexapodPositionLabel.grid(row=0, column=4, padx=10, pady=5)
+
         self.connectHexapodButton = tk.Button(status_frame, text="Connect to Hexapod",
                                               command=self.connect_hexapod)
         self.connectHexapodButton.grid(row=1, column=0, padx=10, pady=5)
@@ -314,10 +321,32 @@ class HexapodAutomationTab:
             except Exception as e:
                 self.hexapodStatusLabel.config(text=f"Error: {e}")
 
+        self.update_position_display()
+
         self.update_command_controls(connected, ready)
 
         # update the label every 100 milliseconds
         self.hexapodStatusLabel.after(100, self.update_hexapod_status)
+
+    def update_position_display(self):
+        position = getattr(self.hexapod, "position", None)
+        if not position or len(position) != 6 or any(value is None for value in position):
+            self.hexapodPositionLabel.config(text="Position: unavailable")
+            return
+
+        try:
+            values = [float(value) for value in position]
+        except (TypeError, ValueError):
+            self.hexapodPositionLabel.config(text="Position: unavailable")
+            return
+
+        x, y, z, rx, ry, rz = values
+        self.hexapodPositionLabel.config(
+            text=(
+                f"Position (mm): X {x:.3f}, Y {y:.3f}, Z {z:.3f}\n"
+                f"Rotation (deg): Rx {rx:.3f}, Ry {ry:.3f}, Rz {rz:.3f}"
+            )
+        )
 
     def update_command_controls(self, connected, ready):
         state = tk.NORMAL if ready else tk.DISABLED

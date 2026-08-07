@@ -13,6 +13,7 @@ class HexapodControl():
         self.ssh_API = None
         self.status_dict = None
         self.laser_position = None
+        self.position = None
         self.ready_for_commands = False
         self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
         self.connectHexapod()
@@ -155,6 +156,7 @@ class HexapodControl():
                 print("Hexapod is still busy, waiting for it to finish...", end='\r')
                 self.getState()
                 sleep(0.25)
+            self.logPosition()
             print("Hexapod is now ready for new commands.")
             self.ready_for_commands = True
             self.commandResolutionThread = None  # Reset thread reference
@@ -198,6 +200,7 @@ class HexapodControl():
         # Homing takes forever, so we need to wait for it to finish before we can send any more commands.
         self.waitForCommandResolution()
         print("Hexapod is now homed and ready for commands.", end='\r')
+        self.logPosition() #in theory it's at 0,0,0 here, but we may as well log it
         return True
 
     # API Documentation seems to have gone entirely missing, so I'm not entirely sure what this command does,
@@ -229,6 +232,7 @@ class HexapodControl():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
             answer = self.ssh_API.ErrorCodes[answer]
+        self.logPosition()  # Update the position after the move
         return answer
 
     def rotate(self, rotation_vector=np.array([0.0, 0.0, 0.0])):
@@ -241,6 +245,7 @@ class HexapodControl():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
             answer = self.ssh_API.ErrorCodes[answer]
+        self.logPosition()  # Update the position after the move
         return answer
 
     def compoundMove(self, movement_vector=np.array([0.0, 0.0, 0.0]), rotation_vector=np.array([0.0, 0.0, 0.0]), magnitude=None):
@@ -257,6 +262,7 @@ class HexapodControl():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
             answer = self.ssh_API.ErrorCodes[answer]
+        self.logPosition()  # Update the position after the move
         return answer
 
     # Shout out to Reed Zittler for this code too
@@ -281,3 +287,18 @@ class HexapodControl():
         elif answer in self.ssh_API.ErrorCodes.keys():
             answer = self.ssh_API.ErrorCodes[answer]
         return answer
+
+    def logPosition(self):
+        try:
+            x = self.status_dict.get("s_mtp_tx", None)
+            y = self.status_dict.get("s_mtp_ty", None)
+            z = self.status_dict.get("s_mtp_tz", None)
+
+            alpha = self.status_dict.get("s_mtp_rx", None)
+            beta = self.status_dict.get("s_mtp_ry", None)
+            tau = self.status_dict.get("s_mtp_rz", None)
+            self.position = (x, y, z, alpha, beta, tau)
+        except Exception as e:
+            print(f"Error occurred while logging position: {e}")
+            self.position = None
+        return self.position
