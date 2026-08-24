@@ -57,7 +57,9 @@ class CenterFinderGUI(tk.Toplevel):
         self.hp_status = tk.StringVar()
         self.search_status = tk.StringVar(value="Ready")
         self.result = tk.StringVar(value="Laser position: not found")
+        self.dimensions = tk.StringVar(value="Hole axes: not measured")
         self.threshold = tk.StringVar(value="1e-6")
+        self.coarse_step_size = tk.StringVar(value="1.0")
         self.step_size = tk.StringVar(value="0.1")
         self.max_travel = tk.StringVar(value="30")
         self.samples = tk.StringVar(value="3")
@@ -81,7 +83,8 @@ class CenterFinderGUI(tk.Toplevel):
         settings.pack(fill=tk.X, padx=8, pady=4)
         fields = (
             ("Sensing threshold (W)", self.threshold),
-            ("Step size (mm)", self.step_size),
+            ("Rough step size (mm)", self.coarse_step_size),
+            ("Fine step size (mm)", self.step_size),
             ("Maximum travel (mm)", self.max_travel),
             ("Samples per point", self.samples),
             ("Settle time (s)", self.settle_time),
@@ -110,6 +113,9 @@ class CenterFinderGUI(tk.Toplevel):
         )
         ttk.Label(settings, textvariable=self.result).grid(
             row=6, column=0, columnspan=3, sticky=tk.W, padx=4
+        )
+        ttk.Label(settings, textvariable=self.dimensions).grid(
+            row=7, column=0, columnspan=3, sticky=tk.W, padx=4
         )
 
         self.fig = Figure(figsize=(7.5, 3.5), dpi=100)
@@ -152,6 +158,7 @@ class CenterFinderGUI(tk.Toplevel):
         try:
             settings = {
                 "threshold": float(self.threshold.get()),
+                "coarse_step_size": float(self.coarse_step_size.get()),
                 "step_size": float(self.step_size.get()),
                 "max_travel": float(self.max_travel.get()),
                 "samples": int(self.samples.get()),
@@ -187,6 +194,12 @@ class CenterFinderGUI(tk.Toplevel):
             )
             position = finder.find_center()
             self.after(0, self.result.set, f"Laser position: {position}")
+            self.after(
+                0,
+                self.dimensions.set,
+                f"Hole axes: major {finder.major_axis:.3f} mm, "
+                f"minor {finder.minor_axis:.3f} mm",
+            )
         except SearchCancelled as exc:
             self._post_status(str(exc))
         except (CenterFinderError, TimeoutError, OSError, ValueError) as exc:
