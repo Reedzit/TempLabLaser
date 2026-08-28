@@ -84,7 +84,7 @@ class CenterFinderGUI(tk.Toplevel):
         fields = (
             ("Sensing threshold (W)", self.threshold),
             ("Rough step size (mm)", self.coarse_step_size),
-            ("Fine step size (mm)", self.step_size),
+            ("Edge resolution (mm)", self.step_size),
             ("Maximum travel (mm)", self.max_travel),
             ("Samples per point", self.samples),
             ("Settle time (s)", self.settle_time),

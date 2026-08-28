@@ -28,13 +28,13 @@ class HexapodCenterFinder:
         if threshold <= 0:
             raise ValueError("Power threshold must be greater than zero.")
         if step_size <= 0 or max_travel <= 0:
-            raise ValueError("Fine step size and maximum travel must be greater than zero.")
+            raise ValueError("Edge resolution and maximum travel must be greater than zero.")
         if coarse_step_size is None:
             coarse_step_size = step_size
         if coarse_step_size <= 0:
             raise ValueError("Coarse step size must be greater than zero.")
         if coarse_step_size < step_size:
-            raise ValueError("Coarse step size must be at least the fine step size.")
+            raise ValueError("Coarse step size must be at least the edge resolution.")
         if samples < 1:
             raise ValueError("Sample count must be at least one.")
 
@@ -108,7 +108,7 @@ class HexapodCenterFinder:
         while True:
             self._step(axis, direction, self.coarse_step_size)
             if not self._laser_is_sensed():
-                return self._refine_edge(axis, direction, inside, self.offset[axis], message)
+                return self._refine_edge(axis, inside, self.offset[axis], message)
             inside = self.offset[axis]
 
     def _find_opposite_edge(self, axis, direction, message):
@@ -122,17 +122,21 @@ class HexapodCenterFinder:
                 reacquired_laser = True
                 inside = self.offset[axis]
             elif reacquired_laser:
-                return self._refine_edge(axis, direction, inside, self.offset[axis], message)
+                return self._refine_edge(axis, inside, self.offset[axis], message)
 
-    def _refine_edge(self, axis, direction, inside, outside, message):
-        self.status_callback(f"{message} (fine tuning)")
-        self._move_axis_to(axis, inside)
-        while True:
-            remaining = direction * (outside - self.offset[axis])
-            distance = min(self.step_size, remaining)
-            self._step(axis, direction, distance)
-            if not self._laser_is_sensed():
-                return self.offset[axis]
+    def _refine_edge(self, axis, inside, outside, message):
+        self.status_callback(f"{message} (bisection refinement)")
+        while abs(outside - inside) > self.step_size:
+            midpoint = (inside + outside) / 2.0
+            self._move_axis_to(axis, midpoint)
+            if self._laser_is_sensed():
+                inside = midpoint
+            else:
+                outside = midpoint
+
+        edge = (inside + outside) / 2.0
+        self._move_axis_to(axis, edge)
+        return edge
 
     def _step(self, axis, direction, distance):
         target = self.offset[axis] + direction * distance
