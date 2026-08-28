@@ -5,8 +5,61 @@ import ttkbootstrap as ttk
 import numpy as np
 import threading
 from src.hexapod.hexapodControl2 import HexapodControl
+from src.hexapod.laserGeometry import laser_spot_on_face
 from src.utilities.hexapodCenterFinder.centerFinderGUI import launch_center_finder_popup
 import regex as re
+
+
+class LCDDisplay(tk.Frame):
+    def __init__(self, parent, title, axes):
+        super().__init__(parent, bg="#101512", bd=2, relief=tk.SUNKEN)
+        self.values = []
+
+        tk.Label(
+            self,
+            text=title,
+            bg="#101512",
+            fg="#9db6a5",
+            font=("TkDefaultFont", 10, "bold"),
+        ).grid(row=0, column=0, columnspan=3, padx=8, pady=(6, 2))
+
+        for index, axis in enumerate(axes):
+            row = index // 3 + 1
+            column = index % 3
+            cell = tk.Frame(self, bg="#101512")
+            cell.grid(row=row, column=column, padx=8, pady=5, sticky="nsew")
+            self.grid_columnconfigure(column, weight=1)
+
+            tk.Label(
+                cell,
+                text=axis,
+                bg="#101512",
+                fg="#9db6a5",
+                font=("TkDefaultFont", 9),
+            ).pack(anchor=tk.W)
+            value = tk.StringVar(value="unavailable")
+            tk.Label(
+                cell,
+                textvariable=value,
+                bg="#07120b",
+                fg="#5cff87",
+                font=("Consolas", 14, "bold"),
+                width=14,
+                anchor=tk.E,
+                padx=6,
+                pady=3,
+                relief=tk.SUNKEN,
+                bd=1,
+            ).pack(fill=tk.X)
+            self.values.append(value)
+
+    def set_values(self, values):
+        for variable, value in zip(self.values, values):
+            variable.set(value)
+
+    def clear(self):
+        for variable in self.values:
+            variable.set("unavailable")
 
 
 class HexapodAutomationTab:
@@ -19,6 +72,7 @@ class HexapodAutomationTab:
         self.stepCount = tk.IntVar(value=20)  # Default step count
         self.hexapodCenter = tk.StringVar(value="0")  # Default center position
         self.pumpLaser = tk.StringVar(value="0")  # Default pump laser state
+        self.rotate_around_laser = tk.BooleanVar(value=False)
         self.setup_ui()
 
 
@@ -38,22 +92,33 @@ class HexapodAutomationTab:
         adjustment_frame = ttk.LabelFrame(hexapod_automation_tab, text="Manual Adjustment")
         adjustment_frame.grid(row=2, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
 
+        position_frame = ttk.LabelFrame(hexapod_automation_tab, text="Position Readouts")
+        position_frame.grid(row=3, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
+
         output_frame = ttk.LabelFrame(hexapod_automation_tab, text="Output and Data")
-        output_frame.grid(row=3, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
+        output_frame.grid(row=4, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
 
         debugging_frame = ttk.LabelFrame(hexapod_automation_tab, text="Debugging Stuff")
-        debugging_frame.grid(row=4, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
+        debugging_frame.grid(row=5, column=0, columnspan=5, padx=10, pady=5, sticky='nsew')
 
         # Status and Control Section
         self.hexapodStatusLabel = tk.Label(status_frame, text="Hexapod Status: Not Connected")
         self.hexapodStatusLabel.grid(row=0, column=0, columnspan=4, padx=10, pady=5)
 
-        self.hexapodPositionLabel = tk.Label(
-            status_frame,
-            text="Position: unavailable",
-            font=("TkDefaultFont", 10, "bold")
+        self.hexapodPositionDisplay = LCDDisplay(
+            position_frame,
+            "Hexapod Position",
+            ("X (mm)", "Y (mm)", "Z (mm)", "Rx (deg)", "Ry (deg)", "Rz (deg)"),
         )
-        self.hexapodPositionLabel.grid(row=0, column=4, padx=10, pady=5)
+        self.hexapodPositionDisplay.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
+
+        self.laserPositionDisplay = LCDDisplay(
+            position_frame,
+            "Laser Spot on Hexapod Face",
+            ("X (mm)", "Y (mm)", "Z (mm)"),
+        )
+        self.laserPositionDisplay.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+        position_frame.grid_columnconfigure(0, weight=1)
 
         self.connectHexapodButton = tk.Button(status_frame, text="Connect to Hexapod",
                                               command=self.connect_hexapod)
@@ -138,20 +203,20 @@ class HexapodAutomationTab:
 
 
         self.manualTranslationButton = tk.Button(adjustment_frame, text="Translate",
-                                                command=lambda: self.run_hexapod_command(lambda: self.hexapod.translate(
-                                                    np.array([
-                                                        float(self.manualTranslationX.get()),
-                                                        float(self.manualTranslationY.get()),
-                                                        float(self.manualTranslationZ.get())
-                                                    ]))), state=tk.DISABLED)
-        self.manualTranslationButton.grid(row=1, column=4, padx=10, pady=5)
-        self.manualTranslationButtonReverse = tk.Button(adjustment_frame, text="Actually go back",
                                                  command=lambda: self.run_hexapod_command(lambda: self.hexapod.translate(
                                                      np.array([
-                                                         -float(self.manualTranslationX.get()),
-                                                         -float(self.manualTranslationY.get()),
-                                                         -float(self.manualTranslationZ.get())
-                                                     ]))), state=tk.DISABLED)
+                                                         float(self.manualTranslationX.get()),
+                                                         float(self.manualTranslationY.get()),
+                                                         float(self.manualTranslationZ.get())
+                                                     ])), report_move=True), state=tk.DISABLED)
+        self.manualTranslationButton.grid(row=1, column=4, padx=10, pady=5)
+        self.manualTranslationButtonReverse = tk.Button(adjustment_frame, text="Actually go back",
+                                                  command=lambda: self.run_hexapod_command(lambda: self.hexapod.translate(
+                                                      np.array([
+                                                          -float(self.manualTranslationX.get()),
+                                                          -float(self.manualTranslationY.get()),
+                                                          -float(self.manualTranslationZ.get())
+                                                      ])), report_move=True), state=tk.DISABLED)
         self.manualTranslationButtonReverse.grid(row=1, column=5, padx=10, pady=5)
         self.manualRotationLabel = tk.Label(adjustment_frame, text="Rotation (θ°):")
         self.manualRotationLabel.grid(row=2, column=0, padx=10, pady=5, sticky=tk.E)
@@ -164,14 +229,26 @@ class HexapodAutomationTab:
         self.manualRotationZ = tk.Entry(adjustment_frame, width=5)
         self.manualRotationZ.grid(row=2, column=3, padx=5, pady=5)
 
-        self.manualRotationButton = tk.Button(adjustment_frame, text="Rotate",
-                                                command=lambda: self.run_hexapod_command(lambda: self.hexapod.rotate(
-                                                    np.array([
-                                                        float(self.manualRotationY.get()),
-                                                        float(self.manualRotationX.get()),
-                                                        float(self.manualRotationZ.get())
-                                                    ]))), state=tk.DISABLED)
+        self.manualRotationButton = tk.Button(
+            adjustment_frame,
+            text="Rotate",
+            command=self.rotate_hexapod,
+            state=tk.DISABLED,
+        )
         self.manualRotationButton.grid(row=2, column=4, padx=10, pady=5)
+        self.rotateAroundLaserCheck = tk.Checkbutton(
+            adjustment_frame,
+            text="Rotate around laser spot",
+            variable=self.rotate_around_laser,
+        )
+        self.rotateAroundLaserCheck.grid(row=2, column=5, padx=10, pady=5, sticky=tk.W)
+
+        self.moveResultLabel = tk.Label(
+            adjustment_frame,
+            text="Last move: No move requested",
+            anchor=tk.W,
+        )
+        self.moveResultLabel.grid(row=3, column=0, columnspan=6, padx=10, pady=5, sticky=tk.EW)
 
         # Debugging Section
         self.printStateButton = tk.Button(debugging_frame, text="Print Hexapod State",
@@ -220,13 +297,36 @@ class HexapodAutomationTab:
             print(f"Error connecting to Hexapod: {e}")
             self.connectHexapodButton.configure(state=tk.NORMAL)
 
-    def run_hexapod_command(self, command):
+    def run_hexapod_command(self, command, report_move=False):
         if self.hexapod is None or not getattr(self.hexapod, "ready_for_commands", False):
             return
         self.hexapod.ready_for_commands = False
         self.update_command_controls(connected=True, ready=False)
         self.parent.update_idletasks()
-        command()
+        result = command()
+        if report_move:
+            if result == "Requested move is not feasible.":
+                self.moveResultLabel.configure(
+                    text="Last move: Requested move is not feasible.",
+                    fg="red",
+                )
+            elif result == "Success.":
+                self.moveResultLabel.configure(text="Last move: Accepted", fg="green")
+            else:
+                self.moveResultLabel.configure(text=f"Last move: {result}", fg="red")
+        return result
+
+    def rotate_hexapod(self):
+        rotation = np.array([
+            float(self.manualRotationY.get()),
+            float(self.manualRotationX.get()),
+            float(self.manualRotationZ.get()),
+        ])
+        if self.rotate_around_laser.get():
+            command = lambda: self.hexapod.rotateAroundLaser(rotation)
+        else:
+            command = lambda: self.hexapod.rotate(rotation)
+        self.run_hexapod_command(command, report_move=True)
 
     def open_center_finder(self):
         launch_center_finder_popup(self.parent.winfo_toplevel(), self.hexapod)
@@ -256,21 +356,39 @@ class HexapodAutomationTab:
     def update_position_display(self):
         position = getattr(self.hexapod, "position", None)
         if not position or len(position) != 6 or any(value is None for value in position):
-            self.hexapodPositionLabel.config(text="Position: unavailable")
+            self.hexapodPositionDisplay.clear()
+            self.laserPositionDisplay.clear()
             return
 
         try:
             values = [float(value) for value in position]
         except (TypeError, ValueError):
-            self.hexapodPositionLabel.config(text="Position: unavailable")
+            self.hexapodPositionDisplay.clear()
+            self.laserPositionDisplay.clear()
             return
 
         x, y, z, rx, ry, rz = values
-        self.hexapodPositionLabel.config(
-            text=(
-                f"Position (mm): X {x:.3f}, Y {y:.3f}, Z {z:.3f}\n"
-                f"Rotation (deg): Rx {rx:.3f}, Ry {ry:.3f}, Rz {rz:.3f}"
-            )
+        self.hexapodPositionDisplay.set_values(
+            tuple(f"{value:.6f}" for value in (x, y, z, rx, ry, rz))
+        )
+
+        laser_offset = getattr(self.hexapod, "laser_position", None)
+        if (
+            not laser_offset
+            or len(laser_offset) != 3
+            or any(value is None for value in laser_offset)
+        ):
+            self.laserPositionDisplay.clear()
+            return
+
+        try:
+            laser_spot = laser_spot_on_face(laser_offset, values)
+        except (TypeError, ValueError):
+            self.laserPositionDisplay.clear()
+            return
+
+        self.laserPositionDisplay.set_values(
+            tuple(f"{value:.6f}" for value in laser_spot)
         )
 
     def update_command_controls(self, connected, ready):

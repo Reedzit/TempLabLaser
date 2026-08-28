@@ -28,6 +28,10 @@ class CameraControlTab:
         self.detached_image_label = None
         self.last_status_update = 0.0
         self.last_diagnostics_update = 0.0
+        self.aruco_dictionary = None
+        self.aruco_detector = None
+        self.aruco_detectors = []
+        self.setup_aruco_detector()
         self.setup_ui()
         self.parent.after(33, self.update_live_view)
 
@@ -63,7 +67,7 @@ class CameraControlTab:
         autofocus_frame = ttk.LabelFrame(inner_frame, text="Autofocus")
         autofocus_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=5, sticky='nsew')
 
-        self.status_text = tk.StringVar(value=self.camera_manager.status)
+        self.status_text = tk.StringVar(value=f"Camera Status: {self.camera_manager.status}")
         self.status_label = tk.Label(connection_frame, textvariable=self.status_text)
         self.status_label.grid(row=0, column=0, columnspan=4, padx=10, pady=5, sticky=tk.W)
 
@@ -95,6 +99,23 @@ class CameraControlTab:
 
         self.save_image_button = tk.Button(capture_frame, text="Save Current Image", command=self.save_current_image)
         self.save_image_button.grid(row=0, column=4, padx=10, pady=5)
+
+        self.aruco_enabled = tk.BooleanVar(value=False)
+        aruco_state = "normal" if self.aruco_dictionary is not None else "disabled"
+        self.aruco_check = tk.Checkbutton(
+            capture_frame,
+            text="Detect ArUco Original markers",
+            variable=self.aruco_enabled,
+            command=self.refresh_preview,
+            state=aruco_state,
+        )
+        self.aruco_check.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky=tk.W)
+
+        if self.aruco_dictionary is None:
+            tk.Label(
+                capture_frame,
+                text="ArUco detection requires opencv-contrib-python",
+            ).grid(row=1, column=2, columnspan=3, padx=10, pady=5, sticky=tk.W)
 
         self.autofocus_range = tk.DoubleVar(value=0.5)
         self.autofocus_step = tk.DoubleVar(value=0.05)
@@ -208,6 +229,11 @@ class CameraControlTab:
         if frame is not None:
             self.display_frame(frame)
         self.update_status()
+
+    def refresh_preview(self):
+        frame = self.camera_manager.get_latest_frame()
+        if frame is not None:
+            self.display_frame(frame)
 
     def start_stream(self):
         if self.stream_running:
@@ -702,12 +728,144 @@ class CameraControlTab:
             cv2.imwrite(file_path, frame)
             self.update_status(f"Saved image: {file_path}")
 
+    def setup_aruco_detector(self):
+        if not hasattr(cv2, "aruco"):
+            return
+
+        dictionary_ids = (cv2.aruco.DICT_ARUCO_ORIGINAL,)
+        self.aruco_detectors = []
+        for dictionary_id in dictionary_ids:
+            dictionary = cv2.aruco.getPredefinedDictionary(dictionary_id)
+            if hasattr(cv2.aruco, "DetectorParameters"):
+                parameters = cv2.aruco.DetectorParameters()
+            else:
+                parameters = cv2.aruco.DetectorParameters_create()
+            if hasattr(cv2.aruco, "ArucoDetector"):
+                detector = cv2.aruco.ArucoDetector(dictionary, parameters)
+            else:
+                detector = parameters
+            self.aruco_detectors.append((dictionary, detector))
+
+        self.aruco_dictionary, self.aruco_detector = self.aruco_detectors[0]
+
+    def annotate_aruco_markers(self, frame):
+        if self.aruco_dictionary is None:
+            return frame
+
+        corners = None
+        marker_ids = None
+        detection_scale = 1.0
+        for candidate, detection_scale in self.build_aruco_detection_images(frame):
+            corners, marker_ids = self.detect_aruco_markers(candidate)
+            if marker_ids is not None:
+                break
+
+        if marker_ids is None:
+            return frame
+
+        if frame.ndim == 2:
+            annotated = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        else:
+            annotated = frame.copy()
+        if detection_scale != 1.0:
+            corners = [corner / detection_scale for corner in corners]
+        cv2.aruco.drawDetectedMarkers(annotated, corners, marker_ids)
+        return annotated
+
+    def build_aruco_detection_images(self, frame):
+        height, width = frame.shape[:2]
+        detection_scale = min(1.0, 800.0 / max(height, width))
+        if detection_scale < 1.0:
+            detection_frame = cv2.resize(
+                frame,
+                None,
+                fx=detection_scale,
+                fy=detection_scale,
+                interpolation=cv2.INTER_AREA,
+            )
+        else:
+            detection_frame = frame
+
+        if detection_frame.ndim == 2:
+            gray = detection_frame
+            signal = detection_frame
+        else:
+            gray = cv2.cvtColor(detection_frame, cv2.COLOR_BGR2GRAY)
+            signal = detection_frame[:, :, 2]
+
+        yield gray, detection_scale
+
+        height, width = signal.shape
+        smoothed = cv2.GaussianBlur(
+            signal,
+            (0, 0),
+            sigmaX=max(0.75, 2.0 * detection_scale),
+        )
+        background = cv2.GaussianBlur(
+            smoothed,
+            (0, 0),
+            sigmaX=max(3.0, 25.0 * detection_scale),
+        )
+
+        bandpassed = cv2.divide(smoothed, background, scale=255)
+        yield bandpassed, detection_scale
+
+        clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+        enhanced = clahe.apply(bandpassed)
+        yield enhanced, detection_scale
+
+        block_size = min(41, min(height, width))
+        if block_size % 2 == 0:
+            block_size -= 1
+        if block_size >= 3:
+            binary = cv2.adaptiveThreshold(
+                enhanced,
+                255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                block_size,
+                5,
+            )
+            binary = cv2.morphologyEx(
+                binary,
+                cv2.MORPH_CLOSE,
+                np.ones((3, 3), dtype=np.uint8),
+                iterations=1,
+            )
+            yield binary, detection_scale
+
+    def detect_aruco_markers(self, image):
+        detectors = getattr(self, "aruco_detectors", None)
+        if not detectors:
+            detectors = [(self.aruco_dictionary, self.aruco_detector)]
+
+        detected_corners = []
+        detected_ids = []
+        for dictionary, detector in detectors:
+            if hasattr(detector, "detectMarkers"):
+                corners, marker_ids, _ = detector.detectMarkers(image)
+            else:
+                corners, marker_ids, _ = cv2.aruco.detectMarkers(
+                    image,
+                    dictionary,
+                    parameters=detector,
+                )
+            if marker_ids is not None:
+                detected_corners.extend(corners)
+                detected_ids.extend(marker_ids.flatten())
+
+        if not detected_ids:
+            return [], None
+        return detected_corners, np.asarray(detected_ids, dtype=np.int32).reshape(-1, 1)
+
     def display_frame(self, frame, label=None, max_size=(960, 700)):
         if frame is None:
             return
         if label is None:
             label = self.image_label
 
+        if self.aruco_enabled.get():
+            frame = self.annotate_aruco_markers(frame)
         preview_frame = self.resize_for_display(frame, max_size)
         if preview_frame.ndim == 2:
             rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_GRAY2RGB)
@@ -729,13 +887,13 @@ class CameraControlTab:
 
     def update_status(self, override=None):
         if override is not None:
-            self.status_text.set(override)
+            self.status_text.set(f"Camera Status: {override}")
             return
 
         status = self.camera_manager.status
         if self.camera_manager.error:
             status = f"{status}: {self.camera_manager.error}"
-        self.status_text.set(status)
+        self.status_text.set(f"Camera Status: {status}")
 
     def update_status_throttled(self):
         now = time.perf_counter()

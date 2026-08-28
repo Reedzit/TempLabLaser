@@ -7,16 +7,23 @@ from matplotlib.figure import Figure
 import numpy as np
 import re
 
+from src.hexapod.laserGeometry import rotation_compensation_for_face_spot
+from src.hexapod.laserPositionStore import load_laser_position, save_laser_position
+
 class HexapodControl():
 
     def __init__(self):
         self.ssh_API = None
         self.status_dict = None
-        self.laser_position = None
+        self.laser_position = load_laser_position()
         self.position = None
         self.ready_for_commands = False
         self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
         self.connectHexapod()
+
+    def set_laser_position(self, position):
+        self.laser_position = save_laser_position(position)
+        return self.laser_position
 
     def getState(self):
         if self.ssh_API.waiting_for_reply:
@@ -247,6 +254,18 @@ class HexapodControl():
             answer = self.ssh_API.ErrorCodes[answer]
         self.logPosition()  # Update the position after the move
         return answer
+
+    def rotateAroundLaser(self, rotation_vector=np.array([0.0, 0.0, 0.0])):
+        if self.laser_position is None:
+            raise ValueError("The laser position has not been calibrated.")
+
+        rotation_vector = np.asarray(rotation_vector, dtype=float)
+        compensation = rotation_compensation_for_face_spot(
+            self.laser_position,
+            self.position,
+            rotation_vector,
+        )
+        return self.compoundMove(compensation, rotation_vector)
 
     def compoundMove(self, movement_vector=np.array([0.0, 0.0, 0.0]), rotation_vector=np.array([0.0, 0.0, 0.0]), magnitude=None):
         self.ready_for_commands = False

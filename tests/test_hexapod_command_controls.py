@@ -1,6 +1,8 @@
 import unittest
 from types import SimpleNamespace
 
+import numpy as np
+
 from src.gui_tabs.automationHexapodTab import HexapodAutomationTab
 from src.gui_tabs.automationManagementTab import AutomationManagerTab
 from src.gui_tabs.cameraControlTab import CameraControlTab
@@ -32,9 +34,33 @@ class FakeCommandTab:
 class FakeLabel:
     def __init__(self):
         self.text = None
+        self.fg = None
 
     def config(self, **options):
         self.text = options.get("text", self.text)
+
+    def configure(self, **options):
+        self.text = options.get("text", self.text)
+        self.fg = options.get("fg", self.fg)
+
+
+class FakeDisplay:
+    def __init__(self):
+        self.values = None
+
+    def set_values(self, values):
+        self.values = values
+
+    def clear(self):
+        self.values = None
+
+
+class FakeValue:
+    def __init__(self, value):
+        self.value = value
+
+    def get(self):
+        return self.value
 
 
 class HexapodCommandControlTests(unittest.TestCase):
@@ -119,17 +145,129 @@ class HexapodCommandControlTests(unittest.TestCase):
         self.assertFalse(controller.checkStatus())
         self.assertFalse(controller.ready_for_commands)
 
+    def test_rotate_around_laser_compensates_for_rotated_offset(self):
+        controller = HexapodControl.__new__(HexapodControl)
+        controller.laser_position = (1.0, 0.0, 0.0)
+        controller.position = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        moves = []
+        controller.compoundMove = lambda movement, rotation: moves.append((movement, rotation))
+
+        controller.rotateAroundLaser(np.array([0.0, 0.0, 90.0]))
+
+        movement, rotation = moves[0]
+        np.testing.assert_allclose(movement, (1.0, -1.0, 0.0), atol=1e-12)
+        np.testing.assert_allclose(rotation, (0.0, 0.0, 90.0))
+
+    def test_rotate_around_laser_uses_current_face_spot(self):
+        controller = HexapodControl.__new__(HexapodControl)
+        controller.laser_position = (1.0, 0.0, 0.0)
+        controller.position = (0.25, 0.0, 0.0, 0.0, 0.0, 0.0)
+        moves = []
+        controller.compoundMove = lambda movement, rotation: moves.append((movement, rotation))
+
+        controller.rotateAroundLaser(np.array([0.0, 0.0, 90.0]))
+
+        movement, rotation = moves[0]
+        np.testing.assert_allclose(movement, (0.75, -0.75, 0.0), atol=1e-12)
+        np.testing.assert_allclose(rotation, (0.0, 0.0, 90.0))
+
+    def test_rotate_around_laser_requires_calibration(self):
+        controller = HexapodControl.__new__(HexapodControl)
+        controller.laser_position = None
+
+        with self.assertRaisesRegex(ValueError, "has not been calibrated"):
+            controller.rotateAroundLaser(np.array([0.0, 0.0, 1.0]))
+
+    def test_manual_rotation_uses_origin_by_default(self):
+        tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
+        calls = []
+        tab.hexapod = SimpleNamespace(
+            rotate=lambda rotation: calls.append(("origin", rotation)),
+            rotateAroundLaser=lambda rotation: calls.append(("laser", rotation)),
+        )
+        tab.manualRotationX = FakeValue("1")
+        tab.manualRotationY = FakeValue("2")
+        tab.manualRotationZ = FakeValue("3")
+        tab.rotate_around_laser = FakeValue(False)
+        tab.run_hexapod_command = lambda command, **options: command()
+
+        tab.rotate_hexapod()
+
+        self.assertEqual("origin", calls[0][0])
+        np.testing.assert_allclose((2, 1, 3), calls[0][1])
+
+    def test_manual_rotation_can_rotate_around_laser(self):
+        tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
+        calls = []
+        tab.hexapod = SimpleNamespace(
+            rotate=lambda rotation: calls.append(("origin", rotation)),
+            rotateAroundLaser=lambda rotation: calls.append(("laser", rotation)),
+        )
+        tab.manualRotationX = FakeValue("1")
+        tab.manualRotationY = FakeValue("2")
+        tab.manualRotationZ = FakeValue("3")
+        tab.rotate_around_laser = FakeValue(True)
+        tab.run_hexapod_command = lambda command, **options: command()
+
+        tab.rotate_hexapod()
+
+        self.assertEqual("laser", calls[0][0])
+        np.testing.assert_allclose((2, 1, 3), calls[0][1])
+
+    def test_infeasible_manual_move_is_shown(self):
+        tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
+        tab.hexapod = SimpleNamespace(ready_for_commands=True)
+        tab.parent = SimpleNamespace(update_idletasks=lambda: None)
+        tab.update_command_controls = lambda **options: None
+        tab.moveResultLabel = FakeLabel()
+
+        result = tab.run_hexapod_command(
+            lambda: "Requested move is not feasible.",
+            report_move=True,
+        )
+
+        self.assertEqual("Requested move is not feasible.", result)
+        self.assertEqual("Last move: Requested move is not feasible.", tab.moveResultLabel.text)
+        self.assertEqual("red", tab.moveResultLabel.fg)
+
     def test_position_display_shows_all_six_axes(self):
         tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
-        tab.hexapod = SimpleNamespace(position=(1, -2.5, 3.125, 4, 5.5, -6))
-        tab.hexapodPositionLabel = FakeLabel()
+        tab.hexapod = SimpleNamespace(
+            position=(1, -2.5, 3.125, 4, 5.5, -6),
+            laser_position=None,
+        )
+        tab.hexapodPositionDisplay = FakeDisplay()
+        tab.laserPositionDisplay = FakeDisplay()
 
         tab.update_position_display()
 
         self.assertEqual(
-            "Position (mm): X 1.000, Y -2.500, Z 3.125\n"
-            "Rotation (deg): Rx 4.000, Ry 5.500, Rz -6.000",
-            tab.hexapodPositionLabel.text,
+            (
+                "1.000000",
+                "-2.500000",
+                "3.125000",
+                "4.000000",
+                "5.500000",
+                "-6.000000",
+            ),
+            tab.hexapodPositionDisplay.values,
+        )
+        self.assertIsNone(tab.laserPositionDisplay.values)
+
+    def test_laser_position_shows_face_spot_for_current_pose(self):
+        tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
+        tab.hexapod = SimpleNamespace(
+            position=(10, 20, 30, 0, 0, 0),
+            laser_position=(1.5, -2, 0.25),
+        )
+        tab.hexapodPositionDisplay = FakeDisplay()
+        tab.laserPositionDisplay = FakeDisplay()
+
+        tab.update_position_display()
+
+        self.assertEqual(
+            ("-8.500000", "-22.000000", "0.250000"),
+            tab.laserPositionDisplay.values,
         )
 
 

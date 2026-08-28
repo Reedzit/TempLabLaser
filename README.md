@@ -26,8 +26,10 @@ pip install pyvisa pyvisa-py matplotlib numpy tk subprocess paramiko zeroconf ps
 For the camera tab, install the camera display dependencies:
 
 ```bash
-pip install opencv-python pillow
+pip install opencv-contrib-python pillow
 ```
+
+The contrib build provides the ArUco marker detection used by the camera controls.
 
 If you use MATLAB analysis, install the MATLAB Engine API from your MATLAB installation:
 
