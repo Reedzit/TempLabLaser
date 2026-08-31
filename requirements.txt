@@ -1,0 +1,14 @@
+fonttools
+matplotlib
+numpy
+opencv-contrib-python
+pandas
+paramiko
+Pillow
+psutil
+PyVISA
+PyVISA-py
+regex
+scipy
+ttkbootstrap
+zeroconf
