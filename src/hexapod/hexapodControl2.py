@@ -8,14 +8,18 @@ import numpy as np
 import re
 
 from src.hexapod.laserGeometry import rotation_compensation_for_face_spot
-from src.hexapod.laserPositionStore import load_laser_position, save_laser_position
+from src.hexapod.laserPositionStore import (
+    load_laser_calibration,
+    save_laser_calibration,
+    save_laser_position,
+)
 
 class HexapodControl():
 
     def __init__(self):
         self.ssh_API = None
         self.status_dict = None
-        self.laser_position = load_laser_position()
+        self.laser_position, self.calibration_reference_pose = load_laser_calibration()
         self.position = None
         self.ready_for_commands = False
         self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
@@ -24,6 +28,13 @@ class HexapodControl():
     def set_laser_position(self, position):
         self.laser_position = save_laser_position(position)
         return self.laser_position
+
+    def set_laser_calibration(self, position, reference_pose):
+        self.laser_position, self.calibration_reference_pose = save_laser_calibration(
+            position,
+            reference_pose,
+        )
+        return self.laser_position, self.calibration_reference_pose
 
     def getState(self):
         if self.ssh_API.waiting_for_reply:
@@ -262,6 +273,16 @@ class HexapodControl():
         rotation_vector = np.asarray(rotation_vector, dtype=float)
         compensation = rotation_compensation_for_face_spot(
             self.laser_position,
+            self.position,
+            rotation_vector,
+            getattr(self, "calibration_reference_pose", None),
+        )
+        return self.compoundMove(compensation, rotation_vector)
+
+    def rotateAroundPoint(self, point, rotation_vector):
+        rotation_vector = np.asarray(rotation_vector, dtype=float)
+        compensation = rotation_compensation_for_face_spot(
+            point,
             self.position,
             rotation_vector,
         )

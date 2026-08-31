@@ -6,7 +6,12 @@ from tkinter import messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from .centerFinder import CenterFinderError, HexapodCenterFinder, SearchCancelled
+from .centerFinder import (
+    CenterFinderError,
+    HexapodCenterFinder,
+    HexapodOrthogonalAligner,
+    SearchCancelled,
+)
 from .powerMeterManager import PowerMeterManager
 
 
@@ -39,7 +44,7 @@ class CenterFinderGUI(tk.Toplevel):
     def __init__(self, parent=None, hexapod=None):
         super().__init__(parent)
         self.title("Hexapod Center Finder")
-        self.geometry("800x650")
+        self.geometry("800x700")
 
         self.hexapod = hexapod
         self.power_meter = None
@@ -58,12 +63,14 @@ class CenterFinderGUI(tk.Toplevel):
         self.search_status = tk.StringVar(value="Ready")
         self.result = tk.StringVar(value="Laser position: not found")
         self.dimensions = tk.StringVar(value="Hole axes: not measured")
+        self.alignment = tk.StringVar(value="Tilt correction: not measured")
         self.threshold = tk.StringVar(value="1e-6")
         self.coarse_step_size = tk.StringVar(value="1.0")
         self.step_size = tk.StringVar(value="0.1")
         self.max_travel = tk.StringVar(value="30")
         self.samples = tk.StringVar(value="3")
         self.settle_time = tk.StringVar(value="0.1")
+        self.height_offset = tk.StringVar(value="5.0")
 
         self._build_ui()
         self._update_hexapod_status()
@@ -88,6 +95,7 @@ class CenterFinderGUI(tk.Toplevel):
             ("Maximum travel (mm)", self.max_travel),
             ("Samples per point", self.samples),
             ("Settle time (s)", self.settle_time),
+            ("Alignment +/- Z offset (mm)", self.height_offset),
         )
         for index, (label, variable) in enumerate(fields):
             ttk.Label(settings, text=label).grid(row=index // 3 * 2, column=index % 3, sticky=tk.W, padx=4)
@@ -96,11 +104,18 @@ class CenterFinderGUI(tk.Toplevel):
             )
 
         controls = ttk.Frame(settings)
-        controls.grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=(4, 0))
+        controls.grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=(4, 0))
         self.start_button = ttk.Button(
             controls, text="Find Center", command=self.start_search, state=tk.DISABLED
         )
         self.start_button.pack(side=tk.LEFT, padx=4)
+        self.align_button = ttk.Button(
+            controls,
+            text="Align Orthogonal",
+            command=self.start_alignment,
+            state=tk.DISABLED,
+        )
+        self.align_button.pack(side=tk.LEFT, padx=4)
         self.cancel_button = ttk.Button(
             controls, text="Cancel", command=self.cancel_search, state=tk.DISABLED
         )
@@ -109,13 +124,16 @@ class CenterFinderGUI(tk.Toplevel):
         self.plot_button.pack(side=tk.LEFT, padx=4)
 
         ttk.Label(settings, textvariable=self.search_status).grid(
-            row=5, column=0, columnspan=3, sticky=tk.W, padx=4, pady=(8, 0)
+            row=7, column=0, columnspan=3, sticky=tk.W, padx=4, pady=(8, 0)
         )
         ttk.Label(settings, textvariable=self.result).grid(
-            row=6, column=0, columnspan=3, sticky=tk.W, padx=4
+            row=8, column=0, columnspan=3, sticky=tk.W, padx=4
         )
         ttk.Label(settings, textvariable=self.dimensions).grid(
-            row=7, column=0, columnspan=3, sticky=tk.W, padx=4
+            row=9, column=0, columnspan=3, sticky=tk.W, padx=4
+        )
+        ttk.Label(settings, textvariable=self.alignment).grid(
+            row=10, column=0, columnspan=3, sticky=tk.W, padx=4
         )
 
         self.fig = Figure(figsize=(7.5, 3.5), dpi=100)
@@ -142,6 +160,12 @@ class CenterFinderGUI(tk.Toplevel):
             messagebox.showerror("Connection Error", f"Power meter connection failed:\n{exc}", parent=self)
 
     def start_search(self):
+        self._start_search(align=False)
+
+    def start_alignment(self):
+        self._start_search(align=True)
+
+    def _start_search(self, align):
         if self._search_running:
             return
         if self.power_meter is None or not self.power_meter.connected:
@@ -164,8 +188,11 @@ class CenterFinderGUI(tk.Toplevel):
                 "samples": int(self.samples.get()),
                 "settle_time": float(self.settle_time.get()),
             }
+            height_offset = float(self.height_offset.get()) if align else None
             if settings["settle_time"] < 0:
                 raise ValueError("Settle time cannot be negative.")
+            if align and height_offset <= 0:
+                raise ValueError("Alignment height offset must be greater than zero.")
         except ValueError as exc:
             messagebox.showerror("Invalid Settings", str(exc), parent=self)
             return
@@ -174,11 +201,16 @@ class CenterFinderGUI(tk.Toplevel):
         self._cancel_event.clear()
         self._search_running = True
         self.start_button.configure(state=tk.DISABLED)
+        self.align_button.configure(state=tk.DISABLED)
         self.cancel_button.configure(state=tk.NORMAL)
         self.plot_button.configure(state=tk.DISABLED)
-        self.search_status.set("Starting center search")
+        self.search_status.set(
+            "Starting orthogonal alignment" if align else "Starting center search"
+        )
+        target = self._run_alignment if align else self._run_search
+        args = (settings, height_offset) if align else (settings,)
         self._search_thread = threading.Thread(
-            target=self._run_search, args=(settings,), daemon=True
+            target=target, args=args, daemon=True
         )
         self._search_thread.start()
 
@@ -208,6 +240,39 @@ class CenterFinderGUI(tk.Toplevel):
                 self.after(0, self._show_search_error, str(exc))
         except Exception as exc:
             self._post_status(f"Search failed: {exc}")
+            if not self._closing:
+                self.after(0, self._show_search_error, str(exc))
+        finally:
+            if not self._closing:
+                self.after(0, self._finish_search)
+
+    def _run_alignment(self, settings, height_offset):
+        try:
+            aligner = HexapodOrthogonalAligner(
+                self.hexapod,
+                self.power_meter,
+                height_offset,
+                cancel_event=self._cancel_event,
+                status_callback=self._post_status,
+                sample_callback=self._record_power,
+                **settings,
+            )
+            correction = aligner.align()
+            self.after(0, self.result.set, f"Laser position: {aligner.final_center}")
+            self.after(
+                0,
+                self.alignment.set,
+                f"Tilt correction: Rx {correction[0]:.6f} deg, "
+                f"Ry {correction[1]:.6f} deg",
+            )
+        except SearchCancelled as exc:
+            self._post_status(str(exc))
+        except (CenterFinderError, TimeoutError, OSError, ValueError) as exc:
+            self._post_status(f"Alignment failed: {exc}")
+            if not self._closing:
+                self.after(0, self._show_search_error, str(exc))
+        except Exception as exc:
+            self._post_status(f"Alignment failed: {exc}")
             if not self._closing:
                 self.after(0, self._show_search_error, str(exc))
         finally:
@@ -284,6 +349,7 @@ class CenterFinderGUI(tk.Toplevel):
         self.hp_status.set(f"Hexapod: {status}")
         if not self._search_running:
             self.start_button.configure(state=tk.NORMAL if ready else tk.DISABLED)
+            self.align_button.configure(state=tk.NORMAL if ready else tk.DISABLED)
         if not self._closing:
             self.after(100, self._update_hexapod_status)
 

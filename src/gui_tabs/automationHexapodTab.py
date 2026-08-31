@@ -382,7 +382,11 @@ class HexapodAutomationTab:
             return
 
         try:
-            laser_spot = laser_spot_on_face(laser_offset, values)
+            laser_spot = laser_spot_on_face(
+                laser_offset,
+                values,
+                getattr(self.hexapod, "calibration_reference_pose", None),
+            )
         except (TypeError, ValueError):
             self.laserPositionDisplay.clear()
             return

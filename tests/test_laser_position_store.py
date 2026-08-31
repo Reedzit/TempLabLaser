@@ -3,7 +3,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.hexapod.laserPositionStore import load_laser_position, save_laser_position
+from src.hexapod.laserPositionStore import (
+    ZERO_POSE,
+    load_laser_calibration,
+    load_laser_position,
+    save_laser_calibration,
+    save_laser_position,
+)
 
 
 class LaserPositionStoreTests(unittest.TestCase):
@@ -16,9 +22,33 @@ class LaserPositionStoreTests(unittest.TestCase):
             self.assertEqual((1.0, 2.5, -3.0), saved_position)
             self.assertEqual(saved_position, load_laser_position(state_path))
             self.assertEqual(
-                {"version": 1, "laser_position": [1.0, 2.5, -3.0]},
+                {
+                    "version": 2,
+                    "laser_position": [1.0, 2.5, -3.0],
+                    "reference_pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
                 json.loads(state_path.read_text(encoding="utf-8")),
             )
+
+    def test_round_trips_reference_pose(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "hexapod_state.json"
+            pose = (1, 2, 3, 0.25, -0.5, 0)
+
+            saved = save_laser_calibration((4, 5, 6), pose, state_path)
+
+            self.assertEqual(((4.0, 5.0, 6.0), tuple(float(v) for v in pose)), saved)
+            self.assertEqual(saved, load_laser_calibration(state_path))
+
+    def test_version_one_state_uses_zero_reference_pose(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "hexapod_state.json"
+            state_path.write_text(
+                '{"version": 1, "laser_position": [1, 2, 3]}',
+                encoding="utf-8",
+            )
+
+            self.assertEqual(((1.0, 2.0, 3.0), ZERO_POSE), load_laser_calibration(state_path))
 
     def test_missing_file_returns_none(self):
         with tempfile.TemporaryDirectory() as directory:

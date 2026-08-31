@@ -60,6 +60,20 @@ class LaserGeometryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "parallel"):
             laser_spot_on_face((0, 0, 0), (0, 0, 0, 0, 90, 0))
 
+    def test_calibrated_reference_pose_is_treated_as_digital_home(self):
+        reference_pose = (10, -5, 3, 2, -4, 1)
+
+        spot = laser_spot_on_face((1, 2, 3), reference_pose, reference_pose)
+        compensation = rotation_compensation_for_face_spot(
+            (1, 0, 0),
+            reference_pose,
+            (0, 0, 90),
+            reference_pose,
+        )
+
+        np.testing.assert_allclose((1, 2, 3), spot, atol=1e-12)
+        np.testing.assert_allclose((1, -1, 0), compensation, atol=1e-12)
+
 
 if __name__ == "__main__":
     unittest.main()
