@@ -145,6 +145,43 @@ class HexapodCommandControlTests(unittest.TestCase):
         self.assertFalse(controller.checkStatus())
         self.assertFalse(controller.ready_for_commands)
 
+    def test_incomplete_status_keeps_controller_busy(self):
+        controller = HexapodControl.__new__(HexapodControl)
+        controller.ready_for_commands = True
+        controller.getState = lambda: setattr(controller, "status_dict", {})
+        controller.status_dict = None
+
+        self.assertFalse(controller.checkStatus())
+        self.assertFalse(controller.ready_for_commands)
+
+    def test_command_resolution_retries_incomplete_status(self):
+        controller = HexapodControl.__new__(HexapodControl)
+        controller.ready_for_commands = False
+        controller.commandResolutionThread = None
+        states = iter(({}, {
+            "s_hexa_bits": {
+                "Motion task running": False,
+                "Home task running": False,
+            }
+        }))
+        state_reads = []
+
+        def get_state():
+            controller.status_dict = next(states)
+            state_reads.append(controller.status_dict)
+
+        controller.getState = get_state
+        controller.logPosition = lambda: None
+
+        controller.waitForCommandResolution()
+        thread = controller.commandResolutionThread
+        thread.join(timeout=2)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(2, len(state_reads))
+        self.assertTrue(controller.ready_for_commands)
+        self.assertIsNone(controller.commandResolutionThread)
+
     def test_rotate_around_laser_compensates_for_rotated_offset(self):
         controller = HexapodControl.__new__(HexapodControl)
         controller.laser_position = (1.0, 0.0, 0.0)

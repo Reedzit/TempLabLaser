@@ -124,10 +124,12 @@ class HexapodControl():
                     val, label = match.groups()
                     result[label.strip()] = bool(int(val))
             return result
-        answer = self.ssh_API.STATE()
-        self.status_dict = parse_symetrie_state(answer)
-        print(self.status_dict)
-        self.ssh_API.waiting_for_reply = False
+        try:
+            answer = self.ssh_API.STATE()
+            self.status_dict = parse_symetrie_state(answer)
+            print(self.status_dict)
+        finally:
+            self.ssh_API.waiting_for_reply = False
         if answer in self.ssh_API.CommandReturns.keys():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
@@ -145,22 +147,18 @@ class HexapodControl():
 
     def checkStatus(self):
         self.getState()
-        if self.status_dict is not None:
-            # Check if the hexapod is ready for commands
-            status_bits = self.status_dict["s_hexa_bits"]
-            command_running = (
-                status_bits.get("Motion task running", False)
-                or status_bits.get("Home task running", False)
-            )
-            if not command_running:
-                self.ready_for_commands = True
-                return True
-            else:
-                self.ready_for_commands = False
-                return False
-        else:
-            print("Status dictionary is empty. Please call getState() first.")
-            return None
+        status_bits = (self.status_dict or {}).get("s_hexa_bits")
+        if not isinstance(status_bits, dict):
+            self.ready_for_commands = False
+            print("Hexapod returned an incomplete status; retrying.")
+            return False
+
+        command_running = (
+            status_bits.get("Motion task running", False)
+            or status_bits.get("Home task running", False)
+        )
+        self.ready_for_commands = not command_running
+        return self.ready_for_commands
 
     def waitForCommandResolution(self):
         """
@@ -170,15 +168,25 @@ class HexapodControl():
         """
         print("Waiting for hexapod to finish executing the current command...")
         def loop():
-            while not self.checkStatus():
-                print("Hexapod is still busy, waiting for it to finish...", end='\r')
-                self.getState()
-                sleep(0.25)
-            self.logPosition()
-            print("Hexapod is now ready for new commands.")
-            self.ready_for_commands = True
-            self.commandResolutionThread = None  # Reset thread reference
-            return
+            current_thread = threading.current_thread()
+            try:
+                while True:
+                    try:
+                        if self.checkStatus():
+                            break
+                    except Exception as exc:
+                        self.ready_for_commands = False
+                        print(f"Could not read hexapod status; retrying: {exc}")
+                    print("Hexapod is still busy, waiting for it to finish...", end='\r')
+                    sleep(0.25)
+                self.logPosition()
+                print("Hexapod is now ready for new commands.")
+                if self.commandResolutionThread is current_thread:
+                    self.commandResolutionThread = None
+                self.ready_for_commands = True
+            finally:
+                if self.commandResolutionThread is current_thread:
+                    self.commandResolutionThread = None
         if not self.commandResolutionThread or not self.commandResolutionThread.is_alive():
             self.commandResolutionThread = threading.Thread(target=loop, daemon=True)
             self.commandResolutionThread.start()
