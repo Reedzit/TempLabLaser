@@ -246,6 +246,31 @@ class CenterFinderGUI(tk.Toplevel):
             if not self._closing:
                 self.after(0, self._finish_search)
 
+    def _request_refocus_confirmation(self, height):
+        response_ready = threading.Event()
+        confirmed = {"value": False}
+
+        def show_prompt():
+            if self._closing or self._cancel_event.is_set():
+                response_ready.set()
+                return
+            confirmed["value"] = messagebox.askokcancel(
+                "Refocus Laser",
+                f"The hexapod is at the {height} alignment height.\n\n"
+                "Refocus the laser, then click OK to continue. "
+                "Cancel will abort alignment and restore the starting pose.",
+                parent=self,
+            )
+            if not confirmed["value"]:
+                self._cancel_event.set()
+            response_ready.set()
+
+        self.after(0, show_prompt)
+        while not response_ready.wait(0.1):
+            if self._closing or self._cancel_event.is_set():
+                return False
+        return confirmed["value"]
+
     def _run_alignment(self, settings, height_offset):
         try:
             aligner = HexapodOrthogonalAligner(
@@ -255,6 +280,7 @@ class CenterFinderGUI(tk.Toplevel):
                 cancel_event=self._cancel_event,
                 status_callback=self._post_status,
                 sample_callback=self._record_power,
+                refocus_callback=self._request_refocus_confirmation,
                 **settings,
             )
             correction = aligner.align()

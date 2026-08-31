@@ -207,6 +207,7 @@ class HexapodOrthogonalAligner:
         cancel_event=None,
         status_callback=None,
         sample_callback=None,
+        refocus_callback=None,
         center_finder_class=HexapodCenterFinder,
         **center_settings,
     ):
@@ -218,6 +219,7 @@ class HexapodOrthogonalAligner:
         self.cancel_event = cancel_event
         self.status_callback = status_callback or (lambda _message: None)
         self.sample_callback = sample_callback or (lambda _power: None)
+        self.refocus_callback = refocus_callback or (lambda _height: True)
         self.center_finder_class = center_finder_class
         self.center_settings = center_settings
         self.upper_center = None
@@ -231,10 +233,12 @@ class HexapodOrthogonalAligner:
         try:
             self.status_callback("Moving to upper alignment height")
             self._translate_z(self.height_offset)
+            self._confirm_refocus("upper")
             self.upper_center = self._find_center("Finding upper center")
 
             self.status_callback("Moving to lower alignment height")
             self._translate_z(-2.0 * self.height_offset)
+            self._confirm_refocus("lower")
             self.lower_center = self._find_center("Finding lower center")
 
             self.rotation_correction = self._calculate_correction(starting_pose)
@@ -280,12 +284,18 @@ class HexapodOrthogonalAligner:
         )
         return finder.find_center()
 
+    def _confirm_refocus(self, height):
+        self.status_callback(f"Waiting for laser refocus confirmation at {height} height")
+        if not self.refocus_callback(height):
+            raise SearchCancelled("Orthogonal alignment cancelled while waiting for refocus.")
+
     def _calculate_correction(self, starting_pose):
         delta = np.asarray(self.upper_center) - np.asarray(self.lower_center)
         if delta[2] <= 0:
             raise CenterFinderError("Upper and lower center heights are invalid.")
         expected_separation = 2.0 * self.height_offset
-        if not math.isclose(delta[2], expected_separation, rel_tol=1e-6, abs_tol=1e-6):
+        baseline_error = abs(delta[2] - expected_separation)
+        if baseline_error - 0.002 > 1e-12:
             raise CenterFinderError(
                 "Measured center heights do not match the requested alignment baseline."
             )

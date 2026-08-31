@@ -6,6 +6,7 @@ import numpy as np
 from src.utilities.hexapodCenterFinder.centerFinder import (
     CenterFinderError,
     HexapodOrthogonalAligner,
+    SearchCancelled,
 )
 from src.hexapod.laserGeometry import rotation_matrix
 
@@ -66,7 +67,7 @@ class HexapodOrthogonalAlignmentTests(unittest.TestCase):
     def setUp(self):
         SequenceCenterFinder.calls = []
 
-    def make_aligner(self, hexapod):
+    def make_aligner(self, hexapod, **options):
         return HexapodOrthogonalAligner(
             hexapod,
             object(),
@@ -74,6 +75,7 @@ class HexapodOrthogonalAlignmentTests(unittest.TestCase):
             center_finder_class=SequenceCenterFinder,
             threshold=0.5,
             step_size=0.1,
+            **options,
         )
 
     def test_two_centers_produce_tilt_and_new_digital_home(self):
@@ -116,6 +118,39 @@ class HexapodOrthogonalAlignmentTests(unittest.TestCase):
         self.assertIsNone(hexapod.calibration)
         self.assertEqual([], hexapod.rotations)
 
+    def test_waits_for_refocus_at_each_measurement_height(self):
+        hexapod = FakeHexapod()
+        confirmations = []
+        SequenceCenterFinder.centers = [
+            (10.4, 19.8, 35.0),
+            (9.6, 20.2, 25.0),
+            (10.05, 20.03, 30.0),
+        ]
+
+        self.make_aligner(
+            hexapod,
+            refocus_callback=lambda height: confirmations.append(
+                (height, hexapod.position)
+            ) or True,
+        ).align()
+
+        self.assertEqual(["upper", "lower"], [item[0] for item in confirmations])
+        self.assertEqual(35.0, confirmations[0][1][2])
+        self.assertEqual(25.0, confirmations[1][1][2])
+
+    def test_cancelled_refocus_confirmation_restores_start(self):
+        starting_pose = (10, 20, 30, 1, 2, 0)
+        hexapod = FakeHexapod(starting_pose)
+
+        with self.assertRaisesRegex(SearchCancelled, "waiting for refocus"):
+            self.make_aligner(
+                hexapod,
+                refocus_callback=lambda _height: False,
+            ).align()
+
+        np.testing.assert_allclose(starting_pose, hexapod.position, atol=1e-12)
+        self.assertIsNone(hexapod.calibration)
+
     def test_angle_calculation_exactly_cancels_both_tilts_with_z_rotation(self):
         rx, ry, rz = 3.0, -4.0, 20.0
         normal = rotation_matrix(rx, ry, rz) @ np.array([0.0, 0.0, 1.0])
@@ -127,6 +162,23 @@ class HexapodOrthogonalAlignmentTests(unittest.TestCase):
         correction = aligner._calculate_correction((0, 0, 30, rx, ry, rz))
 
         np.testing.assert_allclose((-rx, -ry, 0), correction, atol=1e-12)
+
+    def test_height_baseline_allows_two_microns_of_error(self):
+        aligner = self.make_aligner(FakeHexapod())
+        aligner.lower_center = (0.0, 0.0, 25.0)
+        aligner.upper_center = (0.0, 0.0, 35.002)
+
+        correction = aligner._calculate_correction((0, 0, 30, 0, 0, 0))
+
+        np.testing.assert_allclose((0, 0, 0), correction, atol=1e-12)
+
+    def test_height_baseline_rejects_more_than_two_microns_of_error(self):
+        aligner = self.make_aligner(FakeHexapod())
+        aligner.lower_center = (0.0, 0.0, 25.0)
+        aligner.upper_center = (0.0, 0.0, 35.0021)
+
+        with self.assertRaisesRegex(CenterFinderError, "alignment baseline"):
+            aligner._calculate_correction((0, 0, 30, 0, 0, 0))
 
     def test_rejects_nonpositive_height_offset(self):
         with self.assertRaisesRegex(ValueError, "greater than zero"):
