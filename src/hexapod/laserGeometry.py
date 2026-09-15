@@ -37,7 +37,7 @@ def _pose_transform(hexapod_position, reference_pose=None):
     if reference.shape != (6,) or not np.all(np.isfinite(reference)):
         raise ValueError("The calibration reference pose must contain six finite coordinates.")
     relative_rotation = rotation @ rotation_matrix(*reference[3:]).T
-    return translation - reference[:3], relative_rotation
+    return translation, relative_rotation
 
 
 def laser_spot_on_face(home_laser_position, hexapod_position, reference_pose=None):
@@ -46,7 +46,13 @@ def laser_spot_on_face(home_laser_position, hexapod_position, reference_pose=Non
     if home_spot.shape != (3,) or not np.all(np.isfinite(home_spot)):
         raise ValueError("The home laser position must contain three finite coordinates.")
 
-    moved_face_point = translation + rotation @ home_spot
+    home_face_point = home_spot
+    if reference_pose is not None:
+        reference = np.asarray(reference_pose, dtype=float)
+        # The face point and stage translation must share the same origin.
+        home_face_point = home_spot - reference[:3]
+
+    moved_face_point = translation + rotation @ home_face_point
     moved_face_normal = rotation @ HOME_FACE_NORMAL
     incidence = np.dot(moved_face_normal, LASER_DIRECTION)
     if abs(incidence) < 1e-9:

@@ -61,11 +61,11 @@ class LaserGeometryTests(unittest.TestCase):
             laser_spot_on_face((0, 0, 0), (0, 0, 0, 0, 90, 0))
 
     def test_calibrated_reference_pose_is_treated_as_digital_home(self):
-        reference_pose = (10, -5, 3, 2, -4, 1)
+        reference_pose = (10, -5, 3, 0, 0, 0)
 
-        spot = laser_spot_on_face((1, 2, 3), reference_pose, reference_pose)
+        spot = laser_spot_on_face((11, -3, 6), reference_pose, reference_pose)
         compensation = rotation_compensation_for_face_spot(
-            (1, 0, 0),
+            (11, -5, 3),
             reference_pose,
             (0, 0, 90),
             reference_pose,
@@ -73,6 +73,18 @@ class LaserGeometryTests(unittest.TestCase):
 
         np.testing.assert_allclose((1, 2, 3), spot, atol=1e-12)
         np.testing.assert_allclose((1, -1, 0), compensation, atol=1e-12)
+
+    def test_absolute_reference_translation_is_not_used_as_rotation_lever_arm(self):
+        reference_pose = (4, -3, 2, 0, 0, 0)
+
+        compensation = rotation_compensation_for_face_spot(
+            reference_pose[:3],
+            reference_pose,
+            (0, 0, 1),
+            reference_pose,
+        )
+
+        np.testing.assert_allclose((0, 0, 0), compensation, atol=1e-12)
 
 
 if __name__ == "__main__":

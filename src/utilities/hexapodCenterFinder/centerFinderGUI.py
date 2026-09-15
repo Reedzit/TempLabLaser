@@ -66,7 +66,7 @@ class CenterFinderGUI(tk.Toplevel):
         self.alignment = tk.StringVar(value="Tilt correction: not measured")
         self.threshold = tk.StringVar(value="1e-6")
         self.coarse_step_size = tk.StringVar(value="1.0")
-        self.step_size = tk.StringVar(value="0.1")
+        self.step_size = tk.StringVar(value="0.002")
         self.max_travel = tk.StringVar(value="30")
         self.samples = tk.StringVar(value="3")
         self.settle_time = tk.StringVar(value="0.1")
