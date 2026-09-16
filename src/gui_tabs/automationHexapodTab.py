@@ -73,6 +73,8 @@ class HexapodAutomationTab:
         self.hexapodCenter = tk.StringVar(value="0")  # Default center position
         self.pumpLaser = tk.StringVar(value="0")  # Default pump laser state
         self.rotate_around_laser = tk.BooleanVar(value=False)
+        self.rotation_pivot_bias_x = tk.StringVar(value="0")
+        self.rotation_pivot_bias_y = tk.StringVar(value="0")
         self.setup_ui()
 
 
@@ -243,12 +245,41 @@ class HexapodAutomationTab:
         )
         self.rotateAroundLaserCheck.grid(row=2, column=5, padx=10, pady=5, sticky=tk.W)
 
+        self.rotationPivotBiasLabel = tk.Label(
+            adjustment_frame,
+            text="Pivot bias added to found center (mm):",
+        )
+        self.rotationPivotBiasLabel.grid(row=3, column=0, padx=10, pady=5, sticky=tk.E)
+        self.rotationPivotBiasX = tk.Entry(
+            adjustment_frame,
+            width=8,
+            textvariable=self.rotation_pivot_bias_x,
+            validate="all",
+            validatecommand=(vcmd, '%P'),
+        )
+        self.rotationPivotBiasX.grid(row=3, column=1, padx=5, pady=5)
+        self.rotationPivotBiasY = tk.Entry(
+            adjustment_frame,
+            width=8,
+            textvariable=self.rotation_pivot_bias_y,
+            validate="all",
+            validatecommand=(vcmd, '%P'),
+        )
+        self.rotationPivotBiasY.grid(row=3, column=2, padx=5, pady=5)
+        self.rotationPivotBiasButton = tk.Button(
+            adjustment_frame,
+            text="Save Pivot Bias",
+            command=self.save_rotation_pivot_bias,
+            state=tk.DISABLED,
+        )
+        self.rotationPivotBiasButton.grid(row=3, column=4, padx=10, pady=5)
+
         self.moveResultLabel = tk.Label(
             adjustment_frame,
             text="Last move: No move requested",
             anchor=tk.W,
         )
-        self.moveResultLabel.grid(row=3, column=0, columnspan=6, padx=10, pady=5, sticky=tk.EW)
+        self.moveResultLabel.grid(row=4, column=0, columnspan=6, padx=10, pady=5, sticky=tk.EW)
 
         # Debugging Section
         self.printStateButton = tk.Button(debugging_frame, text="Print Hexapod State",
@@ -293,6 +324,9 @@ class HexapodAutomationTab:
         self.parent.update_idletasks()
         try:
             self.hexapod = HexapodControl()
+            bias_x, bias_y = self.hexapod.rotation_pivot_bias
+            self.rotation_pivot_bias_x.set(f"{bias_x:g}")
+            self.rotation_pivot_bias_y.set(f"{bias_y:g}")
         except Exception as e:
             print(f"Error connecting to Hexapod: {e}")
             self.connectHexapodButton.configure(state=tk.NORMAL)
@@ -327,6 +361,21 @@ class HexapodAutomationTab:
         else:
             command = lambda: self.hexapod.rotate(rotation)
         self.run_hexapod_command(command, report_move=True)
+
+    def save_rotation_pivot_bias(self):
+        try:
+            bias = self.hexapod.set_rotation_pivot_bias((
+                float(self.rotation_pivot_bias_x.get()),
+                float(self.rotation_pivot_bias_y.get()),
+            ))
+        except (OSError, TypeError, ValueError) as exc:
+            self.moveResultLabel.configure(text=f"Pivot bias not saved: {exc}", fg="red")
+            return None
+        self.moveResultLabel.configure(
+            text=f"Pivot bias saved: X {bias[0]:g} mm, Y {bias[1]:g} mm",
+            fg="green",
+        )
+        return bias
 
     def open_center_finder(self):
         launch_center_finder_popup(self.parent.winfo_toplevel(), self.hexapod)
@@ -372,7 +421,12 @@ class HexapodAutomationTab:
             tuple(f"{value:.6f}" for value in (x, y, z, rx, ry, rz))
         )
 
-        laser_offset = getattr(self.hexapod, "laser_position", None)
+        get_rotation_pivot = getattr(self.hexapod, "get_rotation_pivot", None)
+        laser_offset = (
+            get_rotation_pivot()
+            if callable(get_rotation_pivot)
+            else getattr(self.hexapod, "laser_position", None)
+        )
         if (
             not laser_offset
             or len(laser_offset) != 3
@@ -405,6 +459,7 @@ class HexapodAutomationTab:
             self.manualTranslationButton,
             self.manualTranslationButtonReverse,
             self.manualRotationButton,
+            self.rotationPivotBiasButton,
             self.printStateButton,
         ):
             button.configure(state=state)

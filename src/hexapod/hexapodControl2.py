@@ -9,9 +9,10 @@ import re
 
 from src.hexapod.laserGeometry import rotation_compensation_for_face_spot
 from src.hexapod.laserPositionStore import (
-    load_laser_calibration,
+    load_laser_state,
     save_laser_calibration,
     save_laser_position,
+    save_rotation_pivot_bias,
 )
 
 class HexapodControl():
@@ -19,7 +20,11 @@ class HexapodControl():
     def __init__(self):
         self.ssh_API = None
         self.status_dict = None
-        self.laser_position, self.calibration_reference_pose = load_laser_calibration()
+        (
+            self.laser_position,
+            self.calibration_reference_pose,
+            self.rotation_pivot_bias,
+        ) = load_laser_state()
         self.position = None
         self.ready_for_commands = False
         self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
@@ -35,6 +40,20 @@ class HexapodControl():
             reference_pose,
         )
         return self.laser_position, self.calibration_reference_pose
+
+    def set_rotation_pivot_bias(self, bias):
+        self.rotation_pivot_bias = save_rotation_pivot_bias(bias)
+        return self.rotation_pivot_bias
+
+    def get_rotation_pivot(self):
+        if self.laser_position is None:
+            return None
+        pivot = np.asarray(self.laser_position, dtype=float).copy()
+        pivot[:2] += np.asarray(
+            getattr(self, "rotation_pivot_bias", (0.0, 0.0)),
+            dtype=float,
+        )
+        return tuple(float(value) for value in pivot)
 
     def getState(self):
         if self.ssh_API.waiting_for_reply:
@@ -280,7 +299,7 @@ class HexapodControl():
 
         rotation_vector = np.asarray(rotation_vector, dtype=float)
         compensation = rotation_compensation_for_face_spot(
-            self.laser_position,
+            self.get_rotation_pivot(),
             self.position,
             rotation_vector,
             getattr(self, "calibration_reference_pose", None),

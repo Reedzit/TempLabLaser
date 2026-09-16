@@ -74,6 +74,7 @@ class HexapodCommandControlTests(unittest.TestCase):
             "manualTranslationButton",
             "manualTranslationButtonReverse",
             "manualRotationButton",
+            "rotationPivotBiasButton",
             "printStateButton",
         )
         for name in command_button_names:
@@ -207,6 +208,36 @@ class HexapodCommandControlTests(unittest.TestCase):
         movement, rotation = moves[0]
         np.testing.assert_allclose(movement, (0.75, -0.75, 0.0), atol=1e-12)
         np.testing.assert_allclose(rotation, (0.0, 0.0, 90.0))
+
+    def test_rotate_around_laser_adds_persisted_xy_bias_to_pivot(self):
+        controller = HexapodControl.__new__(HexapodControl)
+        controller.laser_position = (1.0, 0.0, 0.0)
+        controller.rotation_pivot_bias = (0.25, -0.5)
+        controller.position = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        moves = []
+        controller.compoundMove = lambda movement, rotation: moves.append((movement, rotation))
+
+        controller.rotateAroundLaser(np.array([0.0, 0.0, 90.0]))
+
+        movement, rotation = moves[0]
+        np.testing.assert_allclose(movement, (0.75, -1.75, 0.0), atol=1e-12)
+        np.testing.assert_allclose(rotation, (0.0, 0.0, 90.0))
+
+    def test_saves_rotation_pivot_bias_from_gui(self):
+        tab = HexapodAutomationTab.__new__(HexapodAutomationTab)
+        saved = []
+        tab.hexapod = SimpleNamespace(
+            set_rotation_pivot_bias=lambda bias: saved.append(bias) or tuple(bias)
+        )
+        tab.rotation_pivot_bias_x = FakeValue("0.025")
+        tab.rotation_pivot_bias_y = FakeValue("-0.04")
+        tab.moveResultLabel = FakeLabel()
+
+        result = tab.save_rotation_pivot_bias()
+
+        self.assertEqual((0.025, -0.04), result)
+        self.assertEqual([(0.025, -0.04)], saved)
+        self.assertEqual("Pivot bias saved: X 0.025 mm, Y -0.04 mm", tab.moveResultLabel.text)
 
     def test_rotate_around_laser_requires_calibration(self):
         controller = HexapodControl.__new__(HexapodControl)
