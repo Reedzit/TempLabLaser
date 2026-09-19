@@ -5,6 +5,7 @@
 import paramiko
 import os,sys,time
 import socket
+import threading
 from time import sleep
 from csv import reader
 
@@ -116,6 +117,7 @@ class API:
         self.line_max = 0
 
         self.waiting_for_reply = False
+        self.transaction_lock = threading.RLock()
 
         self.INIT_ST()
 
@@ -135,14 +137,15 @@ class API:
         self.ssh_obj.client.close()
     
     def executeCommand(self, command):
-        answer = self.ssh_obj.execute_gpascii(command)
+        with self.transaction_lock:
+            answer = self.ssh_obj.execute_gpascii(command)
 
-        #Log command
-        if self.log == True:
-            self.logfile = open("LOG.txt", "a")
-            print("> {}".format(command), file = self.logfile)
-            self.logfile.close()
-        return answer
+            #Log command
+            if self.log == True:
+                self.logfile = open("LOG.txt", "a")
+                print("> {}".format(command), file = self.logfile)
+                self.logfile.close()
+            return answer
 
     def waitCommandExecuted(self):
         
@@ -293,6 +296,13 @@ class API:
                 self.executeCommand("close")
 
     def SendCommand(self, name, arguments = list(), parametersNumberToRead = 0, waitResponse = True):
+        with self.transaction_lock:
+            try:
+                return self._sendCommand(name, arguments, parametersNumberToRead, waitResponse)
+            finally:
+                self.waiting_for_reply = False
+
+    def _sendCommand(self, name, arguments, parametersNumberToRead, waitResponse):
         command = ""
         
         if "JOG" in name:
@@ -330,13 +340,28 @@ class API:
         return answer
 
     def STATE(self):
+        with self.transaction_lock:
+            return self._state()
+
+    def _state(self):
         answer = self.executeCommand("s_hexa,50,1")
-        #get all lines
-        lines = answer.split("\n")
-        lines.remove("")
+        lines = []
+        for line in answer.splitlines():
+            line = line.strip()
+            try:
+                float(line)
+            except ValueError:
+                continue
+            lines.append(line)
+        if len(lines) < len(self.StatusVariables):
+            raise ValueError(
+                f"Incomplete hexapod state response: expected "
+                f"{len(self.StatusVariables)} values, received {len(lines)}."
+            )
+        lines = lines[:len(self.StatusVariables)]
         output = ""
         #for each state
-        for index in range(0, len(lines)-1):
+        for index in range(0, len(lines)):
             #get status name
             text = self.StatusVariables[index]
             value = lines[index]

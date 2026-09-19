@@ -21,6 +21,7 @@ class AutomationTab:
         self.graph = GraphBox(1,"TrendLive")
         self.parent = parent
         self.instruments = instruments
+        self.main_gui = main_gui
         self.setup_ui()
 
     def setup_ui(self):
@@ -426,6 +427,10 @@ class READMEGenerator:
         self.beam_angle = "NA"
         self.green_center = "NA"
         self.red_center = "NA"
+        self.green_characterization = "NA"
+        self.red_characterization = "NA"
+        self.beam_distance = "NA"
+        self.computer_vision_status = "Not collected"
         self.green_power = "NA"
         self.lowest_freq = "NA"
         self.highest_freq = "NA"
@@ -548,8 +553,7 @@ class READMEGenerator:
             self.sample_notes = sample_info["Details"].values[0]
         self.beam_offset = laser_gui.distanceInput.get()
         self.beam_angle = laser_gui.angleInput.get()
-        self.green_center = "Computer Vision not implemented"
-        self.red_center = "Computer Vision not implemented"
+        self._collect_computer_vision(laser_gui)
         self.green_power = "coherent connection not yet connected to GUI"
         self.lowest_freq = laser_gui.freqInitialInput.get()
         self.highest_freq = laser_gui.freqFinalInput.get()
@@ -567,6 +571,76 @@ class READMEGenerator:
             self.lia_time_constant = "Unavailable"
             self.lia_sensitivity = "Unavailable"
         self.save_path = laser_gui.fileStorageLocation.get()
+
+    def _collect_computer_vision(self, laser_gui):
+        self.green_center = "NA"
+        self.red_center = "NA"
+        self.green_characterization = "NA"
+        self.red_characterization = "NA"
+        self.beam_distance = "NA"
+
+        main_gui = getattr(laser_gui, "main_gui", None)
+        camera_tab = getattr(main_gui, "cameraControlTabObject", None)
+        if camera_tab is None:
+            self.computer_vision_status = "Unavailable: camera tab is not initialized"
+            return
+
+        try:
+            result = camera_tab.collect_measurement_vision()
+        except Exception as exc:
+            self.computer_vision_status = f"Analysis failed: {exc}"
+            return
+
+        if result is None:
+            self.computer_vision_status = "Unavailable: no camera frame has been captured"
+            return
+
+        self.computer_vision_status = "Latest camera frame analyzed during README generation"
+        self.red_center, self.red_characterization = self._format_beam_detection(result.get("red"))
+        self.green_center, self.green_characterization = self._format_beam_detection(result.get("green"))
+
+        distance_px = result.get("distance_px")
+        distance_microns = result.get("distance_microns")
+        if distance_px is None:
+            self.beam_distance = "Unavailable: both laser spots were not detected"
+        elif distance_microns is None:
+            self.beam_distance = f"{distance_px:.2f} px"
+        else:
+            self.beam_distance = (
+                f"{distance_px:.2f} px; approximately "
+                f"{distance_microns[0]:.3f}-{distance_microns[1]:.3f} um"
+            )
+
+    @staticmethod
+    def _format_beam_detection(detection):
+        if not detection or not detection.get("found"):
+            message = detection.get("message", "No result") if detection else "No result"
+            unavailable = f"Unavailable: {message}"
+            return unavailable, unavailable
+
+        center = detection["center"]
+        axes = detection["axes"]
+        angle = detection["angle"]
+        equivalent_diameter = (axes[0] * axes[1]) ** 0.5
+        axis_difference = abs(axes[0] - axes[1])
+        physical_size = ""
+        axes_microns = detection.get("axes_microns")
+        diameter_microns = detection.get("equivalent_diameter_microns")
+        if axes_microns is not None and diameter_microns is not None:
+            physical_size = (
+                f"; estimated axes {axes_microns[0][0]:.3f}-{axes_microns[0][1]:.3f} x "
+                f"{axes_microns[1][0]:.3f}-{axes_microns[1][1]:.3f} um; "
+                f"estimated equivalent diameter {diameter_microns[0]:.3f}-{diameter_microns[1]:.3f} um"
+            )
+        return (
+            f"({center[0]:.2f}, {center[1]:.2f}) px",
+            (
+                f"ellipse axes ({axes[0]:.2f}, {axes[1]:.2f}) px; "
+                f"equivalent diameter {equivalent_diameter:.2f} px; "
+                f"axis difference {axis_difference:.2f} px; angle {angle:.2f} deg"
+                f"{physical_size}"
+            ),
+        )
 
     def generate_readme(self, file_location):
         print("Collecting information for README...")
@@ -591,10 +665,14 @@ class READMEGenerator:
 
 ## Laser Information
 
-- Beam Offset: {self.beam_offset}
-- Beam Angle: {self.beam_angle}
+- Beam Offset: {self.beam_offset} um
+- Beam Angle: {self.beam_angle} deg
+- Computer Vision Status: {self.computer_vision_status}
+- Detected Beam Distance: {self.beam_distance}
 - Green Center: {self.green_center}
+- Green Beam Characterization: {self.green_characterization}
 - Red Center: {self.red_center}
+- Red Beam Characterization: {self.red_characterization}
 - Green Power: {self.green_power}
 
 ## Equipment Settings

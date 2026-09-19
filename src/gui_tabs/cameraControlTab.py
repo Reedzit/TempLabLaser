@@ -13,6 +13,9 @@ from src.laserDetector import detect_red_green_lasers
 
 
 class CameraControlTab:
+    MIN_MICRONS_PER_PIXEL = 0.023
+    MAX_MICRONS_PER_PIXEL = 0.034
+
     def __init__(self, parent, instruments, main_gui):
         self.parent = parent
         self.instruments = instruments
@@ -26,6 +29,7 @@ class CameraControlTab:
         self.last_detection = None
         self.detached_window = None
         self.detached_image_label = None
+        self.detached_cursor_label = None
         self.last_status_update = 0.0
         self.last_diagnostics_update = 0.0
         self.aruco_dictionary = None
@@ -171,8 +175,13 @@ class CameraControlTab:
             row=1, column=0, columnspan=8, padx=5, pady=5, sticky=tk.W
         )
 
-        self.image_label = tk.Label(image_frame, text="No image loaded", bg="black", fg="white")
+        self.image_label = tk.Label(image_frame, text="No image loaded", bg="black", fg="white", bd=0)
         self.image_label.grid(row=0, column=0, padx=10, pady=10)
+        self.cursor_position_text = tk.StringVar(value="Cursor: outside image")
+        tk.Label(image_frame, textvariable=self.cursor_position_text, font=("Courier", 10)).grid(
+            row=1, column=0, padx=10, pady=(0, 10), sticky=tk.W
+        )
+        self.bind_coordinate_tracking(self.image_label)
 
         self.s_min = tk.IntVar(value=50)
         self.v_min = tk.IntVar(value=50)
@@ -278,8 +287,24 @@ class CameraControlTab:
         self.detached_window = tk.Toplevel(self.parent)
         self.detached_window.title("Camera Live Feed")
         self.detached_window.configure(bg="black")
-        self.detached_image_label = tk.Label(self.detached_window, text="Waiting for camera frame...", bg="black", fg="white")
+        self.detached_cursor_label = tk.Label(
+            self.detached_window,
+            textvariable=self.cursor_position_text,
+            bg="black",
+            fg="white",
+            font=("Courier", 10),
+            anchor=tk.W,
+        )
+        self.detached_cursor_label.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=4)
+        self.detached_image_label = tk.Label(
+            self.detached_window,
+            text="Waiting for camera frame...",
+            bg="black",
+            fg="white",
+            bd=0,
+        )
         self.detached_image_label.pack(fill=tk.BOTH, expand=True)
+        self.bind_coordinate_tracking(self.detached_image_label)
         self.detached_window.protocol("WM_DELETE_WINDOW", self.stop_stream)
 
     def close_detached_window(self):
@@ -290,6 +315,7 @@ class CameraControlTab:
                 pass
         self.detached_window = None
         self.detached_image_label = None
+        self.detached_cursor_label = None
 
     def detached_view_size(self):
         screen_width = self.parent.winfo_screenwidth()
@@ -317,6 +343,31 @@ class CameraControlTab:
         if result.get("annotated_image") is not None:
             self.display_frame(result["annotated_image"])
         self.write_results(self.format_detection_results(result))
+
+    def collect_measurement_vision(self):
+        frame = self.camera_manager.get_latest_frame()
+        if frame is None:
+            return None
+
+        result = detect_red_green_lasers(
+            frame,
+            contour_selection=int(self.contour_selection.get()),
+            s_min=int(self.s_min.get()),
+            v_min=int(self.v_min.get()),
+        )
+        distance_px = result.get("distance_px")
+        if distance_px is not None:
+            result["distance_microns"] = self.scale_bar_micron_range(distance_px)
+        for color in ("red", "green"):
+            detection = result.get(color)
+            if not detection or not detection.get("found"):
+                continue
+            axes = detection["axes"]
+            equivalent_diameter = float(np.sqrt(axes[0] * axes[1]))
+            detection["axes_microns"] = tuple(self.scale_bar_micron_range(axis) for axis in axes)
+            detection["equivalent_diameter_microns"] = self.scale_bar_micron_range(equivalent_diameter)
+        self.last_detection = result
+        return result
 
     def start_autofocus(self):
         if self.autofocus_running or self.focus_laser_running:
@@ -868,13 +919,108 @@ class CameraControlTab:
             frame = self.annotate_aruco_markers(frame)
         preview_frame = self.resize_for_display(frame, max_size)
         if preview_frame.ndim == 2:
-            rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_GRAY2RGB)
-        else:
-            rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
+            preview_frame = cv2.cvtColor(preview_frame, cv2.COLOR_GRAY2BGR)
+        preview_frame = self.annotate_scale_bar(preview_frame, frame.shape[1])
+        rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
         image = Image.fromarray(rgb_frame)
         photo = ImageTk.PhotoImage(image)
         label.configure(image=photo, text="")
         label.image = photo
+        label.source_frame_size = (frame.shape[1], frame.shape[0])
+        label.display_frame_size = (preview_frame.shape[1], preview_frame.shape[0])
+
+    def annotate_scale_bar(self, frame, source_width):
+        annotated = frame.copy()
+        height, display_width = annotated.shape[:2]
+        if display_width < 160 or height < 70:
+            return annotated
+
+        bar_length = min(200, int(display_width * 0.25))
+        source_pixel_length = bar_length * source_width / display_width
+        minimum, maximum = self.scale_bar_micron_range(source_pixel_length)
+        left_text = f"min {minimum:.1f} um"
+        right_text = f"max {maximum:.1f} um"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.45
+        thickness = 1
+        margin = 20
+        x_end = display_width - margin
+        x_start = x_end - bar_length
+        y = height - margin
+        text_y = y - 9
+        right_text_width = cv2.getTextSize(right_text, font, font_scale, thickness)[0][0]
+
+        cv2.line(annotated, (x_start, y), (x_end, y), (0, 0, 0), 4)
+        cv2.line(annotated, (x_start, y - 5), (x_start, y + 5), (0, 0, 0), 4)
+        cv2.line(annotated, (x_end, y - 5), (x_end, y + 5), (0, 0, 0), 4)
+        cv2.line(annotated, (x_start, y), (x_end, y), (255, 255, 255), 2)
+        cv2.line(annotated, (x_start, y - 5), (x_start, y + 5), (255, 255, 255), 2)
+        cv2.line(annotated, (x_end, y - 5), (x_end, y + 5), (255, 255, 255), 2)
+        self.draw_scale_text(annotated, left_text, (x_start, text_y), font, font_scale, thickness)
+        self.draw_scale_text(
+            annotated,
+            right_text,
+            (x_end - right_text_width, text_y),
+            font,
+            font_scale,
+            thickness,
+        )
+        return annotated
+
+    @staticmethod
+    def draw_scale_text(frame, text, position, font, font_scale, thickness):
+        cv2.putText(frame, text, position, font, font_scale, (0, 0, 0), thickness + 2, cv2.LINE_AA)
+        cv2.putText(frame, text, position, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
+    @classmethod
+    def scale_bar_micron_range(cls, pixel_length):
+        return (
+            pixel_length * cls.MIN_MICRONS_PER_PIXEL,
+            pixel_length * cls.MAX_MICRONS_PER_PIXEL,
+        )
+
+    def bind_coordinate_tracking(self, label):
+        label.bind("<Motion>", lambda event, image_label=label: self.update_cursor_position(event, image_label))
+        label.bind("<Leave>", self.clear_cursor_position)
+
+    def update_cursor_position(self, event, label):
+        source_size = getattr(label, "source_frame_size", None)
+        display_size = getattr(label, "display_frame_size", None)
+        if source_size is None or display_size is None:
+            self.clear_cursor_position()
+            return
+
+        coordinates = self.map_cursor_to_source(
+            event.x,
+            event.y,
+            (label.winfo_width(), label.winfo_height()),
+            display_size,
+            source_size,
+        )
+        if coordinates is None:
+            self.clear_cursor_position()
+            return
+        self.cursor_position_text.set(f"Cursor: x={coordinates[0]}, y={coordinates[1]} px")
+
+    def clear_cursor_position(self, _event=None):
+        self.cursor_position_text.set("Cursor: outside image")
+
+    @staticmethod
+    def map_cursor_to_source(cursor_x, cursor_y, widget_size, display_size, source_size):
+        widget_width, widget_height = widget_size
+        display_width, display_height = display_size
+        source_width, source_height = source_size
+        offset_x = max(0, (widget_width - display_width) // 2)
+        offset_y = max(0, (widget_height - display_height) // 2)
+        image_x = cursor_x - offset_x
+        image_y = cursor_y - offset_y
+        if image_x < 0 or image_y < 0 or image_x >= display_width or image_y >= display_height:
+            return None
+
+        return (
+            min(source_width - 1, int(image_x * source_width / display_width)),
+            min(source_height - 1, int(image_y * source_height / display_height)),
+        )
 
     def resize_for_display(self, frame, max_size):
         max_width, max_height = max_size

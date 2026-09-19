@@ -8,14 +8,23 @@ import numpy as np
 import re
 
 from src.hexapod.laserGeometry import rotation_compensation_for_face_spot
-from src.hexapod.laserPositionStore import load_laser_position, save_laser_position
+from src.hexapod.laserPositionStore import (
+    load_laser_state,
+    save_laser_calibration,
+    save_laser_position,
+    save_rotation_pivot_bias,
+)
 
 class HexapodControl():
 
     def __init__(self):
         self.ssh_API = None
         self.status_dict = None
-        self.laser_position = load_laser_position()
+        (
+            self.laser_position,
+            self.calibration_reference_pose,
+            self.rotation_pivot_bias,
+        ) = load_laser_state()
         self.position = None
         self.ready_for_commands = False
         self.commandResolutionThread = None # This Thread will be used to listen to the hexapod and update the ready for commands flag
@@ -24,6 +33,27 @@ class HexapodControl():
     def set_laser_position(self, position):
         self.laser_position = save_laser_position(position)
         return self.laser_position
+
+    def set_laser_calibration(self, position, reference_pose):
+        self.laser_position, self.calibration_reference_pose = save_laser_calibration(
+            position,
+            reference_pose,
+        )
+        return self.laser_position, self.calibration_reference_pose
+
+    def set_rotation_pivot_bias(self, bias):
+        self.rotation_pivot_bias = save_rotation_pivot_bias(bias)
+        return self.rotation_pivot_bias
+
+    def get_rotation_pivot(self):
+        if self.laser_position is None:
+            return None
+        pivot = np.asarray(self.laser_position, dtype=float).copy()
+        pivot[:2] += np.asarray(
+            getattr(self, "rotation_pivot_bias", (0.0, 0.0)),
+            dtype=float,
+        )
+        return tuple(float(value) for value in pivot)
 
     def getState(self):
         if self.ssh_API.waiting_for_reply:
@@ -113,10 +143,12 @@ class HexapodControl():
                     val, label = match.groups()
                     result[label.strip()] = bool(int(val))
             return result
-        answer = self.ssh_API.STATE()
-        self.status_dict = parse_symetrie_state(answer)
-        print(self.status_dict)
-        self.ssh_API.waiting_for_reply = False
+        try:
+            answer = self.ssh_API.STATE()
+            self.status_dict = parse_symetrie_state(answer)
+            print(self.status_dict)
+        finally:
+            self.ssh_API.waiting_for_reply = False
         if answer in self.ssh_API.CommandReturns.keys():
             answer = self.ssh_API.CommandReturns[answer]
         elif answer in self.ssh_API.ErrorCodes.keys():
@@ -134,22 +166,18 @@ class HexapodControl():
 
     def checkStatus(self):
         self.getState()
-        if self.status_dict is not None:
-            # Check if the hexapod is ready for commands
-            status_bits = self.status_dict["s_hexa_bits"]
-            command_running = (
-                status_bits.get("Motion task running", False)
-                or status_bits.get("Home task running", False)
-            )
-            if not command_running:
-                self.ready_for_commands = True
-                return True
-            else:
-                self.ready_for_commands = False
-                return False
-        else:
-            print("Status dictionary is empty. Please call getState() first.")
-            return None
+        status_bits = (self.status_dict or {}).get("s_hexa_bits")
+        if not isinstance(status_bits, dict):
+            self.ready_for_commands = False
+            print("Hexapod returned an incomplete status; retrying.")
+            return False
+
+        command_running = (
+            status_bits.get("Motion task running", False)
+            or status_bits.get("Home task running", False)
+        )
+        self.ready_for_commands = not command_running
+        return self.ready_for_commands
 
     def waitForCommandResolution(self):
         """
@@ -159,15 +187,25 @@ class HexapodControl():
         """
         print("Waiting for hexapod to finish executing the current command...")
         def loop():
-            while not self.checkStatus():
-                print("Hexapod is still busy, waiting for it to finish...", end='\r')
-                self.getState()
-                sleep(0.25)
-            self.logPosition()
-            print("Hexapod is now ready for new commands.")
-            self.ready_for_commands = True
-            self.commandResolutionThread = None  # Reset thread reference
-            return
+            current_thread = threading.current_thread()
+            try:
+                while True:
+                    try:
+                        if self.checkStatus():
+                            break
+                    except Exception as exc:
+                        self.ready_for_commands = False
+                        print(f"Could not read hexapod status; retrying: {exc}")
+                    print("Hexapod is still busy, waiting for it to finish...", end='\r')
+                    sleep(0.25)
+                self.logPosition()
+                print("Hexapod is now ready for new commands.")
+                if self.commandResolutionThread is current_thread:
+                    self.commandResolutionThread = None
+                self.ready_for_commands = True
+            finally:
+                if self.commandResolutionThread is current_thread:
+                    self.commandResolutionThread = None
         if not self.commandResolutionThread or not self.commandResolutionThread.is_alive():
             self.commandResolutionThread = threading.Thread(target=loop, daemon=True)
             self.commandResolutionThread.start()
@@ -261,7 +299,17 @@ class HexapodControl():
 
         rotation_vector = np.asarray(rotation_vector, dtype=float)
         compensation = rotation_compensation_for_face_spot(
-            self.laser_position,
+            self.get_rotation_pivot(),
+            self.position,
+            rotation_vector,
+            getattr(self, "calibration_reference_pose", None),
+        )
+        return self.compoundMove(compensation, rotation_vector)
+
+    def rotateAroundPoint(self, point, rotation_vector):
+        rotation_vector = np.asarray(rotation_vector, dtype=float)
+        compensation = rotation_compensation_for_face_spot(
+            point,
             self.position,
             rotation_vector,
         )

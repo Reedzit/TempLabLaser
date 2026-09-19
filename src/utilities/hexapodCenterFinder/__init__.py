@@ -1,3 +1,13 @@
-from .centerFinder import CenterFinderError, HexapodCenterFinder, SearchCancelled
+from .centerFinder import (
+    CenterFinderError,
+    HexapodCenterFinder,
+    HexapodOrthogonalAligner,
+    SearchCancelled,
+)
 
-__all__ = ["CenterFinderError", "HexapodCenterFinder", "SearchCancelled"]
+__all__ = [
+    "CenterFinderError",
+    "HexapodCenterFinder",
+    "HexapodOrthogonalAligner",
+    "SearchCancelled",
+]
