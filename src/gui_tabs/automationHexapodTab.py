@@ -450,7 +450,9 @@ class HexapodAutomationTab:
         )
 
     def update_command_controls(self, connected, ready):
-        state = tk.NORMAL if ready else tk.DISABLED
+        raster_tab = getattr(getattr(self, "main_gui", None), "rasteringTabObject", None)
+        raster_running = bool(raster_tab and getattr(raster_tab, "scan_running", False))
+        state = tk.NORMAL if ready and not raster_running else tk.DISABLED
         for button in (
             self.homeHexapodButton,
             self.controlOnHexapodButton,

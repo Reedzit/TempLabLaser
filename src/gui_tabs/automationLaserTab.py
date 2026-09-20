@@ -189,7 +189,54 @@ class AutomationTab:
         readme_generator.update_info(self, operator=os.environ.get("USERNAME", "Automated Operator"), photodiode_gain="10")
         readme_generator.generate_readme(file_location)
 
+    def collect_measurement_settings(self):
+        """Snapshot and validate the frequency-sweep settings from the GUI."""
+        initial_freq = float(self.freqInitialInput.get())
+        final_freq = float(self.freqFinalInput.get())
+        initial_amp = float(self.ampInitialInput.get())
+        final_amp = float(self.ampFinalInput.get())
+        initial_offset = float(self.offsetInitialInput.get())
+        final_offset = float(self.offsetFinalInput.get())
+        time_step = int(self.timePerStep.get())
+        step_count = int(self.stepCount.get())
+        spot_distance = float(self.distanceInput.get())
+        spacing = self.spacing_selector_var.get()
+
+        numeric_values = (
+            initial_freq, final_freq, initial_amp, final_amp,
+            initial_offset, final_offset, time_step, step_count, spot_distance,
+        )
+        if not all(pd.notna(value) and abs(value) != float("inf") for value in numeric_values):
+            raise ValueError("Measurement settings must be finite numbers")
+        if initial_freq <= 0 or final_freq <= 0:
+            raise ValueError("Frequency values must be positive")
+        if time_step < 0:
+            raise ValueError("Time per step must not be negative")
+        if step_count < 1:
+            raise ValueError("Frequency step count must be at least 1")
+        if spacing not in ("linspace", "logspace"):
+            raise ValueError("Frequency spacing must be linspace or logspace")
+
+        self.laser_settings = (
+            (initial_freq, final_freq),
+            (initial_amp, final_amp),
+            (initial_offset, final_offset),
+            time_step,
+            step_count,
+            spot_distance,
+            spacing,
+        )
+        return self.laser_settings
+
     def begin_automation(self, begin = False):
+        automation_tab = getattr(self.main_gui, "automationTabObject", None)
+        automation_manager = getattr(automation_tab, "manager", None)
+        rotation_running = bool(automation_manager and getattr(automation_manager, "running", False))
+        if begin and (self.instruments.workflow_lock.locked() or rotation_running):
+            self.automationTxtBx.insert(
+                '1.0', "Cannot start: instruments are in use by another workflow.\n"
+            )
+            return
         print("Producing Correct File Organization...")
         def create_directory_structure(base_path, sample_name):
             if sample_name != "NONE":
@@ -221,26 +268,9 @@ class AutomationTab:
         self.graph.frequency_data = []
         self.graph.diffusivity_estimates = []
 
-        initial_freq = float(self.freqInitialInput.get())
-        final_freq = float(self.freqFinalInput.get())
-        initial_amp = float(self.ampInitialInput.get())
-        final_amp = float(self.ampFinalInput.get())
-        initial_offset = float(self.offsetInitialInput.get())
-        final_offset = float(self.offsetFinalInput.get())
-
-        # These one are single values
-        timeStep = int(self.timePerStep.get())
-        stepCount = int(self.stepCount.get())
+        self.collect_measurement_settings()
+        _freq, _amp, _offset, timeStep, stepCount, _spot_distance, _spacing = self.laser_settings
         filepath = self.fileStorageLocation.get()
-        spacing = self.spacing_selector_var.get()
-        spot_distance = float(self.distanceInput.get())
-
-        # Construct tuples out of the inputs
-        freq = (initial_freq, final_freq)
-        amp = (initial_amp, final_amp)
-        offset = (initial_offset, final_offset)
-        # Construct a single tuple that is going to be unpacked
-        self.laser_settings = (freq, amp, offset, timeStep, stepCount, spot_distance, spacing)
 
 
         self._set_measurement_controls(running=True)
@@ -254,7 +284,7 @@ class AutomationTab:
         
         if begin == True:
             threading.Thread(target=self.instruments.automatic_measuring, 
-                             args=(self.laser_settings, filepath, False)).start()
+                             args=(self.laser_settings, filepath, self.wait_for_convergence.get())).start()
 
     def _set_measurement_controls(self, running):
         if running:
@@ -381,9 +411,16 @@ class AutomationTab:
 """)
 
     def schedule_automation_update(self):
-        if self.instruments.automation_status == "completed" and self.startMeasurements["state"] == "disabled":
+        automation_status = self.instruments.automation_status
+        if (
+            automation_status
+            and automation_status != "running"
+            and self.startMeasurements["state"] == "disabled"
+        ):
             self._set_measurement_controls(running=False)
-            self.automationTxtBx.insert('1.0', "Automation completed. Ready for new measurement.\n")
+            self.automationTxtBx.insert(
+                '1.0', f"Automation {automation_status}. Ready for new measurement.\n"
+            )
 
         if not self.instruments.automationQueue.empty():
             print("Automation queue not empty")

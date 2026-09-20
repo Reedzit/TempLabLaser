@@ -1,13 +1,19 @@
 import datetime
 
 import pyvisa
-from spoofedLaserData import spoof_laser_data
-from instrument_configurations.fgConfig import fgConfig
-import statAnalysis
+try:
+    from .spoofedLaserData import spoof_laser_data
+    from .instrument_configurations.fgConfig import fgConfig
+    from . import statAnalysis
+except ImportError:
+    from spoofedLaserData import spoof_laser_data
+    from instrument_configurations.fgConfig import fgConfig
+    import statAnalysis
 import numpy as np
 import pandas as pd
 import queue
 import os
+import threading
 
 """
 This is a giga script. I am so sorry for this, but I don't want to split it up into multiple files.
@@ -82,6 +88,7 @@ class InstrumentInitialize:
         self.automation_running = None
         self.freq_for_spoofing = None # This will only be used if debugging
         self.lia = None
+        self.workflow_lock = threading.Lock()
 
 
         self.rm = pyvisa.ResourceManager()
@@ -264,133 +271,163 @@ class InstrumentInitialize:
         else:
             print("No function generator connected")
 
-    def automatic_measuring(self, settings, filepath, convergence_check, degree = None, plot_code="Default"):
-        print("Automation Beginning!")
-        """
-        This is the main culprit of the bad factoring. I probably won't ever fix it. If you are reading this, I am sorry.
-        if you have questions. Feel free to reach out to me.
-        This function will run the laser through all the frequencies and take measurements. I thought that would be smaller than it is.
-        """
+    @staticmethod
+    def build_measurement_ranges(settings):
+        """Build frequency, amplitude, and offset values for a sweep."""
+        freq, amp, offset, _time_step, step_count, _spot_distance, spacing = settings
+        if step_count < 1:
+            raise ValueError("Step count must be at least 1")
 
+        initial_freq, final_freq = freq
+        initial_amp, final_amp = amp
+        initial_offset, final_offset = offset
+        if spacing == "linspace":
+            frequency_range = np.linspace(initial_freq, final_freq, step_count)
+        elif spacing == "logspace":
+            if initial_freq <= 0 or final_freq <= 0:
+                raise ValueError("Logarithmic frequency bounds must be positive")
+            frequency_range = np.logspace(np.log10(initial_freq), np.log10(final_freq), step_count)
+        else:
+            raise ValueError(f"Unsupported frequency spacing: {spacing}")
 
-        #print(f"Waiting for convergence? {convergence_check}")
-        self.automation_running = True
-        self.automation_status = "running"
-        measurements_per_config = 3
-        freq, amp, offset, time_step, step_count, spot_distance, spacing = settings
-        convergence = False
+        return (
+            frequency_range.tolist(),
+            np.linspace(initial_amp, final_amp, step_count).tolist(),
+            np.linspace(initial_offset, final_offset, step_count).tolist(),
+        )
 
-        # Initialize DataFrame
-        data = pd.DataFrame(columns=["Time","index", "FrequencyIn", "AmplitudeOut", "PhaseOut", "RealOut", "ImagOut", "Convergence", "Degrees of Rotation"])
-        
-        current_Step = 1
-        try:
-            initial_freq, final_freq = freq
-            initial_amp, final_amp = amp
-            initial_offset, final_offset = offset
+    def measure_frequency_sweep(
+        self,
+        settings,
+        convergence_check=False,
+        degree=None,
+        cancel_event=None,
+        should_cancel=None,
+        progress_callback=None,
+    ):
+        """Run one blocking frequency sweep and return every acquired sample."""
+        _freq, _amp, _offset, time_step, _step_count, _spot_distance, _spacing = settings
+        if time_step < 0:
+            raise ValueError("Time per frequency must not be negative")
 
-            # Here is where we check if we're in logspace or linspace:
-            if spacing == "linspace":
-                freqRange = np.linspace(initial_freq, final_freq, step_count).tolist()
-            elif spacing == "logspace":
-                freqRange = np.logspace(np.log10(initial_freq), np.log10(final_freq), step_count).tolist()
-            else:
-                # If for some reason a broken spacing code is given, we'll default to linspace.
-                print("Invalid spacing value. Using linspace instead.")
-                freqRange = np.linspace(initial_freq, final_freq, step_count).tolist()
-            ampRange = np.linspace(initial_amp, final_amp, step_count).tolist()
-            offsetRange = np.linspace(initial_offset, final_offset, step_count).tolist()
+        frequency_range, amplitude_range, offset_range = self.build_measurement_ranges(settings)
+        columns = [
+            "Time", "index", "FrequencyIn", "AmplitudeOut", "PhaseOut",
+            "RealOut", "ImagOut", "Convergence", "Degrees of Rotation",
+        ]
+        data = pd.DataFrame(columns=columns)
 
-            print(f"Number of steps planned: {step_count}")
-            print(f"Frequency range: {freqRange}")
-            idx = 0
-            printed_measurement_sanity = False
-            self.update_configuration(
-                freq=freqRange[idx],
-                amp=ampRange[idx],
-                offset=offsetRange[idx]
+        def cancelled():
+            return (
+                (cancel_event is not None and cancel_event.is_set())
+                or (should_cancel is not None and should_cancel())
             )
-            self.time_at_last_measurement = datetime.datetime.now()
-            while self.automation_running and idx < len(freqRange):
-                if not self.q.empty():
-                    print("Stop command received")
-                    self.q.get()
-                    break
 
-                # If there's been no command to stop, we can continue with the loop as usual
-                current_time = datetime.datetime.now()
-                delta = current_time - self.time_at_last_measurement
+        for index, frequency in enumerate(frequency_range):
+            if cancelled():
+                break
 
-                try:
-                    amplitude, phase, real, imag = self.take_measurement()
-                except Exception as e:
-                    print(f"Error during measurement: {str(e)}")
-                    continue
-                if not printed_measurement_sanity:
-                    print(f"Measurement sanity check -> amp: {amplitude}, phase: {phase}, real: {real}, imag: {imag}")
-                    printed_measurement_sanity = True
-                #print(f"Measurement {idx}: freq={freqRange[idx]}, amplitude={amplitude}, phase={phase}")
+            self.update_configuration(
+                freq=frequency,
+                amp=amplitude_range[index],
+                offset=offset_range[index],
+            )
+            frequency_started = datetime.datetime.now()
+            self.time_at_last_measurement = frequency_started
+            frequency_rows = []
 
-                # "Time","index", "FrequencyIn", "AmplitudeOut", "PhaseOut", "Convergence", "Degrees of Rotation"
-                
-                # Add data to DataFrame
+            while not cancelled():
+                measured_at = datetime.datetime.now()
+                measurement = self.take_measurement()
+                if not measurement:
+                    raise RuntimeError("Lock-in amplifier did not return a measurement")
+                amplitude, phase, real, imag = measurement
+                frequency_rows.append(phase)
+                converged = statAnalysis.check_for_convergence(
+                    pd.DataFrame({"PhaseOut": frequency_rows}), "PhaseOut"
+                )
                 data.loc[len(data)] = [
-                    current_time,
-                    idx,
-                    freqRange[idx],
+                    measured_at,
+                    index,
+                    frequency,
                     amplitude,
                     phase,
                     real,
                     imag,
-                    convergence,
-                    degree if degree is not None else 0  # Degrees of rotation, defaults to 0
-                    ]
+                    converged,
+                    degree if degree is not None else 0,
+                ]
 
-                convergence = statAnalysis.check_for_convergence(data, "PhaseOut")
-                #print(
-            #f"Debug values: delta={delta.total_seconds()}, time_step={time_step}, convergence_check={convergence_check}, convergence={convergence}")
+                elapsed = (measured_at - frequency_started).total_seconds()
+                if (
+                    len(frequency_rows) >= 2
+                    and elapsed >= time_step
+                    and (not convergence_check or converged)
+                ):
+                    if progress_callback is not None:
+                        progress_callback(data, index + 1, len(frequency_range))
+                    break
 
-                if ((delta.total_seconds() >= time_step and not convergence_check) or
-                        (convergence_check and convergence and delta.total_seconds() >= time_step)):
-                    print(f"Moving to next frequency. Current idx: {idx}")
-                    self.automationQueue.put_nowait(data)
-                    try:
-                        # Update configuration for next frequency
-                        self.update_configuration(
-                            freq=freqRange[idx + 1],
-                            amp=ampRange[idx + 1],
-                            offset=offsetRange[idx + 1]
-                        )
-                    except IndexError as e:
-                        print(f"Index error when trying to update configuration: {e}")
-                        break
+        return data
 
-                    idx += 1
-                    self.time_at_last_measurement = current_time
-                    convergence = False
-                    #diffusivityEstimate = statAnalysis.estimate_diffusivity(data, spot_distance)
-                    #print(diffusivityEstimate)
-                    #data.iloc[-1, data.columns.get_loc("DiffusivityEstimate")] = diffusivityEstimate
+    def automatic_measuring(self, settings, filepath, convergence_check, degree=None, plot_code="Default"):
+        """Run and persist a standalone sweep while preserving the legacy GUI API."""
+        print("Automation Beginning!")
+        _freq, _amp, _offset, _time_step, _step_count, spot_distance, _spacing = settings
+        if not self.workflow_lock.acquire(blocking=False):
+            self.automation_status = "error: instruments are in use by another workflow"
+            print("Automation could not start because the instruments are already in use.")
+            return pd.DataFrame()
+        self.automation_running = True
+        self.automation_status = "running"
+        data = pd.DataFrame()
+        cancel_requested = False
 
-                    print(f"Updated idx: {idx}, total steps: {len(freqRange)}")
+        def should_cancel():
+            nonlocal cancel_requested
+            if not self.automation_running:
+                cancel_requested = True
+                return True
+            if not self.q.empty():
+                self.q.get()
+                cancel_requested = True
+                return True
+            return False
 
+        def publish_progress(current_data, _completed, _total):
+            while not self.automationQueue.empty():
+                try:
+                    self.automationQueue.get_nowait()
+                except queue.Empty:
+                    break
+            self.automationQueue.put_nowait(current_data.copy())
+
+        try:
+            data = self.measure_frequency_sweep(
+                settings,
+                convergence_check=convergence_check,
+                degree=degree,
+                should_cancel=should_cancel,
+                progress_callback=publish_progress,
+            )
+            self.automation_status = "cancelled" if cancel_requested else "completed"
         except Exception as e:
             print(f"Error during automation: {str(e)}")
             self.automation_status = f"error: {str(e)}"
         finally:
             print("Automation Ended!")
             self.automation_running = False
-            self.automation_status = "completed"
-            # Save data to CSV
             if not data.empty and filepath:
                 if degree is None:
                     name = f"measurement_{datetime.datetime.now().strftime('%m-%d_%H-%M')}_{spot_distance}um.csv"
                 else:
-                    name = f"{round(degree,1)}_degrees.csv"
+                    name = f"{round(degree, 1)}_degrees.csv"
                 full_path = os.path.join(filepath, name)
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 data.to_csv(full_path, index=False)
                 print(f"Data saved to {full_path}")
+            self.workflow_lock.release()
+        return data
                 
 
 

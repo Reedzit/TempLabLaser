@@ -654,7 +654,14 @@ class CameraControlTab:
         return hexapod
 
     def update_hexapod_command_controls(self, ready):
-        enabled = ready and not self.autofocus_running and not self.focus_laser_running
+        raster_tab = getattr(getattr(self, "main_gui", None), "rasteringTabObject", None)
+        raster_running = bool(raster_tab and getattr(raster_tab, "scan_running", False))
+        enabled = (
+            ready
+            and not raster_running
+            and not self.autofocus_running
+            and not self.focus_laser_running
+        )
         self.set_focus_buttons_enabled(enabled)
 
     def move_hexapod_z(self, hexapod, z_distance):

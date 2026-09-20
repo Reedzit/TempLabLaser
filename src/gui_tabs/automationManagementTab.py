@@ -39,7 +39,9 @@ class AutomationManagerTab:
         self.manager.beginAutomation()
 
     def update_hexapod_command_controls(self, ready):
-        state = tk.NORMAL if ready else tk.DISABLED
+        raster_tab = getattr(getattr(self, "main_gui", None), "rasteringTabObject", None)
+        raster_running = bool(raster_tab and getattr(raster_tab, "scan_running", False))
+        state = tk.NORMAL if ready and not raster_running else tk.DISABLED
         self.startAutomationButton.configure(state=state)
         self.startFocussingButton.configure(state=state)
 

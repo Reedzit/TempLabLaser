@@ -32,11 +32,24 @@ class AutomationManager:
         self.parent = parent
         self.main_gui = main_gui
         self.AutomationThread = None
+        self.running = False
         self.laserGUI = self.main_gui.laserTabObject
         self.hexapodGUI = self.main_gui.hexapodTabObject
 
     def beginAutomation(self):
-        self.automationThread = threading.Thread(target=self.runAutomationCycle, args=(False,)).start()
+        if self.running or self.instruments.workflow_lock.locked():
+            print("Automation could not start because another workflow is running.")
+            return
+        self.running = True
+
+        def run():
+            try:
+                self.runAutomationCycle(False)
+            finally:
+                self.running = False
+
+        self.AutomationThread = threading.Thread(target=run)
+        self.AutomationThread.start()
         print("Automation started in the background. You can continue using the GUI.")
 
     def endAutomation(self):

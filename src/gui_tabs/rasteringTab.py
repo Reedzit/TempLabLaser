@@ -10,6 +10,45 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 
+def generate_scan_positions(start, end, step):
+    """Generate an inclusive grid without stepping beyond the requested end."""
+    if not np.all(np.isfinite([start, end, step])):
+        raise ValueError("Scan positions and step size must be finite")
+    if step <= 0 or end < start:
+        raise ValueError("Scan step must be positive and end must not precede start")
+    count = int(np.floor((end - start) / step + 1e-12))
+    positions = start + np.arange(count + 1, dtype=float) * step
+    if np.isclose(positions[-1], end):
+        positions[-1] = end
+    return positions
+
+
+def generate_centered_angles(degrees_of_sweep, step_count):
+    """Return physical Rz offsets centered on the cell's starting orientation."""
+    if not np.isfinite(degrees_of_sweep):
+        raise ValueError("Degrees of sweep must be finite")
+    if step_count < 1:
+        raise ValueError("Angular step count must be at least 1")
+    if degrees_of_sweep < 0:
+        raise ValueError("Degrees of sweep must not be negative")
+    if step_count == 1:
+        return np.array([0.0])
+    return np.linspace(-degrees_of_sweep / 2, degrees_of_sweep / 2, step_count)
+
+
+def calculate_average_amplitude_noise(data):
+    """Average population amplitude deviation over every angle/frequency pair."""
+    if data.empty:
+        return np.nan
+    amplitudes = data.groupby(
+        ["Degrees of Rotation", "FrequencyIn"], dropna=False
+    )["AmplitudeOut"]
+    deviations = amplitudes.std(ddof=0)[amplitudes.count() >= 2]
+    if deviations.empty:
+        return np.nan
+    return float(deviations.mean())
+
+
 class RasteringTab:
     """
     Tab for rastering the sample to detect fiducial markers.
@@ -35,12 +74,15 @@ class RasteringTab:
         self.hexapod = None
 
         # Raster scan data
-        self.scan_data = None  # Will be a 2D numpy array of LIA amplitudes (for heatmap)
-        self.phase_data = None  # Will be a 2D numpy array of LIA phases
+        self.scan_data = None  # Average amplitude noise at each grid cell
+        self.phase_data = None
+        self.raw_measurements = []
+        self.cell_summaries = []
         self.x_positions = None
         self.y_positions = None
         self.scan_running = False
         self.scan_thread = None
+        self.cancel_event = threading.Event()
 
         # Fiducial detection results
         self.fiducial_centers = []  # List of (x, y) centers for the 3 squares
@@ -177,7 +219,7 @@ class RasteringTab:
         self.ax = self.fig.add_subplot(111)
         self.ax.set_xlabel('X Position (mm)')
         self.ax.set_ylabel('Y Position (mm)')
-        self.ax.set_title('LIA Magnitude Heatmap')
+        self.ax.set_title('Average Amplitude Noise Heatmap')
 
         self.canvas_plot = FigureCanvasTkAgg(self.fig, master=output_frame)
         self.canvas_plot.draw()
@@ -249,6 +291,10 @@ class RasteringTab:
             dwell_time = float(self.dwellTimeInput.get())
             threshold = float(self.thresholdInput.get())
 
+            values = [x_start, x_end, y_start, y_end, step_size, dwell_time, threshold]
+            if not np.all(np.isfinite(values)):
+                raise ValueError("Scan parameters must be finite numbers")
+
             # Check ranges
             if x_start < self.X_MIN or x_end > self.X_MAX:
                 raise ValueError(f"X range must be between {self.X_MIN} and {self.X_MAX} mm")
@@ -297,6 +343,20 @@ class RasteringTab:
         if params is None:
             return
 
+        try:
+            laser_tab = self.main_gui.laserTabObject
+            hexapod_tab = self.main_gui.hexapodTabObject
+            params["laser_settings"] = laser_tab.collect_measurement_settings()
+            params["wait_for_convergence"] = bool(laser_tab.wait_for_convergence.get())
+            params["angles"] = generate_centered_angles(
+                float(hexapod_tab.degrees_of_sweep.get()),
+                int(hexapod_tab.stepCount.get()),
+            )
+            params["return_to_origin"] = bool(self.returnToOrigin.get())
+        except (AttributeError, TypeError, ValueError) as exc:
+            self.progressText.set(f"Error: {exc}")
+            return
+
         hexapod = self.get_hexapod()
         if hexapod is None:
             self.progressText.set("Error: Hexapod not connected")
@@ -305,8 +365,24 @@ class RasteringTab:
         if not hexapod.ready_for_commands:
             self.progressText.set("Error: Hexapod busy")
             return
+        if getattr(hexapod, "laser_position", None) is None:
+            self.progressText.set("Error: Calibrate the laser position before angular rastering")
+            return
+        automation_tab = getattr(self.main_gui, "automationTabObject", None)
+        automation_manager = getattr(automation_tab, "manager", None)
+        if automation_manager is not None and getattr(automation_manager, "running", False):
+            self.progressText.set("Error: Rotation automation is already running")
+            return
+        if not self.instruments.workflow_lock.acquire(blocking=False):
+            self.progressText.set("Error: Instruments are in use by another workflow")
+            return
+        params["workflow_lock_acquired"] = True
 
         # Update UI state
+        self.cancel_event.clear()
+        self.fiducial_centers = []
+        self.sample_angle = None
+        self.sample_position = None
         self.scan_running = True
         self.startScanButton['state'] = 'disabled'
         self.stopScanButton['state'] = 'normal'
@@ -314,60 +390,60 @@ class RasteringTab:
         self.saveDataButton['state'] = 'disabled'
 
         # Start scan in background thread
-        self.scan_thread = threading.Thread(target=self._run_raster_scan, args=(params,))
-        self.scan_thread.start()
+        try:
+            self.scan_thread = threading.Thread(target=self._run_raster_scan, args=(params,))
+            self.scan_thread.start()
+        except Exception:
+            self.instruments.workflow_lock.release()
+            self.scan_running = False
+            raise
 
     def _run_raster_scan(self, params):
-        """Execute the snake-pattern raster scan."""
+        """Run an angular frequency sweep at every cell in a snake-pattern grid."""
         x_start = params['x_start']
         x_end = params['x_end']
         y_start = params['y_start']
         y_end = params['y_end']
         step_size = params['step_size']
         dwell_time = params['dwell_time']
+        angles = params["angles"]
+        laser_settings = params["laser_settings"]
+        convergence_check = params["wait_for_convergence"]
 
-        # Generate position arrays
-        self.x_positions = np.arange(x_start, x_end + step_size, step_size)
-        self.y_positions = np.arange(y_start, y_end + step_size, step_size)
+        self.x_positions = generate_scan_positions(x_start, x_end, step_size)
+        self.y_positions = generate_scan_positions(y_start, y_end, step_size)
 
         n_x = len(self.x_positions)
         n_y = len(self.y_positions)
-        total_points = n_x * n_y
+        total_cells = n_x * n_y
+        total_sweeps = total_cells * len(angles)
 
-        # Initialize data arrays
-        self.scan_data = np.zeros((n_y, n_x))  # Amplitude data for heatmap
-        self.phase_data = np.zeros((n_y, n_x))  # Phase data
+        self.scan_data = np.full((n_y, n_x), np.nan)
+        self.phase_data = None
+        self.raw_measurements = []
+        self.cell_summaries = []
 
         hexapod = self.get_hexapod()
-        current_point = 0
+        completed_sweeps = 0
 
-        # Track current position for relative moves
         current_x = 0.0
         current_y = 0.0
+        final_status = "Scan complete"
 
         try:
-            # First, move to the starting position
-            delta_x = x_start - current_x
-            delta_y = y_start - current_y
-            hexapod.translate(np.array([delta_x, delta_y, 0.0]))
-            while not hexapod.ready_for_commands:
-                time.sleep(0.05)
+            self._move_and_wait(lambda: hexapod.translate(np.array([x_start, y_start, 0.0])))
             current_x = x_start
             current_y = y_start
 
             for j, y in enumerate(self.y_positions):
-                if not self.scan_running:
+                if self.cancel_event.is_set():
                     break
 
-                # Move to the Y position for this row (if not first row)
                 if j > 0:
                     delta_y = y - current_y
-                    hexapod.translate(np.array([0.0, delta_y, 0.0]))
-                    while not hexapod.ready_for_commands:
-                        time.sleep(0.05)
+                    self._move_and_wait(lambda dy=delta_y: hexapod.translate(np.array([0.0, dy, 0.0])))
                     current_y = y
 
-                # Snake pattern: alternate X direction on each row
                 if j % 2 == 0:
                     x_range = self.x_positions
                     x_indices = range(n_x)
@@ -376,57 +452,140 @@ class RasteringTab:
                     x_indices = range(n_x - 1, -1, -1)
 
                 for i, x in zip(x_indices, x_range):
-                    if not self.scan_running:
+                    if self.cancel_event.is_set():
                         break
 
-                    # Move hexapod to position using relative move
                     delta_x = x - current_x
-                    if abs(delta_x) > 0.0001:  # Only move if there's actual displacement
-                        hexapod.translate(np.array([delta_x, 0.0, 0.0]))
-                        time_waiting = 0
-                        while not hexapod.ready_for_commands:
-                            if time_waiting > 0:
-                                print(f"Waiting for hexapod to be ready... {time_waiting:.1f}s")
-                            time.sleep(0.05)
-                            time_waiting += 0.05
+                    if not np.isclose(delta_x, 0.0):
+                        self._move_and_wait(lambda dx=delta_x: hexapod.translate(np.array([dx, 0.0, 0.0])))
                         current_x = x
 
-                    # Dwell and take measurement
-                    time.sleep(dwell_time)
-                    measurement = self.instruments.take_measurement()
+                    if self.cancel_event.wait(dwell_time):
+                        break
 
-                    if measurement:
-                        amplitude, phase, _, _ = measurement
-                        self.scan_data[j, i] = amplitude   # Amplitude for heatmap display
-                        self.phase_data[j, i] = phase      # Phase stored separately
-                    else:
-                        self.scan_data[j, i] = 0.0
-                        self.phase_data[j, i] = 0.0
+                    cell_frames = []
+                    current_angle = 0.0
+                    cell_error = None
+                    try:
+                        for angle_index, angle in enumerate(angles):
+                            if self.cancel_event.is_set():
+                                break
+                            angle_delta = float(angle - current_angle)
+                            if not np.isclose(angle_delta, 0.0):
+                                self._move_and_wait(
+                                    lambda delta=angle_delta: hexapod.rotateAroundLaser(
+                                        np.array([0.0, 0.0, delta])
+                                    )
+                                )
+                                current_angle = float(angle)
 
-                    current_point += 1
-                    progress = (current_point / total_points) * 100
+                            sweep = self.instruments.measure_frequency_sweep(
+                                laser_settings,
+                                convergence_check=convergence_check,
+                                degree=float(angle),
+                                cancel_event=self.cancel_event,
+                            )
+                            if not sweep.empty:
+                                sweep = sweep.copy()
+                                sweep.insert(0, "RasterRow", j)
+                                sweep.insert(1, "RasterColumn", i)
+                                sweep.insert(2, "X_Position", float(x))
+                                sweep.insert(3, "Y_Position", float(y))
+                                sweep.insert(4, "AngleIndex", angle_index)
+                                cell_frames.append(sweep)
+                                self.raw_measurements.append(sweep)
 
-                    # Update UI from main thread
-                    self.parent.after(0, lambda p=progress, cp=current_point, tp=total_points:
-                                      self._update_progress(p, f"{cp}/{tp} points"))
+                            completed_sweeps += 1
+                            progress = completed_sweeps / total_sweeps * 100
+                            text = (
+                                f"Cell {len(self.cell_summaries) + 1}/{total_cells}, "
+                                f"angle {angle_index + 1}/{len(angles)}"
+                            )
+                            self.parent.after(
+                                0,
+                                lambda p=progress, message=text: self._update_progress(p, message),
+                            )
+                    except Exception as exc:
+                        cell_error = exc
+                    finally:
+                        if not np.isclose(current_angle, 0.0):
+                            try:
+                                self._move_and_wait(
+                                    lambda: hexapod.rotateAroundLaser(
+                                        np.array([0.0, 0.0, -current_angle])
+                                    ),
+                                    allow_cancel=False,
+                                )
+                            except Exception as exc:
+                                if cell_error is None:
+                                    cell_error = exc
+                                else:
+                                    cell_error = RuntimeError(
+                                        f"{cell_error}; orientation restore failed: {exc}"
+                                    )
 
-                    # Periodically update heatmap
-                    if current_point % 10 == 0:
+                    if cell_frames:
+                        cell_data = pd.concat(cell_frames, ignore_index=True)
+                        average_noise = calculate_average_amplitude_noise(cell_data)
+                        self.scan_data[j, i] = average_noise
+                        self.cell_summaries.append({
+                            "RasterRow": j,
+                            "RasterColumn": i,
+                            "X_Position": float(x),
+                            "Y_Position": float(y),
+                            "AverageAmplitudeNoise": average_noise,
+                            "AngleCount": int(cell_data["Degrees of Rotation"].nunique()),
+                            "FrequencyCount": int(cell_data["FrequencyIn"].nunique()),
+                            "SampleCount": len(cell_data),
+                            "Status": (
+                                "failed" if cell_error is not None
+                                else "cancelled" if self.cancel_event.is_set()
+                                else "completed"
+                            ),
+                        })
                         self.parent.after(0, self._update_heatmap)
+                    if cell_error is not None:
+                        raise cell_error
 
-            # Return to origin if requested
-            if self.returnToOrigin.get() and self.scan_running:
-                hexapod.translate(np.array([-current_x, -current_y, 0.0]))
-                while not hexapod.ready_for_commands:
-                    time.sleep(0.05)
-
-            # Final update
+            if self.cancel_event.is_set():
+                final_status = "Scan cancelled"
+        except InterruptedError:
+            final_status = "Scan cancelled"
+        except Exception as exc:
+            final_status = f"Scan failed: {exc}"
+        finally:
+            if params["return_to_origin"] and (not np.isclose(current_x, 0.0) or not np.isclose(current_y, 0.0)):
+                try:
+                    self._move_and_wait(
+                        lambda: hexapod.translate(np.array([-current_x, -current_y, 0.0])),
+                        allow_cancel=False,
+                    )
+                except Exception as exc:
+                    final_status = f"{final_status}; return failed: {exc}"
+            if params.get("workflow_lock_acquired"):
+                self.instruments.workflow_lock.release()
             self.parent.after(0, self._update_heatmap)
-            self.parent.after(0, lambda: self._scan_complete())
+            self.parent.after(0, lambda status=final_status: self._scan_complete(status))
 
-        except Exception as e:
-            self.parent.after(0, lambda: self.progressText.set(f"Error: {e}"))
-            self.parent.after(0, lambda: self._scan_complete())
+    def _move_and_wait(self, command, allow_cancel=True, timeout=120.0):
+        """Submit one motion command and wait for the controller to become ready."""
+        started = time.monotonic()
+        while not self.get_hexapod().ready_for_commands:
+            if allow_cancel and self.cancel_event.is_set():
+                raise InterruptedError("Scan cancelled")
+            if time.monotonic() - started > timeout:
+                raise TimeoutError("Timed out waiting for hexapod readiness")
+            time.sleep(0.05)
+        if allow_cancel and self.cancel_event.is_set():
+            raise InterruptedError("Scan cancelled")
+        result = command()
+        if result != "Success.":
+            raise RuntimeError(f"Hexapod move failed: {result}")
+        started = time.monotonic()
+        while not self.get_hexapod().ready_for_commands:
+            if time.monotonic() - started > timeout:
+                raise TimeoutError("Timed out waiting for hexapod movement")
+            time.sleep(0.05)
 
     def _update_progress(self, progress, text):
         """Update progress bar and text."""
@@ -444,15 +603,16 @@ class RasteringTab:
         if self.x_positions is not None and self.y_positions is not None:
             extent = [self.x_positions[0], self.x_positions[-1],
                       self.y_positions[0], self.y_positions[-1]]
-            im = self.ax.imshow(self.scan_data, extent=extent, origin='lower',
+            masked_data = np.ma.masked_invalid(self.scan_data)
+            im = self.ax.imshow(masked_data, extent=extent, origin='lower',
                                aspect='auto', cmap='hot')
             self.ax.set_xlabel('X Position (mm)')
             self.ax.set_ylabel('Y Position (mm)')
-            self.ax.set_title('LIA Amplitude Heatmap')
+            self.ax.set_title('Average Amplitude Noise Across Frequencies and Angles')
 
         self.canvas_plot.draw()
 
-    def _scan_complete(self):
+    def _scan_complete(self, status="Scan complete"):
         """Called when scan is complete."""
         self.scan_running = False
         hexapod = self.get_hexapod()
@@ -460,19 +620,18 @@ class RasteringTab:
         self.startScanButton['state'] = 'normal' if ready else 'disabled'
         self.returnOriginButton['state'] = 'normal' if ready else 'disabled'
         self.stopScanButton['state'] = 'disabled'
-        self.detectFiducialButton['state'] = 'normal'
-        self.saveDataButton['state'] = 'normal'
-        self.progressText.set("Scan complete")
+        has_data = bool(self.cell_summaries or self.raw_measurements)
+        complete_map = status == "Scan complete" and np.isfinite(self.scan_data).any()
+        self.detectFiducialButton['state'] = 'normal' if complete_map else 'disabled'
+        self.saveDataButton['state'] = 'normal' if has_data else 'disabled'
+        self.progressText.set(status)
 
     def stop_raster_scan(self):
         """Stop the raster scan."""
-        self.scan_running = False
+        self.cancel_event.set()
         self.progressText.set("Stopping scan...")
 
-        # Stop the hexapod
-        hexapod = self.get_hexapod()
-        if hexapod:
-            hexapod.stop()
+        # Accepted moves are allowed to settle so the workflow can restore a known pose.
 
     def detect_fiducial(self):
         """
@@ -497,8 +656,8 @@ class RasteringTab:
             threshold = float(self.thresholdInput.get())
 
             # Normalize data
-            data_max = np.max(self.scan_data)
-            if data_max == 0:
+            data_max = np.nanmax(self.scan_data)
+            if not np.isfinite(data_max) or data_max == 0:
                 self.resultsText.delete('1.0', tk.END)
                 self.resultsText.insert('1.0', "Error: No signal detected in scan data.\n")
                 return
@@ -666,8 +825,8 @@ class RasteringTab:
         self.canvas_plot.draw()
 
     def save_scan_data(self):
-        """Save scan data to a CSV file including both amplitude and phase."""
-        if self.scan_data is None:
+        """Save the heatmap summary and every raw frequency-sweep sample."""
+        if not self.cell_summaries and not self.raw_measurements:
             self.progressText.set("No data to save")
             return
 
@@ -679,24 +838,17 @@ class RasteringTab:
 
         if file_path:
             try:
-                # Create a comprehensive DataFrame with all measurement data
-                # Format: X_Position, Y_Position, Amplitude, Phase
-                rows = []
-                for j, y in enumerate(self.y_positions):
-                    for i, x in enumerate(self.x_positions):
-                        rows.append({
-                            'X_Position': x,
-                            'Y_Position': y,
-                            'Amplitude': self.scan_data[j, i],
-                            'Phase': self.phase_data[j, i] if self.phase_data is not None else 0.0
-                        })
+                summary = pd.DataFrame(self.cell_summaries)
+                summary.to_csv(file_path, index=False)
 
-                df = pd.DataFrame(rows)
-                df.to_csv(file_path, index=False)
+                base_path, extension = os.path.splitext(file_path)
+                raw_path = f"{base_path}_raw{extension or '.csv'}"
+                raw = pd.concat(self.raw_measurements, ignore_index=True)
+                raw.to_csv(raw_path, index=False)
 
                 # Also save fiducial results if available
                 if self.fiducial_centers:
-                    results_path = file_path.replace('.csv', '_fiducial_results.txt')
+                    results_path = f"{base_path}_fiducial_results.txt"
                     with open(results_path, 'w') as f:
                         f.write("Fiducial Detection Results\n")
                         f.write("=" * 30 + "\n\n")
@@ -707,7 +859,9 @@ class RasteringTab:
                         if self.sample_angle is not None:
                             f.write(f"Sample Angle: {self.sample_angle:.2f} degrees\n")
 
-                self.progressText.set(f"Data saved to {os.path.basename(file_path)}")
+                self.progressText.set(
+                    f"Saved {os.path.basename(file_path)} and {os.path.basename(raw_path)}"
+                )
 
             except Exception as e:
                 self.progressText.set(f"Error saving: {e}")
