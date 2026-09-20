@@ -128,14 +128,6 @@ class AutomationTab:
         self.timePerStepInput.grid(row=1, column=0, padx=10, pady=10)
         self.timePerStepLabel.grid(row=0, column=2, padx=10, pady=10)
 
-        for entry in (
-            self.freqInitialInput, self.freqFinalInput, self.ampInitialInput,
-            self.ampFinalInput, self.offsetInitialInput, self.offsetFinalInput,
-            self.timePerStepInput, self.stepCountInput,
-        ):
-            entry.bind("<KeyRelease>", lambda _event: self.update_measurement_estimate())
-        self.update_measurement_estimate()
-
         # Output section (in output_frame)
         self.OutputLabel = tk.Label(output_frame, text="Status:")
         self.OutputLabel.grid(row=0, column=0)
@@ -147,6 +139,14 @@ class AutomationTab:
         self.stepCountInput = tk.Entry(output_frame, textvariable=self.stepCount, state='normal')
         self.stepCountInput.grid(row=2, column=1, padx=10, pady=10)
         self.stepCountLabel.grid(row=2, column=0, padx=10, pady=10)
+
+        for entry in (
+            self.freqInitialInput, self.freqFinalInput, self.ampInitialInput,
+            self.ampFinalInput, self.offsetInitialInput, self.offsetFinalInput,
+            self.timePerStepInput, self.stepCountInput,
+        ):
+            entry.bind("<KeyRelease>", lambda _event: self.update_measurement_estimate())
+        self.update_measurement_estimate()
 
         graph_selector_options = ["TrendLive", "Legacy", "Candlestick", "TrajectoryLive", "DualPanelLive"]
         self.graph_selector_var = tk.StringVar(output_frame, "TrendLive")
