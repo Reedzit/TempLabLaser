@@ -10,6 +10,7 @@ import queue
 from src.gui_tabs.graph_box import GraphBox
 import time
 from tkinter import ttk
+from src.measurementTiming import format_duration, frequency_sweep_seconds
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -110,6 +111,8 @@ class AutomationTab:
         self.startMeasurements = tk.Button(control_frame, text="Start Measurements", state="normal",
                                            command=lambda: self.begin_automation(begin=True))
         self.startMeasurements.grid(row=0, column=0, padx=10, pady=10)
+        self.measurementEstimate = tk.Label(control_frame, text="Estimated time: calculating...")
+        self.measurementEstimate.grid(row=1, column=0, padx=10, pady=(0, 10), sticky=tk.W)
         self.endMeasurements = tk.Button(control_frame, text="End Measurements", state="disabled",
                                          command=self.end_automation)
         self.endMeasurements.grid(row=0, column=1, padx=10, pady=10)
@@ -124,6 +127,14 @@ class AutomationTab:
         self.timePerStepInput = tk.Entry(control_frame, textvariable=self.timePerStep, state='normal')
         self.timePerStepInput.grid(row=1, column=0, padx=10, pady=10)
         self.timePerStepLabel.grid(row=0, column=2, padx=10, pady=10)
+
+        for entry in (
+            self.freqInitialInput, self.freqFinalInput, self.ampInitialInput,
+            self.ampFinalInput, self.offsetInitialInput, self.offsetFinalInput,
+            self.timePerStepInput, self.stepCountInput,
+        ):
+            entry.bind("<KeyRelease>", lambda _event: self.update_measurement_estimate())
+        self.update_measurement_estimate()
 
         # Output section (in output_frame)
         self.OutputLabel = tk.Label(output_frame, text="Status:")
@@ -227,6 +238,22 @@ class AutomationTab:
             spacing,
         )
         return self.laser_settings
+
+    def estimate_frequency_sweep_seconds(self):
+        return frequency_sweep_seconds(self.stepCount.get(), self.timePerStep.get())
+
+    def update_measurement_estimate(self):
+        try:
+            estimate = self.estimate_frequency_sweep_seconds()
+            self.measurementEstimate.configure(
+                text=f"Estimated sweep time: {format_duration(estimate)}"
+            )
+            for tab_name in ("automationTabObject", "rasteringTabObject"):
+                tab = getattr(self.main_gui, tab_name, None)
+                if tab is not None and hasattr(tab, "update_measurement_estimate"):
+                    tab.update_measurement_estimate()
+        except (TypeError, ValueError, tk.TclError):
+            self.measurementEstimate.configure(text="Estimated sweep time: enter valid settings")
 
     def begin_automation(self, begin = False):
         automation_tab = getattr(self.main_gui, "automationTabObject", None)

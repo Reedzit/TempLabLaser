@@ -157,6 +157,8 @@ class HexapodAutomationTab:
         self.stepCountInput = tk.Entry(movement_frame, textvariable=self.stepCount, state='normal')
         self.stepCountLabel.grid(row=1, column=0, padx=10, pady=5, sticky=tk.E)
         self.stepCountInput.grid(row=1, column=1, padx=10, pady=5)
+        self.stepCountInput.bind("<KeyRelease>", lambda _event: self._update_measurement_estimates())
+        self.degreesSweepInput.bind("<KeyRelease>", lambda _event: self._update_measurement_estimates())
 
         # Output and Data Section
         file_frame = ttk.Frame(output_frame)
@@ -288,6 +290,7 @@ class HexapodAutomationTab:
 
         # Configure update timer
         self.hexapodStatusLabel.after(100, self.update_hexapod_status)
+        self._update_measurement_estimates()
 
         # Configure grid weights
         for frame in (status_frame, movement_frame, output_frame):
@@ -308,6 +311,13 @@ class HexapodAutomationTab:
             threading.Thread(target=actually_print).start()
         else:
             print("Hexapod is not connected.")
+
+    def _update_measurement_estimates(self):
+        automation_tab = getattr(self.main_gui, "automationTabObject", None)
+        raster_tab = getattr(self.main_gui, "rasteringTabObject", None)
+        for tab in (automation_tab, raster_tab):
+            if tab is not None and hasattr(tab, "update_measurement_estimate"):
+                tab.update_measurement_estimate()
 
     def select_file_location(self):
         filePath = tk.filedialog.askdirectory()

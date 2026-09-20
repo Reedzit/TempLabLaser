@@ -12,6 +12,7 @@ from src.gui_tabs.rasteringTab import (
     generate_scan_positions,
 )
 from src.instrumentManager import InstrumentInitialize
+from src.measurementTiming import angle_workflow_seconds, heatmap_seconds
 
 
 class ImmediateParent:
@@ -54,6 +55,12 @@ class FakeInstruments:
 
 
 class DiffusivityRasterTests(unittest.TestCase):
+    def test_measurement_time_formulas(self):
+        sweep = 5 * 2
+        rotations = angle_workflow_seconds(3, sweep)
+        self.assertEqual(36.0, rotations)
+        self.assertEqual(380.0, heatmap_seconds(10, rotations))
+
     def test_scan_positions_do_not_overshoot_end(self):
         positions = generate_scan_positions(-1.0, 1.0, 0.6)
         np.testing.assert_allclose([-1.0, -0.4, 0.2, 0.8], positions)

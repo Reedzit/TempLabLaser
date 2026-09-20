@@ -8,6 +8,7 @@ import os
 import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from src.measurementTiming import angle_workflow_seconds, format_duration, heatmap_seconds
 
 
 def generate_scan_positions(start, end, step):
@@ -187,6 +188,8 @@ class RasteringTab:
         self.startScanButton = tk.Button(control_frame, text="Start Raster Scan",
                                          command=self.start_raster_scan, state="disabled")
         self.startScanButton.grid(row=0, column=0, padx=10, pady=10)
+        self.measurementEstimate = tk.Label(control_frame, text="Estimated time: calculating...")
+        self.measurementEstimate.grid(row=1, column=0, padx=10, pady=(0, 5), sticky=tk.W)
 
         self.stopScanButton = tk.Button(control_frame, text="Stop Scan",
                                         command=self.stop_raster_scan, state="disabled")
@@ -239,6 +242,12 @@ class RasteringTab:
             canvas.configure(scrollregion=canvas.bbox("all"))
 
         inner_frame.bind('<Configure>', _on_frame_configure)
+        for entry in (
+            self.xStartInput, self.xEndInput, self.yStartInput, self.yEndInput,
+            self.stepSizeInput,
+        ):
+            entry.bind("<KeyRelease>", lambda _event: self.update_measurement_estimate())
+        self.parent.after(0, self.update_measurement_estimate)
 
         # Bind mouse wheel to scroll
         def _on_mousewheel(event):
@@ -279,6 +288,27 @@ class RasteringTab:
                 self.parent.after(0, lambda: self.progressText.set(f"Error: {e}"))
 
         threading.Thread(target=do_return).start()
+
+    def update_measurement_estimate(self):
+        try:
+            x_start = float(self.xStartInput.get())
+            x_end = float(self.xEndInput.get())
+            y_start = float(self.yStartInput.get())
+            y_end = float(self.yEndInput.get())
+            step = float(self.stepSizeInput.get())
+            angles = int(self.main_gui.hexapodTabObject.stepCount.get())
+            sweep_seconds = self.main_gui.laserTabObject.estimate_frequency_sweep_seconds()
+            x_count = len(generate_scan_positions(x_start, x_end, step))
+            y_count = len(generate_scan_positions(y_start, y_end, step))
+            rotation_seconds = angle_workflow_seconds(angles, sweep_seconds)
+            estimate = heatmap_seconds(x_count * y_count, rotation_seconds)
+            self.measurementEstimate.configure(
+                text=f"Estimated heatmap time: {format_duration(estimate)}"
+            )
+        except (AttributeError, TypeError, ValueError, tk.TclError):
+            self.measurementEstimate.configure(
+                text="Estimated heatmap time: enter valid settings"
+            )
 
     def validate_parameters(self):
         """Validate scan parameters and return them if valid."""
