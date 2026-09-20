@@ -188,8 +188,6 @@ class RasteringTab:
         self.startScanButton = tk.Button(control_frame, text="Start Raster Scan",
                                          command=self.start_raster_scan, state="disabled")
         self.startScanButton.grid(row=0, column=0, padx=10, pady=10)
-        self.measurementEstimate = tk.Label(control_frame, text="Estimated time: calculating...")
-        self.measurementEstimate.grid(row=1, column=0, padx=10, pady=(0, 5), sticky=tk.W)
 
         self.stopScanButton = tk.Button(control_frame, text="Stop Scan",
                                         command=self.stop_raster_scan, state="disabled")
@@ -216,6 +214,11 @@ class RasteringTab:
         self.progressText = tk.StringVar(value="Ready")
         self.progressTextLabel = tk.Label(control_frame, textvariable=self.progressText)
         self.progressTextLabel.grid(row=1, column=3, columnspan=2, padx=10, pady=5)
+
+        self.measurementEstimate = tk.Label(control_frame, text="Estimated time: calculating...")
+        self.measurementEstimate.grid(
+            row=2, column=0, columnspan=5, padx=10, pady=(2, 8), sticky=tk.W
+        )
 
         # === Output Section (Heatmap) ===
         self.fig = Figure(figsize=(6, 5), dpi=100)

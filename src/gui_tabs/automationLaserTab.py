@@ -111,8 +111,6 @@ class AutomationTab:
         self.startMeasurements = tk.Button(control_frame, text="Start Measurements", state="normal",
                                            command=lambda: self.begin_automation(begin=True))
         self.startMeasurements.grid(row=0, column=0, padx=10, pady=10)
-        self.measurementEstimate = tk.Label(control_frame, text="Estimated time: calculating...")
-        self.measurementEstimate.grid(row=1, column=0, padx=10, pady=(0, 10), sticky=tk.W)
         self.endMeasurements = tk.Button(control_frame, text="End Measurements", state="disabled",
                                          command=self.end_automation)
         self.endMeasurements.grid(row=0, column=1, padx=10, pady=10)
@@ -120,13 +118,19 @@ class AutomationTab:
         self.wait_for_convergence = tk.BooleanVar(control_frame, False)
         self.wait_for_convergence_check = tk.Checkbutton(control_frame, text="Wait for Convergence?",
                                                          variable=self.wait_for_convergence, onvalue=True, offvalue=False)
-        self.wait_for_convergence_check.grid(row=1, column=1, padx=10, pady=10)
 
         self.timePerStep = tk.IntVar(control_frame, 1)
         self.timePerStepLabel = tk.Label(control_frame, text="Time Per Step (s):")
         self.timePerStepInput = tk.Entry(control_frame, textvariable=self.timePerStep, state='normal')
-        self.timePerStepInput.grid(row=1, column=0, padx=10, pady=10)
-        self.timePerStepLabel.grid(row=0, column=2, padx=10, pady=10)
+        self.timePerStepLabel.grid(row=0, column=2, padx=(20, 5), pady=10, sticky=tk.E)
+        self.timePerStepInput.grid(row=0, column=3, padx=(0, 10), pady=10, sticky=tk.W)
+
+        self.measurementEstimate = tk.Label(control_frame, text="Estimated time: calculating...")
+        self.measurementEstimate.grid(
+            row=1, column=0, columnspan=2, padx=10, pady=(0, 8), sticky=tk.W
+        )
+        self.wait_for_convergence_check.grid(row=1, column=2, columnspan=2,
+                                             padx=10, pady=(0, 8), sticky=tk.W)
 
         # Output section (in output_frame)
         self.OutputLabel = tk.Label(output_frame, text="Status:")
