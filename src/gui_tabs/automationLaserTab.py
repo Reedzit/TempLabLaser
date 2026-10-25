@@ -11,6 +11,7 @@ from src.gui_tabs.graph_box import GraphBox
 import time
 from tkinter import ttk
 from src.measurementTiming import format_duration, frequency_sweep_seconds
+from src.measurementWorkflow import create_measurement_directory, publish_latest
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -268,54 +269,58 @@ class AutomationTab:
                 '1.0', "Cannot start: instruments are in use by another workflow.\n"
             )
             return
-        print("Producing Correct File Organization...")
-        def create_directory_structure(base_path, sample_name):
-            if sample_name != "NONE":
-                subdirectory_name = f"{sample_name}Date_{time.strftime('%b-%d-%Y')}"
-            else:
-                return base_path
-            corrected_path = os.path.join(base_path, subdirectory_name)
-            if not os.path.exists(corrected_path):
-                print(f"Creating directory at: {corrected_path}")
-                os.makedirs(corrected_path)
-            measurement_name = f"Measurement_{time.strftime('%H-%M%p')}_BO{self.distanceInput.get()}um_Angle{self.angleInput.get()}deg"
-            full_corrected_path = os.path.join(corrected_path, measurement_name)
-            print(f"Creating measurement directory at: {full_corrected_path}")
-            if not os.path.exists(full_corrected_path):
-                os.makedirs(full_corrected_path)
-            return full_corrected_path
-        self._set_file_storage_location(create_directory_structure(self.fileStorageRoot, self.sample_selector_var.get()))
-
         print("Beginning Automation...")
         print(f"Distance between lasers: {self.distanceInput.get()} um")
         print(f"Wait for convergence: {self.wait_for_convergence.get()}")
+        filepath = self.prepare_measurement_run()
+        _freq, _amp, _offset, timeStep, stepCount, _spot_distance, _spacing = self.laser_settings
+        self._set_measurement_controls(running=True)
+        self.instruments.automation_status = "running"
+        self.stepCountInput["state"] = "normal"
+        self.automationTxtBx.insert('1.0', f"Starting Automation...\n")
+        self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
+        self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
+
+        if begin == True:
+            threading.Thread(target=self.instruments.automatic_measuring,
+                             args=(self.laser_settings, filepath, self.wait_for_convergence.get())).start()
+
+    def prepare_measurement_run(self):
+        """Create a standard run directory, README, settings snapshot, and display."""
+        print("Producing Correct File Organization...")
+        filepath = create_measurement_directory(
+            self.fileStorageRoot,
+            self.sample_selector_var.get(),
+            self.distanceInput.get(),
+            self.angleInput.get(),
+        )
+        self._set_file_storage_location(filepath)
+        self.collect_measurement_settings()
+
         if self.graph:
             self.graph.__del__()
         self.graph = GraphBox(self.distanceInput.get(), self.graph_selector_var.get())
-        # Reset all data structures
         self.graph.amplitude_data = []
         self.graph.phase_data = []
         self.graph.step_data = []
         self.graph.frequency_data = []
         self.graph.diffusivity_estimates = []
 
-        self.collect_measurement_settings()
-        _freq, _amp, _offset, timeStep, stepCount, _spot_distance, _spacing = self.laser_settings
-        filepath = self.fileStorageLocation.get()
-
-
-        self._set_measurement_controls(running=True)
-        self.stepCountInput["state"] = "normal"
-        self.automationTxtBx.insert('1.0', f"Starting Automation...\n")
-        self.automationTxtBx.insert('1.0', f"Time Step: {timeStep}s\n")
-        self.automationTxtBx.insert('1.0', f"Step Count: {stepCount}\n")
-
-        # Write measurement metadata immediately so it lives with the data folder.
         self.generate_readme_automated(filepath)
-        
-        if begin == True:
-            threading.Thread(target=self.instruments.automatic_measuring, 
-                             args=(self.laser_settings, filepath, self.wait_for_convergence.get())).start()
+        return filepath
+
+    def begin_shared_workflow(self, message):
+        """Mark the first tab busy for a workflow that uses its settings and display."""
+        self.instruments.automation_status = "running"
+        self._set_measurement_controls(running=True)
+        self.automationTxtBx.delete(1.0, tk.END)
+        self.automationTxtBx.insert('1.0', f"{message}\n")
+
+    def finish_shared_workflow(self, status):
+        self.instruments.automation_status = status
+
+    def queue_measurement_data(self, data):
+        publish_latest(self.instruments.automationQueue, data)
 
     def _set_measurement_controls(self, running):
         if running:
@@ -441,6 +446,11 @@ class AutomationTab:
             Rotation: {rotation}
 """)
 
+    def present_measurement_data(self, data):
+        """Render measurement data from standalone, angle, or raster workflows."""
+        self.update_automation_textbox(data)
+        self.graph.queue_plot_update(data, self.spacing_selector_var.get())
+
     def schedule_automation_update(self):
         automation_status = self.instruments.automation_status
         if (
@@ -459,11 +469,7 @@ class AutomationTab:
                 dataFrame = self.instruments.automationQueue.get()
                 print(f"Received new data frame with shape: {dataFrame.shape}")
 
-                # Update text display
-                self.update_automation_textbox(dataFrame)
-
-                # Update graph data
-                self.graph.queue_plot_update(dataFrame, self.spacing_selector_var.get())
+                self.present_measurement_data(dataFrame)
                 print("Sent new data to plotting process")
 
             except queue.Empty:

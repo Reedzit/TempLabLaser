@@ -20,9 +20,13 @@ This should work as follows:
 import numpy as np
 import threading
 import time
-import os
-import datetime
-import pandas as pd
+from src.measurementWorkflow import (
+    coordinate_directory,
+    generate_centered_angles,
+    publish_latest,
+    run_angle_sweeps,
+    save_angle_sweep,
+)
 
 
 class AutomationManager:
@@ -33,6 +37,7 @@ class AutomationManager:
         self.main_gui = main_gui
         self.AutomationThread = None
         self.running = False
+        self.cancel_event = threading.Event()
         self.laserGUI = self.main_gui.laserTabObject
         self.hexapodGUI = self.main_gui.hexapodTabObject
 
@@ -40,21 +45,71 @@ class AutomationManager:
         if self.running or self.instruments.workflow_lock.locked():
             print("Automation could not start because another workflow is running.")
             return
+        if not self.hexapod:
+            self.hexapod = self.main_gui.hexapodTabObject.hexapod
+        if not self.hexapod:
+            print("Automation could not start because the hexapod is not connected.")
+            return
+        if getattr(self.hexapod, "laser_position", None) is None:
+            print("Automation could not start until the laser position is calibrated.")
+            return
+
+        if not self.instruments.workflow_lock.acquire(blocking=False):
+            print("Automation could not start because another workflow is running.")
+            return
+
+        try:
+            measurement_directory = self.laserGUI.prepare_measurement_run()
+            angles = generate_centered_angles(
+                float(self.hexapodGUI.degrees_of_sweep.get()),
+                int(self.hexapodGUI.stepCount.get()),
+            )
+            convergence_check = bool(self.laserGUI.wait_for_convergence.get())
+            settings = self.laserGUI.laser_settings
+            self.hexapod.getState()
+            status = self.hexapod.status_dict or {}
+            x_position = round(status.get("s_mtp_tx", 0), 3)
+            y_position = round(status.get("s_mtp_ty", 0), 3)
+        except Exception as exc:
+            self.instruments.workflow_lock.release()
+            print(f"Automation could not start: {exc}")
+            return
+
         self.running = True
+        self.cancel_event.clear()
+        self.laserGUI.begin_shared_workflow(
+            "Angle automation started. Live sweeps will appear here."
+        )
+        context = {
+            "measurement_directory": measurement_directory,
+            "settings": settings,
+            "angles": angles,
+            "convergence_check": convergence_check,
+            "x_position": x_position,
+            "y_position": y_position,
+            "workflow_lock_acquired": True,
+        }
 
         def run():
             try:
-                self.runAutomationCycle(False)
+                self.runAutomationCycle(False, context)
             finally:
                 self.running = False
 
-        self.AutomationThread = threading.Thread(target=run)
-        self.AutomationThread.start()
+        try:
+            self.AutomationThread = threading.Thread(target=run)
+            self.AutomationThread.start()
+        except Exception:
+            self.running = False
+            self.instruments.workflow_lock.release()
+            self.laserGUI.finish_shared_workflow("error: failed to start workflow thread")
+            raise
         print("Automation started in the background. You can continue using the GUI.")
 
     def endAutomation(self):
         if self.AutomationThread and self.AutomationThread.is_alive():
             print("Stopping automation...")
+            self.cancel_event.set()
             self.AutomationThread.join(timeout=1)
 
     def runFocussingCycle(self):
@@ -196,184 +251,50 @@ class AutomationManager:
         else:
             print("No focussing is running.")
 
-    def runAutomationCycle(self, DEBUG_MODE=False):
-        # First we need to load in the laser settings from begin automation
-        self.laserGUI.begin_automation()  # This will load in the laser settings and check if the laser is connected        # We also need to make sure that the hexapod is connected
-        if not self.hexapod:
-            # If the hexapod is not passed in, we will try to get it from the main GUI
-            self.hexapod = self.main_gui.hexapodTabObject.hexapod
-            if not self.hexapod:
-                raise RuntimeError("Hexapod is not connected. Please check the connection.")
-        
-        
-        def create_measurement_folder(file_location):
-            """
-            Creates the measurement directory if needed and returns the full file path for the new CSV.
-            """
-            print("Creating measurement file...")
-            if self.hexapod.status_dict:
-                x_value = round(self.hexapod.status_dict.get("s_mtp_tx", 0), 3)
-                y_value = round(self.hexapod.status_dict.get("s_mtp_ty", 0), 3)
-                subdir = f"x_{x_value}_y_{y_value}"
-                file_location = os.path.join(file_location, subdir)
-            else:
-                print("Hexapod is not connected. Please check the connection.")
-                return None
+    def runAutomationCycle(self, DEBUG_MODE=False, context=None):
+        """Run the shared centered angle workflow at the current XY position."""
+        if DEBUG_MODE:
+            raise ValueError("Debug-only movement is not supported by the shared workflow")
+        if context is None:
+            raise ValueError("Automation context was not prepared")
 
-            # Ensure the directory exists
-            os.makedirs(file_location, exist_ok=True)
+        measurement_directory = context["measurement_directory"]
+        x_position = context["x_position"]
+        y_position = context["y_position"]
+        coordinate_directory(measurement_directory, x_position, y_position)
+        final_status = "completed"
 
-            print(file_location)
-            return file_location
+        def display_data(data):
+            publish_latest(self.instruments.automationQueue, data)
 
+        def save_sweep(_angle_index, angle, sweep):
+            save_angle_sweep(
+                measurement_directory,
+                x_position,
+                y_position,
+                angle,
+                sweep,
+            )
 
-        def rotate_point(point, rotationVector):
-            copy_of_point = np.copy(point)
-            # Convert from degrees to radians
-            rotationVector = np.radians(rotationVector)
-
-            # Create rotation matrices for each axis
-            X_ROTATION_MATRIX = np.array([[1, 0, 0],
-                                          [0, np.cos(rotationVector[0]), -np.sin(rotationVector[0])],
-                                          [0, np.sin(rotationVector[0]), np.cos(rotationVector[0])]])
-            Y_ROTATION_MATRIX = np.array([[np.cos(rotationVector[1]), 0, np.sin(rotationVector[1])],
-                                          [0, 1, 0],
-                                          [-np.sin(rotationVector[1]), 0, np.cos(rotationVector[1])]])
-            Z_ROTATION_MATRIX = np.array([[np.cos(rotationVector[2]), -np.sin(rotationVector[2]), 0],
-                                          [np.sin(rotationVector[2]), np.cos(rotationVector[2]), 0],
-                                          [0, 0, 1]])
-
-            rotated_point = np.array(Z_ROTATION_MATRIX @ Y_ROTATION_MATRIX @ X_ROTATION_MATRIX @ copy_of_point)
-            return rotated_point
-
-        def collectAutomationValues():
-            laser_settings = self.laserGUI.laser_settings
-            hexapod_settings = (float(self.hexapodGUI.degrees_of_sweep.get()),
-                                int(self.hexapodGUI.stepCount.get()),
-                                [np.array([0, 0, 0])],
-                                # this should be the center, assuming that the hexapod is homed and calibrated.
-                                [np.array([float(self.hexapodGUI.pumpLaser.get()), 0, 0])]
-                                )
-            requested_file_location = self.laserGUI.fileStorageLocation.get()
-            file_location = create_measurement_folder(requested_file_location)
-            if not file_location:
-                print("Failed to create measurement file. Exiting automation.")
-                return None, None, None
-            convergence_check = self.laserGUI.wait_for_convergence.get()
-            collection_settings = file_location, convergence_check
-
-            #collection_settings = os.path.join(file_location, file_name), collection_settings[1]
-            return hexapod_settings, laser_settings, collection_settings
-
-        def cleanUpFiles(collection_tuple):
-            # The main point here is to just stitch together the files
-            print("cleaning files")
-
-            # Step 1: get to the correct working directory
-            working_directory = os.getcwd()  # We're saving this so we can go back to the original directory later
-            file_location = collection_tuple[0]
-            os.chdir(file_location)
-
-            # Step 2: get all the files that we want to stitch together
-            files = os.listdir(file_location)
-            files = [file for file in files if
-                     file.endswith(".csv")]  # This just removes anything that wasn't saved correctly
-            files.sort(key=lambda x: os.path.getmtime(x),
-                       reverse=True)  # We want to sort the files from newest to oldest
-            print(files)
-
-            # Step 3: take the newest file and add it onto the next newest to it. Delete the first file.
-            # Then, repeat until all the files are done.
-            print("Now stitching together the files...")
-            while len(files) > 1:
-                time.sleep(0.1)
-                print(f"\rStitching... files left: {len(files) - 1}", end="")
-                file1 = files.pop(0)  # This is the newest file
-                file2 = files.pop(0)  # This is the next newest file
-
-                d1 = pd.read_csv(file1)  # This is the dataframe corresponding to the newest file
-                d2 = pd.read_csv(file2)  # This is the dataframe corresponding to the next newest file
-
-                os.remove(file1)  # Here we remove the files
-                os.remove(file2)  # Since we've read them, we no longer need them.
-
-                d2 = pd.concat((d2, d1),
-                               ignore_index=True)  # now we add the newest file at the bottom of the second-newest file
-                d2.to_csv(str(datetime.datetime.now()) + ".csv", index=False)  # This will be the new newest file.
-
-                # Now we need to update the list of files.
-                files = os.listdir(file_location)
-                files = [file for file in files if
-                         file.endswith(".csv")]  # This just removes anything that wasn't saved correctly
-                files.sort(key=lambda x: os.path.getmtime(x),
-                           reverse=True)  # We want to sort the files from newest to oldest
-
-            # Step 4: We now need to move the file to the originally requested location and delete the temp folder
-            name = "../automation_data" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M') + ".csv"
-            os.rename(files[0], name)  # we move the file up to 1 folder
-            # Step 5: Go back to the original working directory
-            os.chdir(working_directory)
-            # Step 6: Delete the temp folder
-            time.sleep(1)
-            os.rmdir(os.path.join(file_location))
-            print("Stitching complete.")
-
-        def runLaser(degree):
-            """
-            Should run the laser through all the frequencies.
-            """
-            self.AutomationThread = threading.Thread(target=self.instruments.automatic_measuring,
-                                                     args=(laserSettings, filepath,
-                                                           convergence_check, degree))
-            self.AutomationThread.start()
-            while self.AutomationThread.is_alive():
-                time.sleep(0.1)
-                print("Laser is currently measuring...", end='\r')
-            pass
-
-        if not DEBUG_MODE:
-            # Here we get all the variables ready to run through the automation tab.
-            hexapodSettings, laserSettings, collectionSettings = collectAutomationValues()
-            AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS, hexapodCenter, pumpLaser = hexapodSettings
-            freq, amp, offset, timeStep, stepCount, spot_distance, spacing = laserSettings
-            filepath, convergence_check = collectionSettings
-        else:
-            print("DEBUG MODE ACTIVATED, ONLY HEXAPOD WILL MOVE")
-            time.sleep(5)  # Give the user a moment to read the message
-            laserSettings = None
-            filepath = None
-            convergence_check = None
-            AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS, hexapodCenter, pumpLaser = (20, 10,
-                                                                                     [np.array([0, 0, 0])],
-                                                                                     [np.array([0, 0, 0])])
-        hexapod_rotation_stepList = np.linspace(0, AUTOMATION_ROTATION_ANGLE, AUTOMATION_STEPS)
-        # Offset the rotation by half the total distance so that we can keep moving in 1 direction the whole time
-        self.hexapod.rotate(np.array([0, 0, -AUTOMATION_ROTATION_ANGLE / 2]))
-        pumpLaser.append(rotate_point(pumpLaser[-1], np.array(
-            [0, 0, -AUTOMATION_ROTATION_ANGLE / 2])))  # this is so that we can keep track of the laser position
-
-        # Everything below here should be the main loop
-        for i in range(len(hexapod_rotation_stepList)):
-            theta = hexapod_rotation_stepList[i] - hexapod_rotation_stepList[i - 1]
-            rotation_vector = np.array([0, 0, theta])
-            self.hexapod.rotate(rotation_vector)
-            pumpLaser.append(rotate_point(pumpLaser[-1], rotation_vector))
-
-            adjustment_vector = pumpLaser[-2] - pumpLaser[-1]
-            self.hexapod.translate(adjustment_vector)
-            pumpLaser.append(pumpLaser[-1] + adjustment_vector)
-
-            if not DEBUG_MODE:
-                runLaser(degree=hexapod_rotation_stepList[i])
-            else:
-                print("DEBUG MODE ACTIVATED, NO LASER IN USE")
-
-        #hexapod_settings, laser_settings, collection_settings = collectAutomationValues()  # We need to collect the values here as well
-        #cleanUpFiles(collection_settings)
-
-        # Reset Rotation and transformation
-        self.hexapod.rotate([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])
-        pumpLaser.append(rotate_point(pumpLaser[-1], np.array([0, 0, -AUTOMATION_ROTATION_ANGLE / 2])))
-
-        vector_for_reset = hexapodCenter[0] - hexapodCenter[-1]
-        self.hexapod.translate(vector_for_reset, False)
+        try:
+            run_angle_sweeps(
+                self.hexapod,
+                self.instruments,
+                context["settings"],
+                context["angles"],
+                convergence_check=context["convergence_check"],
+                cancel_event=self.cancel_event,
+                on_sweep=save_sweep,
+                on_data=display_data,
+            )
+            if self.cancel_event.is_set():
+                final_status = "cancelled"
+        except InterruptedError:
+            final_status = "cancelled"
+        except Exception as exc:
+            final_status = f"error: {exc}"
+            print(f"Angle automation failed: {exc}")
+        finally:
+            if context.get("workflow_lock_acquired"):
+                self.instruments.workflow_lock.release()
+            self.laserGUI.finish_shared_workflow(final_status)

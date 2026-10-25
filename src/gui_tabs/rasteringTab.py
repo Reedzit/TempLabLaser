@@ -9,6 +9,12 @@ import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from src.measurementTiming import angle_workflow_seconds, format_duration, heatmap_seconds
+from src.measurementWorkflow import (
+    generate_centered_angles,
+    move_and_wait,
+    run_angle_sweeps,
+    save_angle_sweep,
+)
 
 
 def generate_scan_positions(start, end, step):
@@ -22,19 +28,6 @@ def generate_scan_positions(start, end, step):
     if np.isclose(positions[-1], end):
         positions[-1] = end
     return positions
-
-
-def generate_centered_angles(degrees_of_sweep, step_count):
-    """Return physical Rz offsets centered on the cell's starting orientation."""
-    if not np.isfinite(degrees_of_sweep):
-        raise ValueError("Degrees of sweep must be finite")
-    if step_count < 1:
-        raise ValueError("Angular step count must be at least 1")
-    if degrees_of_sweep < 0:
-        raise ValueError("Degrees of sweep must not be negative")
-    if step_count == 1:
-        return np.array([0.0])
-    return np.linspace(-degrees_of_sweep / 2, degrees_of_sweep / 2, step_count)
 
 
 def calculate_average_amplitude_noise(data):
@@ -410,6 +403,15 @@ class RasteringTab:
             self.progressText.set("Error: Instruments are in use by another workflow")
             return
         params["workflow_lock_acquired"] = True
+        try:
+            params["file_location"] = laser_tab.prepare_measurement_run()
+            laser_tab.begin_shared_workflow(
+                "Raster scan started. Live sweeps will appear here."
+            )
+        except Exception as exc:
+            self.instruments.workflow_lock.release()
+            self.progressText.set(f"Error preparing scan files: {exc}")
+            return
 
         # Update UI state
         self.cancel_event.clear()
@@ -442,6 +444,8 @@ class RasteringTab:
         angles = params["angles"]
         laser_settings = params["laser_settings"]
         convergence_check = params["wait_for_convergence"]
+        file_location = params.get("file_location")
+        laser_tab = getattr(getattr(self, "main_gui", None), "laserTabObject", None)
 
         self.x_positions = generate_scan_positions(x_start, x_end, step_size)
         self.y_positions = generate_scan_positions(y_start, y_end, step_size)
@@ -497,65 +501,45 @@ class RasteringTab:
                         break
 
                     cell_frames = []
-                    current_angle = 0.0
                     cell_error = None
+
+                    def record_sweep(angle_index, angle, sweep):
+                        nonlocal completed_sweeps
+                        if file_location:
+                            save_angle_sweep(file_location, x, y, angle, sweep)
+                        annotated = sweep.copy()
+                        annotated.insert(0, "RasterRow", j)
+                        annotated.insert(1, "RasterColumn", i)
+                        annotated.insert(2, "X_Position", float(x))
+                        annotated.insert(3, "Y_Position", float(y))
+                        annotated.insert(4, "AngleIndex", angle_index)
+                        cell_frames.append(annotated)
+                        self.raw_measurements.append(annotated)
+
+                        completed_sweeps += 1
+                        progress = completed_sweeps / total_sweeps * 100
+                        text = (
+                            f"Cell {len(self.cell_summaries) + 1}/{total_cells}, "
+                            f"angle {angle_index + 1}/{len(angles)}"
+                        )
+                        self.parent.after(
+                            0,
+                            lambda p=progress, message=text: self._update_progress(p, message),
+                        )
+
                     try:
-                        for angle_index, angle in enumerate(angles):
-                            if self.cancel_event.is_set():
-                                break
-                            angle_delta = float(angle - current_angle)
-                            if not np.isclose(angle_delta, 0.0):
-                                self._move_and_wait(
-                                    lambda delta=angle_delta: hexapod.rotateAroundLaser(
-                                        np.array([0.0, 0.0, delta])
-                                    )
-                                )
-                                current_angle = float(angle)
-
-                            sweep = self.instruments.measure_frequency_sweep(
-                                laser_settings,
-                                convergence_check=convergence_check,
-                                degree=float(angle),
-                                cancel_event=self.cancel_event,
-                            )
-                            if not sweep.empty:
-                                sweep = sweep.copy()
-                                sweep.insert(0, "RasterRow", j)
-                                sweep.insert(1, "RasterColumn", i)
-                                sweep.insert(2, "X_Position", float(x))
-                                sweep.insert(3, "Y_Position", float(y))
-                                sweep.insert(4, "AngleIndex", angle_index)
-                                cell_frames.append(sweep)
-                                self.raw_measurements.append(sweep)
-
-                            completed_sweeps += 1
-                            progress = completed_sweeps / total_sweeps * 100
-                            text = (
-                                f"Cell {len(self.cell_summaries) + 1}/{total_cells}, "
-                                f"angle {angle_index + 1}/{len(angles)}"
-                            )
-                            self.parent.after(
-                                0,
-                                lambda p=progress, message=text: self._update_progress(p, message),
-                            )
+                        run_angle_sweeps(
+                            hexapod,
+                            self.instruments,
+                            laser_settings,
+                            angles,
+                            convergence_check=convergence_check,
+                            cancel_event=self.cancel_event,
+                            on_sweep=record_sweep,
+                            on_data=(laser_tab.queue_measurement_data if laser_tab else None),
+                        )
                     except Exception as exc:
                         cell_error = exc
-                    finally:
-                        if not np.isclose(current_angle, 0.0):
-                            try:
-                                self._move_and_wait(
-                                    lambda: hexapod.rotateAroundLaser(
-                                        np.array([0.0, 0.0, -current_angle])
-                                    ),
-                                    allow_cancel=False,
-                                )
-                            except Exception as exc:
-                                if cell_error is None:
-                                    cell_error = exc
-                                else:
-                                    cell_error = RuntimeError(
-                                        f"{cell_error}; orientation restore failed: {exc}"
-                                    )
 
                     if cell_frames:
                         cell_data = pd.concat(cell_frames, ignore_index=True)
@@ -576,6 +560,10 @@ class RasteringTab:
                                 else "completed"
                             ),
                         })
+                        if file_location:
+                            pd.DataFrame(self.cell_summaries).to_csv(
+                                os.path.join(file_location, "raster_summary.csv"), index=False
+                            )
                         self.parent.after(0, self._update_heatmap)
                     if cell_error is not None:
                         raise cell_error
@@ -602,23 +590,13 @@ class RasteringTab:
 
     def _move_and_wait(self, command, allow_cancel=True, timeout=120.0):
         """Submit one motion command and wait for the controller to become ready."""
-        started = time.monotonic()
-        while not self.get_hexapod().ready_for_commands:
-            if allow_cancel and self.cancel_event.is_set():
-                raise InterruptedError("Scan cancelled")
-            if time.monotonic() - started > timeout:
-                raise TimeoutError("Timed out waiting for hexapod readiness")
-            time.sleep(0.05)
-        if allow_cancel and self.cancel_event.is_set():
-            raise InterruptedError("Scan cancelled")
-        result = command()
-        if result != "Success.":
-            raise RuntimeError(f"Hexapod move failed: {result}")
-        started = time.monotonic()
-        while not self.get_hexapod().ready_for_commands:
-            if time.monotonic() - started > timeout:
-                raise TimeoutError("Timed out waiting for hexapod movement")
-            time.sleep(0.05)
+        move_and_wait(
+            self.get_hexapod(),
+            command,
+            cancel_event=self.cancel_event,
+            allow_cancel=allow_cancel,
+            timeout=timeout,
+        )
 
     def _update_progress(self, progress, text):
         """Update progress bar and text."""
@@ -658,6 +636,14 @@ class RasteringTab:
         self.detectFiducialButton['state'] = 'normal' if complete_map else 'disabled'
         self.saveDataButton['state'] = 'normal' if has_data else 'disabled'
         self.progressText.set(status)
+        laser_tab = getattr(getattr(self, "main_gui", None), "laserTabObject", None)
+        if laser_tab is not None:
+            shared_status = (
+                "completed" if status == "Scan complete"
+                else "cancelled" if status == "Scan cancelled"
+                else f"error: {status}"
+            )
+            laser_tab.finish_shared_workflow(shared_status)
 
     def stop_raster_scan(self):
         """Stop the raster scan."""
